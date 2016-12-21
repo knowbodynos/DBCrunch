@@ -1,0 +1,6 @@
+toriccy/__init__.py
+toriccy.egg-info/PKG-INFO
+toriccy.egg-info/SOURCES.txt
+toriccy.egg-info/dependency_links.txt
+toriccy.egg-info/not-zip-safe
+toriccy.egg-info/top_level.txt
