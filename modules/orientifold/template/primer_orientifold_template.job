@@ -1,0 +1,62 @@
+#!/bin/bash
+
+#Job name
+#SBATCH -J "primer_orientifold_template"
+#################
+#Working directory
+#SBATCH -D "/gss_gpfs_scratch/altman.ro/modules/orientifold/template"
+#################
+#Job output file
+#SBATCH -o "primer_orientifold_template.out"
+#################
+#Job error file
+#SBATCH -e "primer_orientifold_template.err"
+#################
+#Job max time
+#SBATCH --time="24:00:00"
+#################
+#Partition (queue) to use for job
+#SBATCH --partition="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+#################
+#Number of tasks (CPUs) allocated for job
+#SBATCH -n 1
+#################
+#Number of nodes to distribute n tasks across
+#SBATCH -N 1
+#################
+#Lock down N nodes for job
+#SBATCH --exclusive
+#################
+
+h11="template"
+
+#Cluster info
+username="altman.ro"
+
+#Input primer info
+modstatefile="modules"
+modname="orientifold"
+primername="${h11}"
+sleeptime="30" 
+
+#Input path info
+mainpath="/gss_gpfs_scratch/altman.ro"
+statepath="${mainpath}/ToricCY/state"
+scriptpath="${mainpath}/ToricCY/scripts"
+modulepath="${mainpath}/modules/${modname}"
+logpath="${modulepath}/template"
+workpath="${logpath}/jobs" 
+
+#Input script info
+scripttype="math -noprompt -script"
+scriptext=".m"
+timelimit="82800"
+memorylimit="100000000000"
+
+#Input database info
+mongouri="mongodb://frontend:password@129.10.135.170:27017/ToricCY"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1}],['GEOM',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1}],['TRIANG',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'INVOL':{'\$ne':None}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'INVOLN':1,'INVOL':1}]]"
+dbindexes="POLYID,GEOMN,TRIANGN,INVOLN"
+newcollfield="INVOL,H11SPLIT"
+
+python ${mainpath}/primer.py "${username}" "${modstatefile}" "${modname}" "${primername}" "${sleeptime}" "${mainpath}" "${statepath}" "${scriptpath}" "${logpath}" "${workpath}" "${scripttype}" "${scriptext}" "${timelimit}" "${memorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
