@@ -86,6 +86,26 @@ def py2matdict(dic):
     return str(dic).replace("u'","'").replace(" ","").replace("'","\\\"").replace(":","->");
 '''
 
+def timestamp2seconds(timestamp,unit="seconds"):
+    days=0;
+    if "-" in timestamp:
+        daysstr,timestamp=timestamp.split("-");
+        days=int(daysstr);
+    hours,minutes,seconds=[int(x) for x in timestamp.split(":")];
+    hours+=days*24;
+    minutes+=hours*60;
+    seconds+=minutes*60;
+    if unit=="seconds":
+        return seconds;
+    elif unit=="minutes":
+        return float(seconds)/60.;
+    elif unit=="hours":
+        return float(seconds)/(60.*60.);
+    elif unit=="days":
+        return float(seconds)/(60.*60.*24.);
+    else:
+        return 0;
+
 def jobname2json(jobname,dbindexes):
     indexlist=jobname.split("_");
     return dict([(dbindexes[i],eval(indexlist[i])) for i in range(len(dbindexes))]);
@@ -149,18 +169,48 @@ def skippedjobslist(username,modname,primername,workpath):
 def releaseheldjobs(username,modname,primername):
     subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+primername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True);
 
-def getpartslist():
-    partsidle=subprocess.Popen("for rawpart in $(sinfo -h -o '%t %c %D %P' | grep 'ser-par-10g' | grep 'idle' | cut -d' ' -f2,3,4 | sed 's/\*//g' | sed 's/\s/,/g'); do echo $(echo $rawpart | cut -d',' -f1,2 | sed 's/,/*/g' | bc),$(echo $rawpart | cut -d',' -f3); done | tr ' ' '\n' | sort -t',' -k1 -n | cut -d',' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
+def orderpartitions(partitions):
+    greppartitions="|".join(partitions);
+    partitionsidle=subprocess.Popen("for rawpart in $(sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'idle' | cut -d' ' -f2,3,4 | sed 's/\*//g' | sed 's/\s/,/g'); do echo $(echo $rawpart | cut -d',' -f1,2 | sed 's/,/*/g' | bc),$(echo $rawpart | cut -d',' -f3); done | tr ' ' '\n' | sort -t',' -k1 -n | cut -d',' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
     #partsmix=subprocess.Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'mix' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
     #partsalloc=subprocess.Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'alloc' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
     #partslist=','.join(partsidle+[x for x in partsmix if x not in partsidle]+[x for x in partsalloc if x not in partsidle+partsmix]);
-    partscomp=subprocess.Popen("squeue -h -o '%P %T %L' | grep 'ser-par-10g' | grep 'COMPLETING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
-    partsrun=subprocess.Popen("squeue -h -o '%P %T %L' | grep 'ser-par-10g' | grep 'RUNNING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
-    partspend=subprocess.Popen("squeue -h -o '%P %T %L' | grep 'ser-par-10g' | grep 'PENDING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
-    partslist=','.join([x for x in toriccy.deldup(partsidle+partscomp+partsrun+partspend) if x not in ["","ser-par-10g-5"]]);
-    return partslist;
+    partitionscomp=subprocess.Popen("squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'COMPLETING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
+    partitionsrun=subprocess.Popen("squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'RUNNING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
+    partitionspend=subprocess.Popen("squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'PENDING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(',');
+    orderedpartitions=[x for x in toriccy.deldup(partsidle+partscomp+partsrun+partspend) if x!=""];
+    return orderedpartitions;
 
-def writejobfile(jobname,workpath,scriptpath,scripttype,scriptfile,timelimit,memorylimit,doc,SLURMtimelimit="24:00:00",partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4",ntasks=1,nnodes=1,nnodesexclusive=True,exclusive=True):
+def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
+    partition=partition[0];
+    ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    nodemaxmemory=0;
+    with open(statepath+"/resources","r") as resourcesstream:
+        for resourcesstring in resourcesstream:
+            resources=resourcesstring.split(" ");
+            if resources[0]==partition:
+                nodemaxmemory=eval(resources[1]);
+                break;
+    memoryperproc=float(nodemaxmemory)/float(scriptmemorylimit);
+    #nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),memoryperproc);
+    #nnodes=int(min(maxnnodes,math.ceil(1./nprocsfloat)));
+    #ncores=nnodes*ncoresperpartition;
+    #nprocs=int(max(1,nprocsfloat));
+    nnodes=1;
+    if memoryperproc<1:
+        if len(partition)>1:
+            return nodedistribution(statepath,partitions[1:],ndocsleft,scriptmemorylimit);
+        else:
+            return "Memory requirement is too large for this cluster.";
+    else:
+        nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),memoryperproc);
+        ncores=nnodes*ncoresperpartition;
+        nprocs=int(nprocsfloat);
+        return [partition,nnodes,ncores,nprocs];
+
+def writejobfile(jobname,workpath,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs):
+    ndocs=len(docs);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
     jobstring+="#Created "+str(datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"))+"\n";
@@ -181,22 +231,20 @@ def writejobfile(jobname,workpath,scriptpath,scripttype,scriptfile,timelimit,mem
     jobstring+="#SBATCH --time=\""+SLURMtimelimit+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Partition (queue) to use for job\n";
-    jobstring+="#SBATCH --partition=\""+partitions+"\"\n";
+    jobstring+="#SBATCH --partition=\""+partition+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Number of tasks (CPUs) allocated for job\n";
-    jobstring+="#SBATCH -n "+str(ntasks)+"\n";
+    jobstring+="#SBATCH -n "+str(ncores)+"\n";
     jobstring+="#################\n";
-    if nnodesexclusive:
-        jobstring+="#Number of nodes to distribute n tasks across\n";
-        jobstring+="#SBATCH -N "+str(nnodes)+"\n";
-        jobstring+="#################\n";
-    if exclusive:
-        jobstring+="#Lock down N nodes for job\n";
-        jobstring+="#SBATCH --exclusive\n";
-        jobstring+="#################\n";
+    jobstring+="#Number of nodes to distribute n tasks across\n";
+    jobstring+="#SBATCH -N "+str(nnodes)+"\n";
+    jobstring+="#################\n";
+    jobstring+="#Lock down N nodes for job\n";
+    jobstring+="#SBATCH --exclusive\n";
+    jobstring+="#################\n";
     jobstring+="\n";
     jobstring+="#Database info\n";
-    jobstring+="mongouri=\"mongodb://frontend:password@129.10.135.170:27017/ToricCY\"\n";
+    jobstring+="mongouri=\""+mongouri+"\"\n";
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
@@ -204,11 +252,17 @@ def writejobfile(jobname,workpath,scriptpath,scripttype,scriptfile,timelimit,mem
     jobstring+="\n";
     jobstring+="#Job info\n";
     jobstring+="jobname=\""+jobname+"\"\n";
-    jobstring+="timelimit=\""+str(timelimit)+"\"\n";
-    jobstring+="memorylimit=\""+str(memorylimit)+"\"\n";
-    jobstring+="doc=\""+str(doc)+"\"\n";
+    jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
+    jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
+    for i in range(ndocs):
+        jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
-    jobstring+=scripttype+" \"${scriptpath}/"+scriptfile+"\" \"${workpath}\" \"${jobname}\" \"${mongouri}\" \"${timelimit}\" \"${memorylimit}\" \"${doc}\"\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="for i in {1.."+str(ndocs)+"}\n";
+    jobstring+="do\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobname}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${docs[i]}\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="done\n";
+    jobstring+="\n";
+    jobstring+="wait";
     jobstream=open(workpath+"/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
@@ -226,28 +280,32 @@ try:
     modstatefile=sys.argv[2];
     modname=sys.argv[3];
     primername=sys.argv[4];
-    sleeptime=float(sys.argv[5]);
+    sleeptime=timestamp2seconds(sys.argv[5]);
+    partitions=sys.argv[6].split(",");
+    largemempartitions=sys.argv[7].split(",");
+    SLURMtimelimit=sys.argv[8];
+
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[6];
-    statepath=sys.argv[7];
-    scriptpath=sys.argv[8];
-    logpath=sys.argv[9];
-    workpath=sys.argv[10];  
+    mainpath=sys.argv[9];
+    statepath=sys.argv[10];
+    scriptpath=sys.argv[11];
+    logpath=sys.argv[12];
+    workpath=sys.argv[13];  
 
     #Input script info
-    scripttype=sys.argv[11];
-    scriptext=sys.argv[12];
-    timelimit=eval(sys.argv[13]);
-    memorylimit=eval(sys.argv[14]);
+    scripttype=sys.argv[14];
+    scriptext=sys.argv[15];
+    scripttimelimit=timestamp2seconds(sys.argv[16]);
+    scriptmemorylimit=eval(sys.argv[17]);
 
     #Input database info
-    mongouri=sys.argv[15];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[16]);
+    mongouri=sys.argv[18];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[19]);
     #dumpfile=sys.argv[13];
-    dbindexes=sys.argv[17].split(",");
-    newcollfield=sys.argv[18].split(",");
+    dbindexes=sys.argv[20].split(",");
+    newcollfield=sys.argv[21].split(",");
     
     #Read seek position from file
     #with open(logpath+"/"+seekfile,"r") as seekstream:
@@ -293,25 +351,32 @@ try:
 
         #doc=querystream.readline();
         #while doc and timeleft(starttime):
-        for doc in newqueryresult:
+        nnewqueryresult=len(newqueryresult);
+        i=0;
+        while (i<nnewqueryresult) and timeleft(starttime):
             releaseheldjobs(username,modname,primername);
-            if timeleft(starttime):
-                if jobslotsleft(username,maxnjobs):
-                    #doc=json.loads(doc.rstrip('\n'));
-                    jobname=modname+"_"+primername+"_"+"_".join([str(doc[x]) for x in dbindexes]);
-                    matdoc=toriccy.pythondictionary2mathematicarules(doc);
-                    writejobfile(jobname,workpath,scriptpath,scripttype,scriptfile,timelimit,memorylimit,matdoc,partitions=getpartslist(),nnodesexclusive=True,exclusive=True);
-                    #Submit job file
-                    submitjob(workpath,jobname,resubmit=False);
-                    #seekstream.write(querystream.tell());
-                    #seekstream.flush();
-                    #seekstream.seek(0);
-                    #doc=querystream.readline();
-                else:
-                    time.sleep(sleeptime);
+            ndocsleft=nnewqueryresult-i;
+            orderedpartitions=orderpartitions(partitions)+orderpartitions(largemempartitions);
+            partition,nnodes,ncores,nprocs=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
+            docs=newqueryresult[i:i+nprocs];
+            if jobslotsleft(username,maxnjobs):
+                #doc=json.loads(doc.rstrip('\n'));
+                jobname=modname+"_"+primername+"_("+",".join(["_".join([str(y[x]) for x in dbindexes]) for y in docs])+")";
+                if scriptext==".m":
+                    docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
+                writejobfile(jobname,workpath,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                #Submit job file
+                submitjob(workpath,jobname,resubmit=False);
+                #seekstream.write(querystream.tell());
+                #seekstream.flush();
+                #seekstream.seek(0);
+                #doc=querystream.readline();
             else:
-                break;
+                time.sleep(sleeptime);
+            i+=nprocs;
+        
         time.sleep(sleeptime);
+        
         if not primersrunningq(username,prevmodlist,primername):
             lastrunind+=1;
 
