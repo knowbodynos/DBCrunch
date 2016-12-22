@@ -49,7 +49,7 @@ For instance on a Windows computer type something like:
 cohomCalgPath="C:\\Program Files\\Mathematica Notebooks\\";
 If your Mathematica notebook is in  the same directory as the cohomCalg executible than use the default input*)
 (*Default*)
-cohomCalgPath="/home/altman.ro/cohomCalg-031b/bin";
+cohomCalgPath=DirectoryName[$InputFileName];
 (*Pleas fill in the name of the executable e.g. "cohomcalg.exe" for Windows and "./cohomcalg" for Linux*)
 (*Default for Windows*)
 cohomCalgExecutable=cohomCalgPath<>"/cohomcalg";
@@ -64,7 +64,7 @@ cohomCalgExecutable=cohomCalgPath<>"/cohomcalg";
 (*Setting directory...*)
 (*SetDirectory[cohomCalgPath];*)
 WorkingPath=cohomCalgPath;
-IntermediateName="cohomCalgKoszulExtension";
+IntermediateName="cohomCalgKoszulExtensionSilent";
 If[!DirectoryQ[WorkingPath<>"/"<>IntermediateName<>"_cohomCalg"],CreateDirectory[WorkingPath<>"/"<>IntermediateName<>"_cohomCalg"]];
 SetDirectory[WorkingPath<>"/"<>IntermediateName<>"_cohomCalg"];
 (*Generate temp file for more efficent calculations*)
