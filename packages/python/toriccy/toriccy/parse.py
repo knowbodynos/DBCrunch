@@ -1,7 +1,10 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import re,copy;
+import re,copy,bson;
 from . import tools;
+
+def bsonsize(doc):
+    return len(bson.BSON.encode(doc));
 
 def pythonlist2mathematicalist(lst):
     "Converts a Python list to a string depicting a list in Mathematica format."
