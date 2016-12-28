@@ -11,5 +11,5 @@ for file in ${files}
     do
     	sed -i "s/template/${primername}/g" ${file}
     	newfile=$(echo "${file}" | sed "s/template/${primername}/g")
-    	mv ${file} ${newfile} 
+    	mv ${file} ${newfile} 2>/dev/null
     done
