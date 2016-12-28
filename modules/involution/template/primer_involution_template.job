@@ -37,7 +37,6 @@ h11="template"
 username="altman.ro"
 
 #Input primer info
-modstatefile="modules"
 modname="involution"
 primername="${h11}"
 sleeptime="00:00:30"
@@ -48,11 +47,6 @@ SLURMtimelimit="24:00:00"
 
 #Input path info
 mainpath="/gss_gpfs_scratch/altman.ro"
-statepath="${mainpath}/ToricCY/state"
-scriptpath="${mainpath}/ToricCY/scripts"
-modulepath="${mainpath}/modules/${modname}"
-logpath="${modulepath}/template"
-workpath="${logpath}/jobs"
 
 #Input script info
 scripttype="math -noprompt -script"
@@ -66,4 +60,4 @@ queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'RESCWS'
 dbindexes="POLYID,GEOMN,TRIANGN"
 newcollfield="INVOL,INVOLN"
 
-python ${scriptpath}/primer.py "${username}" "${modstatefile}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${statepath}" "${scriptpath}" "${logpath}" "${workpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"

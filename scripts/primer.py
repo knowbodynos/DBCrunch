@@ -169,8 +169,8 @@ def submitjob(jobpath,jobname,resubmit=False):
 #        skippedjobs=[modname+"_"+primername+"_"+x for x in blankfiles if x not in jobsrunning];
 #        return skippedjobs;
 
-def skippedjobslist(username,modname,primername,logpath):
-    with open(logpath+"/skipped","r") as skippedstream:
+def skippedjobslist(username,modname,primername,primerpath):
+    with open(primerpath+"/skipped","r") as skippedstream:
         skippedjobs=[];
         for skippedjob in skippedstream:
             skippedjobsplit=skippedjob.rstrip("\n").split("_");
@@ -221,7 +221,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         nprocs=int(nprocsfloat);
         return [partition,nnodes,ncores,nprocs];
 
-def writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs):
     ndocs=len(docs);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
@@ -231,7 +231,7 @@ def writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncore
     jobstring+="#SBATCH -J \""+jobname+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Working directory\n";
-    jobstring+="#SBATCH -D \""+logpath+"/jobs\"\n";
+    jobstring+="#SBATCH -D \""+primerpath+"/jobs\"\n";
     jobstring+="#################\n";
     jobstring+="#Job output file\n";
     jobstring+="#SBATCH -o \""+jobname+".out\"\n";
@@ -263,14 +263,14 @@ def writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncore
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
-    jobstring+="logpath=\""+logpath+"\"\n";
-    jobstring+="workpath=\"${logpath}/jobs\"\n";
+    jobstring+="primerpath=\""+primerpath+"\"\n";
+    jobstring+="workpath=\"${primerpath}/jobs\"\n";
     jobstring+="\n";
     jobstring+="#Job info\n";
     jobstring+="jobname=\""+jobname+"\"\n";
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
-    jobstring+="skippedfile=\"${logpath}/skipped\"\n";
+    jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
@@ -280,7 +280,7 @@ def writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncore
     jobstring+="done\n";
     jobstring+="\n";
     jobstring+="wait";
-    jobstream=open(workpath+"/"+jobname+".job","w");
+    jobstream=open(primerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
     jobstream.close();
@@ -294,55 +294,56 @@ try:
     username=sys.argv[1];
 
     #Input primer info
-    modstatefile=sys.argv[2];
-    modname=sys.argv[3];
-    primername=sys.argv[4];
-    sleeptime=timestamp2seconds(sys.argv[5]);
-    partitions=sys.argv[6].split(",");
-    largemempartitions=sys.argv[7].split(",");
-    writemode=sys.argv[8];
-    SLURMtimelimit=sys.argv[9];
+    modname=sys.argv[2];
+    primername=sys.argv[3];
+    sleeptime=timestamp2seconds(sys.argv[4]);
+    partitions=sys.argv[5].split(",");
+    largemempartitions=sys.argv[6].split(",");
+    writemode=sys.argv[7];
+    SLURMtimelimit=sys.argv[8];
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[10];
-    statepath=sys.argv[11];
-    scriptpath=sys.argv[12];
-    logpath=sys.argv[13];
-    workpath=sys.argv[14];  
+    mainpath=sys.argv[9];
 
     #Input script info
-    scripttype=sys.argv[15];
-    scriptext=sys.argv[16];
-    scripttimelimit=timestamp2seconds(sys.argv[17]);
-    scriptmemorylimit=eval(sys.argv[18]);
+    scripttype=sys.argv[10];
+    scriptext=sys.argv[11];
+    scripttimelimit=timestamp2seconds(sys.argv[12]);
+    scriptmemorylimit=eval(sys.argv[13]);
 
     #Input database info
-    mongouri=sys.argv[19];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[20]);
+    mongouri=sys.argv[14];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[15]);
     #dumpfile=sys.argv[13];
-    dbindexes=sys.argv[21].split(",");
-    newcollfield=sys.argv[22].split(",");
+    dbindexes=sys.argv[16].split(",");
+    newcollfield=sys.argv[17].split(",");
     
     #Read seek position from file
-    #with open(logpath+"/"+seekfile,"r") as seekstream:
+    #with open(primerpath+"/"+seekfile,"r") as seekstream:
     #    seekpos=eval(seekstream.read());
 
     #Open seek file stream
-    #seekstream=open(logpath+"/"+seekfile,"w");
+    #seekstream=open(primerpath+"/"+seekfile,"w");
 
     #If first submission, read from database
     #if seekpos==-1:
     #Open connection to remote database
 
+    packagepath=mainpath+"/ToricCY";
+    statepath=packagepath+"/state";
+    scriptpath=packagepath+"/scripts";
+    modulepath=mainpath+"/modules/"+modname;
+    primerpath=modulepath+"/"+primername;
+    workpath=primerpath+"/jobs";  
     scriptfile=modname+scriptext;
     
     mongoclient=toriccy.MongoClient(mongouri);
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    modstream=open(statepath+"/"+modstatefile,"r");
+    modstream=open(statepath+"/modules","r");
     modlist=[x.rstrip('\n') for x in modstream.readlines()];
     modstream.close();
     prevmodlist=modlist[:modlist.index(modname)];
@@ -357,12 +358,12 @@ try:
         oldqueryresultrunning=[jobname2jobjson(x,dbindexes) for x in jobsrunninglist(username,modname,primername) if len(x)>0];
         newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
         #Query database and dump to file
-        #querytofile(db,queries,logpath,"querydump");
+        #querytofile(db,queries,primerpath,"querydump");
         #mongoclient.close();
         #seekpos=0;
 
         #Open file stream
-        #querystream=open(logpath+"/"+dumpfile,"r");
+        #querystream=open(primerpath+"/"+dumpfile,"r");
         #querystream.seek(seekpos);
 
         #doc=querystream.readline();
@@ -373,16 +374,16 @@ try:
             releaseheldjobs(username,modname,primername);
             ndocsleft=nnewqueryresult-i;
             orderedpartitions=orderpartitions(largemempartitions);
-            if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,logpath):
+            if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
                 orderedpartitions=orderpartitions(partitions)+orderedpartitions;
             partition,nnodes,ncores,nprocs=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
             docs=newqueryresult[i:i+nprocs];
             if jobslotsleft(username,maxnjobs):
                 #doc=json.loads(doc.rstrip('\n'));
-                jobname=modname+"_"+primername+"_("+",".join(["_".join([str(y[x]) for x in dbindexes]) for y in docs])+")";
+                jobname=modname+"_"+primername+"_["+",".join(["_".join([str(y[x]) for x in dbindexes]) for y in docs])+"]";
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
@@ -407,7 +408,7 @@ try:
 
     if (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and not timeleft(starttime):
         #Resubmit primer job
-        submitjob(logpath,"primer_"+modname+"_"+primername,resubmit=True);
+        submitjob(primerpath,"primer_"+modname+"_"+primername,resubmit=True);
 
     #querystream.close();
     #seekstream.close();
