@@ -75,9 +75,9 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
     (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];
     storage=storage+BSONSize[InvolDoc];
 	output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
-    WriteString[$Output,"Total Time: "<>ToString[involutionstime,InputForm]<>"\n"];
-    WriteString[$Output,"Total Max Memory: "<>ToString[involutionsmem,InputForm]<>"\n"];
-    WriteString[$Output,"Total Storage: "<>ToString[storage,InputForm]<>"\n"];
+    WriteString[$Output,"Total Time: "<>ToString[involutionstime]<>"\n"];
+    WriteString[$Output,"Total Max Memory: "<>ToString[involutionsmem]<>"\n"];
+    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];
 ,
 	output=timemem;
     WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}],InputForm]];
