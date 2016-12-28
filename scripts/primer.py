@@ -111,7 +111,7 @@ def jobname2jobjson(jobname,dbindexes):
     return dict([(dbindexes[i],eval(indexlist[i])) for i in range(len(dbindexes))]);
 
 def doc2jobname(jobjson,dbindexes):
-    return '_'.join([jobjson[x] for x in dbindexes]);
+    return '_'.join([str(jobjson[x]) for x in dbindexes]);
 
 def doc2jobjson(doc,dbindexes):
     return dict([(y,doc[y]) for y in dbindexes]);
