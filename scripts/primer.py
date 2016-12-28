@@ -343,9 +343,8 @@ try:
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    modstream=open(statepath+"/modules","r");
-    modlist=[x.rstrip('\n') for x in modstream.readlines()];
-    modstream.close();
+    with open(statepath+"/modules","r") as modstream:
+        modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername)));
     while (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and timeleft(starttime):
@@ -394,10 +393,10 @@ try:
                 time.sleep(sleeptime);
             i+=nprocs;
         
-        time.sleep(sleeptime);
-        
-        lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun));
-        releaseheldjobs(username,modname,primername);
+        if timeleft(starttime):
+            time.sleep(sleeptime);
+            lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun));
+            releaseheldjobs(username,modname,primername);
 
     #while jobsrunningq(username,modname,primername) and timeleft(starttime):
     #    releaseheldjobs(username,modname,primername);
@@ -405,6 +404,8 @@ try:
     #    for x in skippedjobs:
     #        submitjob(workpath,x,resubmit=True);
     #    time.sleep(sleeptime);
+
+    print(primersrunningq(username,prevmodlist,primername),jobsrunningq(username,modname,primername),lastrun);
 
     if (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and not timeleft(starttime):
         #Resubmit primer job
