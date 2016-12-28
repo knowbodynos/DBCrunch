@@ -221,7 +221,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         nprocs=int(nprocsfloat);
         return [partition,nnodes,ncores,nprocs];
 
-def writejobfile(modname,jobname,jobnames,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(modname,jobname,jobnames,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
     ndocs=len(docs);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
@@ -271,15 +271,23 @@ def writejobfile(modname,jobname,jobnames,primerpath,writemode,SLURMtimelimit,pa
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
-        jobstring+="jobstepnames["+str(i+1)+"]=\""+jobnames[i]+"\"\n";
-        jobstring+="docs["+str(i+1)+"]=\""+str(docs[i])+"\"\n";
+        jobstring+="jobstepnames["+str(i)+"]=\""+modname+"_"+primername+"_"+jobnames[i]+"\"\n";
+        jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
-    jobstring+="for i in {1.."+str(ndocs)+"}\n";
+    jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[i]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[i]}\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -o \"${jobstepnames[${i}]}.out\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    pids[i]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
-    jobstring+="wait";
+    jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
+    jobstring+="do\n";
+    jobstring+="    wait ${pids[${i}]}\n";
+    jobstring+="    stats=($(sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j ${SLURM-JOB-ID}.${i} | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g'))\n"
+    jobstring+="    echo \"Time: ${stats[0]}\" > ${jobstepnames[${i}]}.out"
+    jobstring+="    echo \"MaxRSS: ${stats[1]}\" > ${jobstepnames[${i}]}.out"
+    jobstring+="    echo \"MaxVMSize: ${stats[2]}\" > ${jobstepnames[${i}]}.out"
+    jobstring+="done";
     jobstream=open(primerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
@@ -383,7 +391,7 @@ try:
                 jobname=modname+"_"+primername+"_["+",".join(jobnames)+"]";
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(modname,jobname,jobnames,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(modname,jobname,jobnames,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
