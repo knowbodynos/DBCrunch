@@ -40,13 +40,15 @@ username="altman.ro"
 modname="orientifold"
 primername="${h11}"
 sleeptime="00:00:30"
-partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+partitions="ser-par-10g"
 largemempartitions="largemem-10g"
 writemode="truncate"
 SLURMtimelimit="24:00:00"
 
 #Input path info
-mainpath="/gss_gpfs_scratch/altman.ro"
+mainpath="/gss_gpfs_scratch/${username}"
+packagepath="${mainpath}/ToricCY"
+scriptpath="${packagepath}/scripts"
 
 #Input script info
 scripttype="math -noprompt -script"
@@ -60,4 +62,4 @@ queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'H21':1,
 dbindexes="POLYID,GEOMN,TRIANGN,INVOLN"
 newcollfield="INVOL,H11SPLIT"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"

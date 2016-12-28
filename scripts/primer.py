@@ -306,19 +306,21 @@ try:
 
     #Input path info
     mainpath=sys.argv[9];
+    packagepath=sys.argv[10];
+    scriptpath=sys.argv[11];
 
     #Input script info
-    scripttype=sys.argv[10];
-    scriptext=sys.argv[11];
-    scripttimelimit=timestamp2seconds(sys.argv[12]);
-    scriptmemorylimit=eval(sys.argv[13]);
+    scripttype=sys.argv[12];
+    scriptext=sys.argv[13];
+    scripttimelimit=timestamp2seconds(sys.argv[14]);
+    scriptmemorylimit=eval(sys.argv[15]);
 
     #Input database info
-    mongouri=sys.argv[14];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[15]);
+    mongouri=sys.argv[16];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[17]);
     #dumpfile=sys.argv[13];
-    dbindexes=sys.argv[16].split(",");
-    newcollfield=sys.argv[17].split(",");
+    dbindexes=sys.argv[18].split(",");
+    newcollfield=sys.argv[19].split(",");
     
     #Read seek position from file
     #with open(primerpath+"/"+seekfile,"r") as seekstream:
@@ -331,9 +333,7 @@ try:
     #if seekpos==-1:
     #Open connection to remote database
 
-    packagepath=mainpath+"/ToricCY";
     statepath=packagepath+"/state";
-    scriptpath=packagepath+"/scripts";
     modulepath=mainpath+"/modules/"+modname;
     primerpath=modulepath+"/"+primername;
     workpath=primerpath+"/jobs";  
