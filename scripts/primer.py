@@ -221,7 +221,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         nprocs=int(nprocsfloat);
         return [partition,nnodes,ncores,nprocs];
 
-def writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(modname,jobname,jobnames,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
     ndocs=len(docs);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
@@ -271,7 +271,7 @@ def writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,nc
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
-        jobstring+="jobstepnames["+str(i+1)+"]=\""+doc2jobname(docs[i],dbindexes)+"\"\n";
+        jobstring+="jobstepnames["+str(i+1)+"]=\""+jobnames[i]+"\"\n";
         jobstring+="docs["+str(i+1)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
     jobstring+="for i in {1.."+str(ndocs)+"}\n";
@@ -379,10 +379,11 @@ try:
             docs=newqueryresult[i:i+nprocs];
             if jobslotsleft(username,maxnjobs):
                 #doc=json.loads(doc.rstrip('\n'));
-                jobname=modname+"_"+primername+"_["+",".join([doc2jobname(y,dbindexes) for y in docs])+"]";
+                jobnames=[doc2jobname(y,dbindexes) for y in docs];
+                jobname=modname+"_"+primername+"_["+",".join(jobnames)+"]";
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(modname,jobname,jobnames,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
