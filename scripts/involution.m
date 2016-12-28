@@ -86,5 +86,4 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
 MongoDirac@close[];
-WriteString[$Output,"Closed."];
 Exit[];
