@@ -273,20 +273,20 @@ def writejobfile(modname,jobname,jobnames,primerpath,primername,writemode,SLURMt
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+modname+"_"+primername+"_"+jobnames[i]+"\"\n";
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
-    jobstring+="\n";
+        jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive -o \"${jobstepnames[${i}]}.out\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" &\n";# > ${workpath}/${jobname}.log\n";
-    jobstring+="    pids[i]=$!\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
     jobstring+="    wait ${pids[${i}]}\n";
-    jobstring+="    stats=($(sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j ${SLURM-JOB-ID}.${i} | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g'))\n"
-    jobstring+="    echo \"Time: ${stats[0]}\" > ${jobstepnames[${i}]}.out"
-    jobstring+="    echo \"MaxRSS: ${stats[1]}\" > ${jobstepnames[${i}]}.out"
-    jobstring+="    echo \"MaxVMSize: ${stats[2]}\" > ${jobstepnames[${i}]}.out"
+    jobstring+="    stats=($(sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j ${SLURM-JOBID}.${i} | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g'))\n"
+    jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
+    jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
+    jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
     jobstring+="done";
     jobstream=open(primerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
