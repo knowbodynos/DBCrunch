@@ -19,7 +19,7 @@
 #SBATCH --time="24:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+#SBATCH --partition="ser-par-10g"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -41,7 +41,7 @@ modstatefile="modules"
 modname="involution"
 primername="${h11}"
 sleeptime="00:00:30"
-partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+partitions="ser-par-10g"
 largemempartitions="largemem-10g"
 writemode="truncate"
 SLURMtimelimit="24:00:00"
@@ -66,4 +66,4 @@ queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'RESCWS'
 dbindexes="POLYID,GEOMN,TRIANGN"
 newcollfield="INVOL,INVOLN"
 
-python ${mainpath}/primer.py "${username}" "${modstatefile}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${statepath}" "${scriptpath}" "${logpath}" "${workpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
+python ${scriptpath}/primer.py "${username}" "${modstatefile}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${statepath}" "${scriptpath}" "${logpath}" "${workpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
