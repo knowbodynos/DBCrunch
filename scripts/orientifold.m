@@ -286,22 +286,22 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
     NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];
     outresult=Join[InvolIDField,result];
     
-    (ToricCYDirac@getCollection["INVOL"])@update[RulestoJSON@InvolIDField,RulestoJSON@{"$set"->NewInvolFields}];
+    (ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];
     storage=BSONSize[NewInvolFields];
-	output=StringReplace[ExportString[outresult,"JSON","Compact"->True],{" "->""}];
-    WriteString[$Output,"Fixed Loci Time: "<>ToString[fixedlocitime]<>"\n"];
-    WriteString[$Output,"Hodge Split Time: "<>ToString[hodgesplittime]<>"\n"];
-    WriteString[$Output,"Total Time: "<>ToString[fixedlocitime+hodgesplittime]<>"\n"];
-    WriteString[$Output,"Fixed Loci Max Memory: "<>ToString[fixedlocimem]<>"\n"];
-    WriteString[$Output,"Hodge Split Max Memory: "<>ToString[hodgesplitmem]<>"\n"];
-    WriteString[$Output,"Total Max Memory: "<>ToString[Max[fixedlocimem,hodgesplitmem]]<>"\n"];
-    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];
+	output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
+    WriteString[$Output,"Fixed Loci Time: "<>ToString[fixedlocitime,InputForm]<>"\n"];
+    WriteString[$Output,"Hodge Split Time: "<>ToString[hodgesplittime,InputForm]<>"\n"];
+    WriteString[$Output,"Total Time: "<>ToString[fixedlocitime+hodgesplittime,InputForm]<>"\n"];
+    WriteString[$Output,"Fixed Loci Max Memory: "<>ToString[fixedlocimem,InputForm]<>"\n"];
+    WriteString[$Output,"Hodge Split Max Memory: "<>ToString[hodgesplitmem,InputForm]<>"\n"];
+    WriteString[$Output,"Total Max Memory: "<>ToString[Max[fixedlocimem,hodgesplitmem],InputForm]<>"\n"];
+    WriteString[$Output,"Total Storage: "<>ToString[storage,InputForm]<>"\n"];
 ,
 	output=timemem;
-    WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN,"_",InvolN," ",output,"\n"}]]];
+    WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN,"_",InvolN," ",output,"\n"}],InputForm]];
 ];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
-mongoDirac@close[];
+MongoDirac@close[];
 Exit[];

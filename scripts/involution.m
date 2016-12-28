@@ -69,21 +69,21 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
     InvolDoc=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
     outresult=Join[NewTriangFields,{"INVOLLIST"->InvolDoc}];
     
-    (ToricCYDirac@getCollection["TRIANG"])@update[RulestoJSON@TriangIDField,RulestoJSON@{"$set"->NewTriangFields}];
+    (ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
     storage=BSONSize[NewTriangFields];
     If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->Null,"INVOL"->Null}]}];
-    (ToricCYDirac@getCollection["INVOL"])@insert[RulestoJSON@InvolDoc];
+    (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];
     storage=storage+BSONSize[InvolDoc];
-	output=StringReplace[ExportString[outresult,"JSON","Compact"->True],{" "->""}];
-    WriteString[$Output,"Total Time: "<>ToString[involutionstime]<>"\n"];
-    WriteString[$Output,"Total Max Memory: "<>ToString[involutionsmem]<>"\n"];
-    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];
+	output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
+    WriteString[$Output,"Total Time: "<>ToString[involutionstime,InputForm]<>"\n"];
+    WriteString[$Output,"Total Max Memory: "<>ToString[involutionsmem,InputForm]<>"\n"];
+    WriteString[$Output,"Total Storage: "<>ToString[storage,InputForm]<>"\n"];
 ,
 	output=timemem;
-    WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}]]];
+    WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}],InputForm]];
 ];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
-mongoDirac@close[];
+MongoDirac@close[];
 Exit[];
