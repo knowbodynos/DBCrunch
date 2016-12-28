@@ -163,22 +163,23 @@ def submitjob(jobpath,jobname,resubmit=False):
         print "\n";
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
         if "primer" in jobname:
-            print "Res"+submitcomm[1:]+" as "+jobname+".\n\n";
+            print "Res"+submitcomm[1:]+" as "+jobname+".";
         else:
             jobstepnames=jobnameexpand(jobname);
             submitcomm=submitcomm.replace("job ","job step ");
             for i in range(len(jobstepnames)):
-                print "Res"+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+".\n";
-            print "\n";
+                print "Res"+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+".";
+        print "\n\n";
     else:
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
         if "primer" in jobname:
-            print submitcomm+" as "+jobname+".\n";
+            print submitcomm+" as "+jobname+".";
         else:
             jobstepnames=jobnameexpand(jobname);
             submitcomm=submitcomm.replace("job ","job step ");
             for i in range(len(jobstepnames)):
-                print submitcomm+"."+str(i)+" as "+jobstepnames[i]+".\n";
+                print submitcomm+"."+str(i)+" as "+jobstepnames[i]+".";
+        print "\n";
     sys.stdout.flush();
 
 #def skippedjobslist(username,modname,primername,workpath):
@@ -294,7 +295,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
-        jobstring+="jobstepnames["+str(i)+"]=\""+modname+"_"+primername+"_"+jobstepnames[i]+"\"\n";
+        jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
         jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
