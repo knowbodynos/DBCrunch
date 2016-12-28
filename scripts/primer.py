@@ -414,6 +414,8 @@ try:
     #        submitjob(workpath,x,resubmit=True);
     #    time.sleep(sleeptime);
 
+    print((primersrunningq(username,prevmodlist,primername),jobsrunningq(username,modname,primername),lastrun));
+
     if (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and not timeleft(starttime):
         #Resubmit primer job
         submitjob(primerpath,"primer_"+modname+"_"+primername,resubmit=True);
