@@ -271,7 +271,7 @@ def writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,nc
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
-    for i in range(ndocs):
+    for i in range(1,ndocs+1):
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
     jobstring+="for i in {1.."+str(ndocs)+"}\n";
