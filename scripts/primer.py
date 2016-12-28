@@ -395,7 +395,7 @@ try:
         
         time.sleep(sleeptime);
         
-        lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername)));
+        lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun));
         releaseheldjobs(username,modname,primername);
 
     #while jobsrunningq(username,modname,primername) and timeleft(starttime):
