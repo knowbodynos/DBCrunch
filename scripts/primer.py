@@ -106,12 +106,15 @@ def timestamp2seconds(timestamp,unit="seconds"):
     else:
         return 0;
 
-def jobname2json(jobname,dbindexes):
+def jobname2jobjson(jobname,dbindexes):
     indexlist=jobname.split("_");
     return dict([(dbindexes[i],eval(indexlist[i])) for i in range(len(dbindexes))]);
 
-def json2jobname(json,dbindexes):
-    return '_'.join([json[x] for x in dbindexes]);
+def doc2jobname(jobjson,dbindexes):
+    return '_'.join([jobjson[x] for x in dbindexes]);
+
+def doc2jobjson(doc,dbindexes):
+    return dict([(y,doc[y]) for y in dbindexes]);
 
 def timeleft(starttime,maxtime=82800):
     "Determine if runtime limit has been reached."
@@ -156,15 +159,24 @@ def submitjob(jobpath,jobname,resubmit=False):
         print submitcomm+" as "+jobname+".\n";
     sys.stdout.flush();
 
-def skippedjobslist(username,modname,primername,workpath):
-    jobsrunning=jobsrunninglist(username,modname,primername);
-    blankfilesstring=subprocess.Popen("find '"+workpath+"' -maxdepth 1 -type f -name '*.out' -empty | rev | cut -d'/' -f1 | rev | cut -d'.' -f1 | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0];
-    if blankfilesstring=='':
-        return [];
-    else:
-        blankfiles=blankfilesstring.split(",");
-        skippedjobs=[modname+"_"+primername+"_"+x for x in blankfiles if x not in jobsrunning];
-        return skippedjobs;
+#def skippedjobslist(username,modname,primername,workpath):
+#    jobsrunning=jobsrunninglist(username,modname,primername);
+#    blankfilesstring=subprocess.Popen("find '"+workpath+"' -maxdepth 1 -type f -name '*.out' -empty | rev | cut -d'/' -f1 | rev | cut -d'.' -f1 | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0];
+#    if blankfilesstring=='':
+#        return [];
+#    else:
+#        blankfiles=blankfilesstring.split(",");
+#        skippedjobs=[modname+"_"+primername+"_"+x for x in blankfiles if x not in jobsrunning];
+#        return skippedjobs;
+
+def skippedjobslist(username,modname,primername,statepath):
+    with open(statepath+"/skipped","r") as skippedstream:
+        skippedjobs=[];
+        for skippedjob in skippedstream:
+            skippedjobsplit=skippedjob.rstrip("\n").split("_");
+            if skippedjobsplit[:2]==[modname,primername]:
+                skippedjobs+=['_'.join(skippedjobsplit[2:])];
+    return skippedjobs;
 
 def releaseheldjobs(username,modname,primername):
     subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+primername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True);
@@ -188,7 +200,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
     nodemaxmemory=0;
     with open(statepath+"/resources","r") as resourcesstream:
         for resourcesstring in resourcesstream:
-            resources=resourcesstring.split(" ");
+            resources=resourcesstring.rstrip("\n").split(" ");
             if resources[0]==partition:
                 nodemaxmemory=eval(resources[1]);
                 break;
@@ -209,7 +221,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         nprocs=int(nprocsfloat);
         return [partition,nnodes,ncores,nprocs];
 
-def writejobfile(jobname,workpath,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(jobname,workpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,statepath,docs):
     ndocs=len(docs);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
@@ -226,6 +238,9 @@ def writejobfile(jobname,workpath,SLURMtimelimit,partition,nnodes,ncores,mongour
     jobstring+="#################\n";
     jobstring+="#Job error file\n";
     jobstring+="#SBATCH -e \""+jobname+".err\"\n";
+    jobstring+="#################\n";
+    jobstring+="#Job file write mode\n";
+    jobstring+="#SBATCH --open-mode=\""+writemode+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Job max time\n";
     jobstring+="#SBATCH --time=\""+SLURMtimelimit+"\"\n";
@@ -254,12 +269,13 @@ def writejobfile(jobname,workpath,SLURMtimelimit,partition,nnodes,ncores,mongour
     jobstring+="jobname=\""+jobname+"\"\n";
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
+    jobstring+="skippedfile=\""+statepath+"/skipped\"\n";
     for i in range(ndocs):
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
     jobstring+="for i in {1.."+str(ndocs)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobname}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${docs[i]}\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobname}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[i]}\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="done\n";
     jobstring+="\n";
     jobstring+="wait";
@@ -283,29 +299,30 @@ try:
     sleeptime=timestamp2seconds(sys.argv[5]);
     partitions=sys.argv[6].split(",");
     largemempartitions=sys.argv[7].split(",");
-    SLURMtimelimit=sys.argv[8];
+    writemode=sys.argv[8];
+    SLURMtimelimit=sys.argv[9];
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[9];
-    statepath=sys.argv[10];
-    scriptpath=sys.argv[11];
-    logpath=sys.argv[12];
-    workpath=sys.argv[13];  
+    mainpath=sys.argv[10];
+    statepath=sys.argv[11];
+    scriptpath=sys.argv[12];
+    logpath=sys.argv[13];
+    workpath=sys.argv[14];  
 
     #Input script info
-    scripttype=sys.argv[14];
-    scriptext=sys.argv[15];
-    scripttimelimit=timestamp2seconds(sys.argv[16]);
-    scriptmemorylimit=eval(sys.argv[17]);
+    scripttype=sys.argv[15];
+    scriptext=sys.argv[16];
+    scripttimelimit=timestamp2seconds(sys.argv[17]);
+    scriptmemorylimit=eval(sys.argv[18]);
 
     #Input database info
-    mongouri=sys.argv[18];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[19]);
+    mongouri=sys.argv[19];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[20]);
     #dumpfile=sys.argv[13];
-    dbindexes=sys.argv[20].split(",");
-    newcollfield=sys.argv[21].split(",");
+    dbindexes=sys.argv[21].split(",");
+    newcollfield=sys.argv[22].split(",");
     
     #Read seek position from file
     #with open(logpath+"/"+seekfile,"r") as seekstream:
@@ -328,18 +345,16 @@ try:
     modlist=[x.rstrip('\n') for x in modstream.readlines()];
     modstream.close();
     prevmodlist=modlist[:modlist.index(modname)];
-    lastrunind=0;
-    if len(prevmodlist)==0:
-        lastrunind+=1;
-    while (primersrunningq(username,prevmodlist,primername) or (lastrunind<2)) and timeleft(starttime):
+    lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername)));
+    while (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and timeleft(starttime):
         queryresult=toriccy.querydatabase(db,queries);
-        oldinds=[dict([(y,x[y]) for y in dbindexes]+[(newcollfield[1],{"$exists":True})]) for x in queryresult];
-        if len(oldinds)==0:
+        oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newcollfield[1],{"$exists":True})]) for x in queryresult];
+        if len(oldqueryresultinds)==0:
             oldqueryresult=[];
         else:
-            oldqueryresult=toriccy.collectionfind(db,newcollfield[0],{"$or":oldinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
-        oldqueryrunning=[jobname2json(x,dbindexes) for x in jobsrunninglist(username,modname,primername) if len(x)>0];
-        newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryrunning];
+            oldqueryresult=toriccy.collectionfind(db,newcollfield[0],{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
+        oldqueryresultrunning=[jobname2jobjson(x,dbindexes) for x in jobsrunninglist(username,modname,primername) if len(x)>0];
+        newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
         #Query database and dump to file
         #querytofile(db,queries,logpath,"querydump");
         #mongoclient.close();
@@ -356,7 +371,9 @@ try:
         while (i<nnewqueryresult) and timeleft(starttime):
             releaseheldjobs(username,modname,primername);
             ndocsleft=nnewqueryresult-i;
-            orderedpartitions=orderpartitions(partitions)+orderpartitions(largemempartitions);
+            orderedpartitions=orderpartitions(largemempartitions);
+            if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,statepath):
+                orderedpartitions=orderpartitions(partitions)+orderedpartitions;
             partition,nnodes,ncores,nprocs=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
             docs=newqueryresult[i:i+nprocs];
             if jobslotsleft(username,maxnjobs):
@@ -364,7 +381,7 @@ try:
                 jobname=modname+"_"+primername+"_("+",".join(["_".join([str(y[x]) for x in dbindexes]) for y in docs])+")";
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(jobname,workpath,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(jobname,workpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,statepath,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
@@ -377,17 +394,17 @@ try:
         
         time.sleep(sleeptime);
         
-        if not primersrunningq(username,prevmodlist,primername):
-            lastrunind+=1;
-
-    while jobsrunningq(username,modname,primername) and timeleft(starttime):
+        lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername)));
         releaseheldjobs(username,modname,primername);
-        skippedjobs=skippedjobslist(username,modname,primername,workpath);
-        for x in skippedjobs:
-            submitjob(workpath,x,resubmit=True);
-        time.sleep(sleeptime);
 
-    if ((primersrunningq(username,prevmodlist,primername) or (lastrunind<2)) or jobsrunningq(username,modname,primername)) and not timeleft(starttime):
+    #while jobsrunningq(username,modname,primername) and timeleft(starttime):
+    #    releaseheldjobs(username,modname,primername);
+    #    skippedjobs=skippedjobslist(username,modname,primername,workpath);
+    #    for x in skippedjobs:
+    #        submitjob(workpath,x,resubmit=True);
+    #    time.sleep(sleeptime);
+
+    if (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and not timeleft(starttime):
         #Resubmit primer job
         submitjob(logpath,"primer_"+modname+"_"+primername,resubmit=True);
 

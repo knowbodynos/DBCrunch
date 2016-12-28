@@ -12,6 +12,9 @@
 #Job error file
 #SBATCH -e "primer_involution_template.err"
 #################
+#Job file write mode
+#SBATCH --open-mode="truncate"
+#################
 #Job max time
 #SBATCH --time="24:00:00"
 #################
@@ -40,6 +43,7 @@ primername="${h11}"
 sleeptime="00:00:30"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 largemempartitions="largemem-10g"
+writemode="truncate"
 SLURMtimelimit="24:00:00"
 
 #Input path info
@@ -62,4 +66,4 @@ queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'RESCWS'
 dbindexes="POLYID,GEOMN,TRIANGN"
 newcollfield="INVOL,INVOLN"
 
-python ${mainpath}/primer.py "${username}" "${modstatefile}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${SLURMtimelimit}" "${mainpath}" "${statepath}" "${scriptpath}" "${logpath}" "${workpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
+python ${mainpath}/primer.py "${username}" "${modstatefile}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${statepath}" "${scriptpath}" "${logpath}" "${workpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"

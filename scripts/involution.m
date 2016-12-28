@@ -34,7 +34,8 @@ MongoDirac=MongoClient[$CommandLine[[7]]];
 ToricCYDirac=MongoDB[MongoDirac];
 TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
-Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[10]]]];
+SkippedFile=$CommandLine[[10]];
+Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[11]]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;
@@ -79,6 +80,7 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
     WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];
 ,
 	output=timemem;
+    WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}]]];
 ];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
