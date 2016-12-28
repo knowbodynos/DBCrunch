@@ -51,7 +51,7 @@ StringRulestoJSONJava[doc_]:=JSONtoJSONJava[StringRulestoJSON[doc]];
 ExpressionRulestoStringRules[doc_]:=Module[{PosExpressionsToStrings,StringsResult},
     (*PosExpressionsToStrings=Select[Map[Most[#]&,Position[doc,Rule]],((Head[doc[[Sequence@@#]][[1]]]===String)&&(Head[doc[[Sequence@@#]][[2]]]=!=Integer))&];*)
     PosExpressionsToStrings=Position[doc,_?((Head[#]===Rule)&&(Head[#[[1]]]===String)&&(Head[#[[2]]]=!=Integer)&)];
-    StringsResult=MapAt[Rule[#[[1]],ToString[#[[2]]]]&,doc,PosExpressionsToStrings];
+    StringsResult=MapAt[Rule[#[[1]],ToString[#[[2]],InputForm]]&,doc,PosExpressionsToStrings];
     Return[StringsResult];
 ];
 
