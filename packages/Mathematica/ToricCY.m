@@ -9,7 +9,7 @@ RemoteHostWebfaction="45.79.10.158";
 RemotePortWebfaction="28555";
 RemoteDB="ToricCY";*)
 MongoDBJarDirectory=DirectoryName[$InputFileName];
-SetOptions[ReinstallJava, JVMArguments->"-Xmx3000m"];(*32g"];*)
+SetOptions[ReinstallJava, JVMArguments->"-Xmx32g"];
 ReinstallJava[];
 AddToClassPath[MongoDBJarDirectory,"Prepend"->True];
 LoadJavaClass@"com.mongodb.util.JSON";
