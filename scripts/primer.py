@@ -107,8 +107,8 @@ def timestamp2seconds(timestamp,unit="seconds"):
         return 0;
 
 def jobname2jobjson(jobname,dbindexes):
-    indexlist=jobname.split("_");
-    return dict([(dbindexes[i],eval(indexlist[i])) for i in range(len(dbindexes))]);
+    indexsplit=[[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")];
+    return [dict([(dbindexes[i],x[i]) for i in range(len(dbindexes))]) for x in indexsplit];
 
 def doc2jobname(doc,dbindexes):
     return '_'.join([str(doc[x]) for x in dbindexes]);
@@ -362,7 +362,7 @@ try:
             oldqueryresult=[];
         else:
             oldqueryresult=toriccy.collectionfind(db,newcollfield[0],{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
-        oldqueryresultrunning=[jobname2jobjson(x,dbindexes) for x in jobsrunninglist(username,modname,primername) if len(x)>0];
+        oldqueryresultrunning=[y for x in jobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
         newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
         #Query database and dump to file
         #querytofile(db,queries,primerpath,"querydump");
