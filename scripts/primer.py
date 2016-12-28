@@ -227,25 +227,25 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
             if resources[0]==partition:
                 nodemaxmemory=eval(resources[1]);
                 break;
-    memoryperproc=float(nodemaxmemory)/float(scriptmemorylimit);
-    #nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),memoryperproc);
+    ncoresdistribmem=nodemaxmemory/scriptmemorylimit;
+    #nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),ncoresdistribmem);
     #nnodes=int(min(maxnnodes,math.ceil(1./nprocsfloat)));
     #ncores=nnodes*ncoresperpartition;
     #nprocs=int(max(1,nprocsfloat));
     nnodes=1;
-    if memoryperproc<1:
+    if ncoresdistribmem<1:
         if len(partition)>1:
             return nodedistribution(statepath,partitions[1:],ndocsleft,scriptmemorylimit);
         else:
             return "Memory requirement is too large for this cluster.";
     else:
-        nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),memoryperproc);
+        nprocsfloat=min(ndocsleft,ncoresperpartition,ncoresdistribmem);
         ncores=nnodes*ncoresperpartition;
-        nprocs=int(nprocsfloat);
-        memoryperprocformat=memoryperproc/1000000.;
-        return [partition,nnodes,ncores,nprocs,memoryperprocformat];
+        nprocs=nprocsfloat;
+        memoryperprocM=nodemaxmemory/(1000000*ncoresdistribmem);
+        return [partition,nnodes,ncores,nprocs,memoryperprocM];
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocformat,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
@@ -301,7 +301,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
         jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperprocformat)+"\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperprocM)+"M\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -408,7 +408,7 @@ try:
             orderedpartitions=orderpartitions(largemempartitions);
             if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
                 orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-            partition,nnodes,ncores,nprocs,memoryperprocformat=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
+            partition,nnodes,ncores,nprocs,memoryperprocM=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
             docs=newqueryresult[i:i+nprocs];
             if jobslotsleft(username,maxnjobs):
                 #doc=json.loads(doc.rstrip('\n'));
@@ -416,7 +416,7 @@ try:
                 jobname=jobstepnamescontract(jobstepnames);
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocformat,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
