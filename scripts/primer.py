@@ -116,6 +116,15 @@ def doc2jobname(doc,dbindexes):
 def doc2jobjson(doc,dbindexes):
     return dict([(y,doc[y]) for y in dbindexes]);
 
+def jobnameexpand(jobname):
+    bracketexpanded=jobname.rstrip("]").split("[");
+    return [bracketexpanded[0]+x for x in bracketexpanded[1].split(",")];
+
+def jobstepnamescontract(jobstepnames):
+    "3 because modname,primername are first two."
+    bracketcontracted=[x.split("_") for x in jobstepnames];
+    return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
+
 def timeleft(starttime,maxtime=82800):
     "Determine if runtime limit has been reached."
     return (time.time()-starttime)<maxtime;
@@ -153,10 +162,23 @@ def submitjob(jobpath,jobname,resubmit=False):
         #maketop=subprocess.Popen("scontrol top "+jobid,shell=True,stdout=subprocess.PIPE);
         print "\n";
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-        print "Res"+submitcomm[1:]+" as "+jobname+".\n\n";
+        if "primer" in jobname:
+            print "Res"+submitcomm[1:]+" as "+jobname+".\n\n";
+        else:
+            jobstepnames=jobnameexpand(jobname);
+            submitcomm=submitcomm.replace("job ","job step ");
+            for i in range(len(jobstepnames)):
+                print "Res"+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+".\n";
+            print "\n";
     else:
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-        print submitcomm+" as "+jobname+".\n";
+        if "primer" in jobname:
+            print submitcomm+" as "+jobname+".\n";
+        else:
+            jobstepnames=jobnameexpand(jobname);
+            submitcomm=submitcomm.replace("job ","job step ");
+            for i in range(len(jobstepnames)):
+                print submitcomm+"."+str(i)+" as "+jobstepnames[i]+".\n";
     sys.stdout.flush();
 
 #def skippedjobslist(username,modname,primername,workpath):
@@ -221,8 +243,9 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         nprocs=int(nprocsfloat);
         return [partition,nnodes,ncores,nprocs];
 
-def writejobfile(modname,jobname,jobnames,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
     ndocs=len(docs);
+    jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
     jobstring+="#Created "+str(datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"))+"\n";
@@ -271,12 +294,12 @@ def writejobfile(modname,jobname,jobnames,primerpath,primername,writemode,SLURMt
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
-        jobstring+="jobstepnames["+str(i)+"]=\""+modname+"_"+primername+"_"+jobnames[i]+"\"\n";
+        jobstring+="jobstepnames["+str(i)+"]=\""+modname+"_"+primername+"_"+jobstepnames[i]+"\"\n";
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
         jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -387,11 +410,11 @@ try:
             docs=newqueryresult[i:i+nprocs];
             if jobslotsleft(username,maxnjobs):
                 #doc=json.loads(doc.rstrip('\n'));
-                jobnames=[doc2jobname(y,dbindexes) for y in docs];
-                jobname=modname+"_"+primername+"_["+",".join(jobnames)+"]";
+                jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
+                jobname=jobstepnamescontract(jobstepnames);
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(modname,jobname,jobnames,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
