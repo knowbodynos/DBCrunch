@@ -1,10 +1,10 @@
 #!/bin/bash
 
-template=$1
+templatepath=$1
 primerpath=$2
 primername=$3
 
-cp -r "${template}" "${primerpath}/"
+cp -r "${templatepath}" "${primerpath}"
 
 files=$(find "${primerpath}/" -mindepth 1 -type f)
 for file in ${files}

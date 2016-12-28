@@ -221,7 +221,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         nprocs=int(nprocsfloat);
         return [partition,nnodes,ncores,nprocs];
 
-def writejobfile(jobname,workpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,statepath,docs):
+def writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs):
     ndocs=len(docs);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
@@ -231,7 +231,7 @@ def writejobfile(jobname,workpath,writemode,SLURMtimelimit,partition,nnodes,ncor
     jobstring+="#SBATCH -J \""+jobname+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Working directory\n";
-    jobstring+="#SBATCH -D \""+workpath+"\"\n";
+    jobstring+="#SBATCH -D \""+logpath+"/jobs\"\n";
     jobstring+="#################\n";
     jobstring+="#Job output file\n";
     jobstring+="#SBATCH -o \""+jobname+".out\"\n";
@@ -263,13 +263,14 @@ def writejobfile(jobname,workpath,writemode,SLURMtimelimit,partition,nnodes,ncor
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
-    jobstring+="workpath=\""+workpath+"\"\n";
+    jobstring+="logpath=\""+logpath+"\"\n";
+    jobstring+="workpath=\"${logpath}/jobs\"\n";
     jobstring+="\n";
     jobstring+="#Job info\n";
     jobstring+="jobname=\""+jobname+"\"\n";
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
-    jobstring+="skippedfile=\""+statepath+"/skipped\"\n";
+    jobstring+="skippedfile=\"${logpath}/skipped\"\n";
     for i in range(ndocs):
         jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
@@ -381,7 +382,7 @@ try:
                 jobname=modname+"_"+primername+"_("+",".join(["_".join([str(y[x]) for x in dbindexes]) for y in docs])+")";
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(jobname,workpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,statepath,docs);
+                writejobfile(jobname,logpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());
