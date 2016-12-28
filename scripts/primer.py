@@ -169,8 +169,8 @@ def submitjob(jobpath,jobname,resubmit=False):
 #        skippedjobs=[modname+"_"+primername+"_"+x for x in blankfiles if x not in jobsrunning];
 #        return skippedjobs;
 
-def skippedjobslist(username,modname,primername,statepath):
-    with open(statepath+"/skipped","r") as skippedstream:
+def skippedjobslist(username,modname,primername,logpath):
+    with open(logpath+"/skipped","r") as skippedstream:
         skippedjobs=[];
         for skippedjob in skippedstream:
             skippedjobsplit=skippedjob.rstrip("\n").split("_");
@@ -373,7 +373,7 @@ try:
             releaseheldjobs(username,modname,primername);
             ndocsleft=nnewqueryresult-i;
             orderedpartitions=orderpartitions(largemempartitions);
-            if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,statepath):
+            if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,logpath):
                 orderedpartitions=orderpartitions(partitions)+orderedpartitions;
             partition,nnodes,ncores,nprocs=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
             docs=newqueryresult[i:i+nprocs];
