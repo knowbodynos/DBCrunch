@@ -337,7 +337,7 @@ try:
 
     scriptfile=modname+scriptext;
     
-    mongoclient=MongoClient(mongouri);
+    mongoclient=toriccy.MongoClient(mongouri);
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
