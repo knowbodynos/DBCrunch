@@ -196,7 +196,7 @@ def orderpartitions(partitions):
 def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
     partition=partitions[0];
     ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
-    maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0].rstrip("\n"));
     nodemaxmemory=0;
     with open(statepath+"/resources","r") as resourcesstream:
         for resourcesstring in resourcesstream:
