@@ -110,8 +110,8 @@ def jobname2jobjson(jobname,dbindexes):
     indexlist=jobname.split("_");
     return dict([(dbindexes[i],eval(indexlist[i])) for i in range(len(dbindexes))]);
 
-def doc2jobname(jobjson,dbindexes):
-    return '_'.join([str(jobjson[x]) for x in dbindexes]);
+def doc2jobname(doc,dbindexes):
+    return '_'.join([str(doc[x]) for x in dbindexes]);
 
 def doc2jobjson(doc,dbindexes):
     return dict([(y,doc[y]) for y in dbindexes]);
@@ -267,16 +267,16 @@ def writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,nc
     jobstring+="workpath=\"${primerpath}/jobs\"\n";
     jobstring+="\n";
     jobstring+="#Job info\n";
-    jobstring+="jobname=\""+jobname+"\"\n";
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
+        jobstring+="jobstepnames["+str(i+1)+"]=\""+doc2jobname(docs[i],dbindexes)+"\"\n";
         jobstring+="docs["+str(i+1)+"]=\""+str(docs[i])+"\"\n";
     jobstring+="\n";
     jobstring+="for i in {1.."+str(ndocs)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobname}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[i]}\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[i]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[i]}\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="done\n";
     jobstring+="\n";
     jobstring+="wait";
@@ -379,7 +379,7 @@ try:
             docs=newqueryresult[i:i+nprocs];
             if jobslotsleft(username,maxnjobs):
                 #doc=json.loads(doc.rstrip('\n'));
-                jobname=modname+"_"+primername+"_["+",".join(["_".join([str(y[x]) for x in dbindexes]) for y in docs])+"]";
+                jobname=modname+"_"+primername+"_["+",".join([doc2jobname(y,dbindexes) for y in docs])+"]";
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
                 writejobfile(jobname,primerpath,writemode,SLURMtimelimit,partition,nnodes,ncores,mongouri,scriptpath,scripttype,modname,scriptext,scripttimelimit,scriptmemorylimit,docs);
