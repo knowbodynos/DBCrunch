@@ -36,23 +36,23 @@ def collectionfieldexists(db,collection,field):
     result=db[collection].find({},{"_id":0,field:1}).limit(1).next()!={};
     return result;
 
-def listindexes(db,collection,filters):
+def listindexes(db,collection,filters,indexes):
     "List the minimal sets of indexes from one collection's query required to specify documents in the next collection's query."
-    indexes=getindexes(db);
     trueindexes=[x for x in indexes if collectionfieldexists(db,collection,x)]
     if len(trueindexes)==0:
         return [];
     indexlist=tools.deldup([dict([(x,z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters]);
     return indexlist;
 
-def sameindexes(db,filter1,filter2):
+def sameindexes(filter1,filter2,indexes):
     "Check whether documents from two different collection's queries share the same minimal indexes and should be concatenated."
-    indexes=getindexes(db);
     return all([filter1[x]==filter2[x] for x in filter1 if (x in indexes) and (x in filter2)]);
 
 def querydatabase(db,queries,formatresult="string"):
     "Query all collections in the database and concatenate the documents of each that refer to the same object."
-    tiers=gettiers(db);
+    tierlist=collectionfind(db,"TIERS",{},{"_id":0,"TIER":1,"INDEXES.INDEX":1});
+    tiers=[x["TIER"] for x in tierlist];
+    indexes=tools.deldup([y["INDEX"] for x in tierlist for y in x["INDEXES"]]);
     sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (len(x[1]),tiers.index(x[0])),reverse=True);
     maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
     sortedqueries=sortedprojqueries+maxcountquery;
@@ -60,7 +60,7 @@ def querydatabase(db,queries,formatresult="string"):
     if sortedqueries[0][2]=="count":
         return totalresult;
     for i in range(1,len(sortedqueries)):
-        indexlist=listindexes(db,sortedqueries[i][0],totalresult);
+        indexlist=listindexes(db,sortedqueries[i][0],totalresult,indexes);
         if len(indexlist)==0:
             orgroup=sortedqueries[i][1];
         else:
@@ -68,7 +68,7 @@ def querydatabase(db,queries,formatresult="string"):
         nextresult=collectionfind(db,sortedqueries[i][0],orgroup,sortedqueries[i][2],formatresult=formatresult);
         if sortedqueries[i][2]=="count":
             return nextresult;
-        totalresult=[dict(x.items()+y.items()) for x in totalresult for y in nextresult if sameindexes(db,x,y)];
+        totalresult=[dict(x.items()+y.items()) for x in totalresult for y in nextresult if sameindexes(x,y,indexes)];
     return totalresult;
 
 '''

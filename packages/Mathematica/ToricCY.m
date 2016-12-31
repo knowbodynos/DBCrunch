@@ -125,8 +125,7 @@ GetIndexes[DB_,Collection_:"All"]:=Module[{Indexes},
 CollectionFieldExists[DB_,Collection_,Field_]:=!(DB@getCollection[Collection])@find[StringRulestoJSONJava@{},StringRulestoJSONJava@{"_id"->0,Field->1}]@limit[1]@next[]@isEmpty[];
 
 (*List the minimal sets of indexes from one collection's query required to specify documents in the next collection's query.*)
-ListIndexes[DB_,Collection_,Filter_]:=Module[{Indexes,TrueIndexes,TransposeIndexList,IndexList},
-    Indexes=GetIndexes[DB];
+ListIndexes[DB_,Collection_,Filter_,Indexes_]:=Module[{TrueIndexes,TransposeIndexList,IndexList},
     TrueIndexes=Select[Indexes,CollectionFieldExists[DB,Collection,#]&];
     If[Length[TrueIndexes]==0,
         Return[{}];
@@ -137,15 +136,16 @@ ListIndexes[DB_,Collection_,Filter_]:=Module[{Indexes,TrueIndexes,TransposeIndex
 ];
 
 (*Check whether documents from two different collection's queries share the same minimal indexes and should be concatenated.*)
-SameIndexes[DB_,Filter1_,Filter2_]:=Module[{Indexes,Result},
-    Indexes=GetIndexes[DB];
+SameIndexes[Filter1_,Filter2_,Indexes_]:=Module[{Result},
     Result=Equal@@Transpose[Select[Transpose[Indexes/.{Filter1,Filter2}],Length[Intersection[#,Indexes]]==0&]];
     Return[Result];
 ];
 
 (*Query all collections in the database and concatenate the documents of each that refer to the same object.*)
-QueryDatabase[DB_,Queries_,FormatResult_:"Expression"]:=Module[{Tiers,SortedProjQueries,MaxCountQuery,SortedQueries,TotalResult,IndexList,OrGroup,NextResult,i},
-    Tiers=GetTiers[DB];
+QueryDatabase[DB_,Queries_,FormatResult_:"Expression"]:=Module[{TierList,Tiers,Indexes,SortedProjQueries,MaxCountQuery,SortedQueries,TotalResult,IndexList,OrGroup,NextResult,i},
+    TierList=CollectionFind[DB ,"TIERS",{},{"_id"->0,"TIER"->1,"INDEXES.INDEX"->1}];    
+    Tiers="TIER"/.TierList;
+    Indexes=DeleteDuplicates[Flatten["INDEX"/.("INDEXES"/.TierList)]];
     SortedProjQueries=Reverse[SortBy[Select[Queries,#[[3]]=!="Count"&],Join[{Length[#[[2]]]},Flatten[Position[Tiers,#[[1]]],1]]&]];
     MaxCountQuery=MaximalBy[Complement[Queries,SortedProjQueries],Length[#[[2]]]&];
     SortedQueries=Join[SortedProjQueries,MaxCountQuery];
@@ -154,7 +154,7 @@ QueryDatabase[DB_,Queries_,FormatResult_:"Expression"]:=Module[{Tiers,SortedProj
         Return[TotalResult];
     ];
     For[i=2,i<=Length[SortedQueries],i++,
-        IndexList=ListIndexes[DB,SortedQueries[[i,1]],TotalResult];
+        IndexList=ListIndexes[DB,SortedQueries[[i,1]],TotalResult,Indexes];
         If[Length[IndexList]==0,
             OrGroup=SortedQueries[[i,2]];
         ,
@@ -164,7 +164,7 @@ QueryDatabase[DB_,Queries_,FormatResult_:"Expression"]:=Module[{Tiers,SortedProj
         If[SortedQueries[[i,3]]==="Count",
             Return[NextResult];
         ];
-        TotalResult=Flatten[Map[Function[u,Map[Union[u,#]&,Select[NextResult,SameIndexes[DB,#,u]&]]][#]&,TotalResult],1];
+        TotalResult=Flatten[Map[Function[u,Map[Union[u,#]&,Select[NextResult,SameIndexes[#,u,Indexes]&]]][#]&,TotalResult],1];
     ];
     Return[TotalResult];
 ];
