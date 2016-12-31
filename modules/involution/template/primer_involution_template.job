@@ -54,7 +54,7 @@ scriptpath="${packagepath}/scripts"
 scripttype="math -noprompt -script"
 scriptext=".m"
 scripttimelimit="23:50:00"
-scriptmemorylimit="100000000000"
+scriptmemorylimit=""
 
 #Input database info
 mongouri="mongodb://frontend:password@129.10.135.170:27017/ToricCY"

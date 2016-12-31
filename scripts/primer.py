@@ -227,22 +227,25 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
             if resources[0]==partition:
                 nodemaxmemory=eval(resources[1]);
                 break;
-    ncoresdistribmem=nodemaxmemory/scriptmemorylimit;
-    #nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),ncoresdistribmem);
+    if scriptmemorylimit=="":
+        nprocsdistribmem=1;
+    else:
+        nprocsdistribmem=nodemaxmemory/eval(scriptmemorylimit);
+    #nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),nprocsdistribmem);
     #nnodes=int(min(maxnnodes,math.ceil(1./nprocsfloat)));
     #ncores=nnodes*ncoresperpartition;
     #nprocs=int(max(1,nprocsfloat));
     nnodes=1;
-    if ncoresdistribmem<1:
+    if nprocsdistribmem<1:
         if len(partition)>1:
             return nodedistribution(statepath,partitions[1:],ndocsleft,scriptmemorylimit);
         else:
             return "Memory requirement is too large for this cluster.";
     else:
-        nprocsfloat=min(ndocsleft,ncoresperpartition,ncoresdistribmem);
+        nprocsfloat=min(ndocsleft,ncoresperpartition,nprocsdistribmem);
         ncores=nnodes*ncoresperpartition;
         nprocs=nprocsfloat;
-        memoryperprocM=nodemaxmemory/(1000000*ncoresdistribmem);
+        memoryperprocM=nodemaxmemory/(1000000*nprocsdistribmem);
         return [partition,nnodes,ncores,nprocs,memoryperprocM];
 
 def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,dbindexes,docs):
@@ -295,7 +298,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="#Job info\n";
     jobstring+="modname=\""+modname+"\"\n";
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
-    jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
+    jobstring+="scriptmemorylimit=\""+scriptmemorylimit+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
@@ -359,7 +362,7 @@ try:
     scripttype=sys.argv[12];
     scriptext=sys.argv[13];
     scripttimelimit=timestamp2seconds(sys.argv[14]);
-    scriptmemorylimit=eval(sys.argv[15]);
+    scriptmemorylimit=sys.argv[15];
 
     #Input database info
     mongouri=sys.argv[16];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
