@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,os,subprocess,time,datetime,toriccy;#,json;
+import sys,linecache,traceback,subprocess,time,datetime,toriccy;#,json;
 #from pymongo import MongoClient;
 
 #Misc. function definitions
