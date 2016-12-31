@@ -245,7 +245,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         memoryperprocM=nodemaxmemory/(1000000*ncoresdistribmem);
         return [partition,nnodes,ncores,nprocs,memoryperprocM];
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,docs):
+def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,dbindexes,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
@@ -299,7 +299,11 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
-        jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
+        jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
+        if scriptext==".m":
+            jobstring+="docs["+str(i)+"]=\""+str(toriccy.pythondictionary2mathematicarules(docs[i]))+"\"\n";
+        else:
+            jobstring+="docs["+str(i)+"]=\""+str(docs[i])+"\"\n";
         jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
@@ -314,7 +318,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     #jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
-    jobstring+="    srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperprocM)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcoll}\" \"${docs[${i}]}\" >> ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperprocM)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcoll}\" \"${newindexes[${i}]}\" >> ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -425,9 +429,7 @@ try:
                 #doc=json.loads(doc.rstrip('\n'));
                 jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
                 jobname=jobstepnamescontract(jobstepnames);
-                if scriptext==".m":
-                    docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,docs);
+                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,dbindexes,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());

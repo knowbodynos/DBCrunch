@@ -19,14 +19,11 @@ try:
     modname=sys.argv[2];
     jobstepid=sys.argv[3];
     dbcoll=sys.argv[4];
-    doc=eval(sys.argv[5]);
+    newindexes=eval(sys.argv[5]);
 
     mongoclient=toriccy.MongoClient(mongouri);
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
-
-    dbindexes=toriccy.getindexes(db,dbcoll);
-    newindexes=dict([(x,doc[x]) for x in dbindexes]);
 
     cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");
 
