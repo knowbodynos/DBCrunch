@@ -245,7 +245,7 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
         memoryperprocM=nodemaxmemory/(1000000*ncoresdistribmem);
         return [partition,nnodes,ncores,nprocs,memoryperprocM];
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs):
+def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
@@ -285,6 +285,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="\n";
     jobstring+="#Database info\n";
     jobstring+="mongouri=\""+mongouri+"\"\n";
+    jobstring+="dbcoll=\""+dbcoll+"\"\n";
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
@@ -292,6 +293,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="workpath=\"${primerpath}/jobs\"\n";
     jobstring+="\n";
     jobstring+="#Job info\n";
+    jobstring+="modname=\""+modname+"\"\n";
     jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     jobstring+="scriptmemorylimit=\""+str(scriptmemorylimit)+"\"\n";
     jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
@@ -308,10 +310,17 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
     jobstring+="    wait ${pids[${i}]}\n";
-    jobstring+="    stats=($(sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j ${SLURM_JOBID}.${i} | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g'))\n"
-    jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
-    jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
-    jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
+    #jobstring+="    stats=($(sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j ${SLURM_JOBID}.${i} | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g'))\n"
+    #jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
+    #jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
+    #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperprocM)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcoll}\" \"${docs[${i}]}\" >> ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    pids[${i}]=$!\n";
+    jobstring+="done\n";
+    jobstring+="\n";
+    jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
+    jobstring+="do\n";
+    jobstring+="    wait ${pids[${i}]}\n";
     jobstring+="done";
     jobstream=open(primerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
@@ -352,8 +361,8 @@ try:
     mongouri=sys.argv[16];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
     queries=eval(sys.argv[17]);
     #dumpfile=sys.argv[13];
-    dbindexes=sys.argv[18].split(",");
-    newcollfield=sys.argv[19].split(",");
+    dbcoll=sys.argv[18];
+    newcollection,newfield=sys.argv[19].split(",");
     
     #Read seek position from file
     #with open(primerpath+"/"+seekfile,"r") as seekstream:
@@ -376,17 +385,19 @@ try:
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
+    dbindexes=toriccy.getindexes(db,dbcoll);
+
     with open(statepath+"/modules","r") as modstream:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername)));
     while (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and timeleft(starttime):
         queryresult=toriccy.querydatabase(db,queries);
-        oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newcollfield[1],{"$exists":True})]) for x in queryresult];
+        oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         if len(oldqueryresultinds)==0:
             oldqueryresult=[];
         else:
-            oldqueryresult=toriccy.collectionfind(db,newcollfield[0],{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
+            oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
         oldqueryresultrunning=[y for x in jobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
         newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
         #Query database and dump to file
@@ -416,7 +427,7 @@ try:
                 jobname=jobstepnamescontract(jobstepnames);
                 if scriptext==".m":
                     docs=[toriccy.pythondictionary2mathematicarules(x) for x in docs];
-                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,docs);
+                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperprocM,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,scriptmemorylimit,dbcoll,docs);
                 #Submit job file
                 submitjob(workpath,jobname,resubmit=False);
                 #seekstream.write(querystream.tell());

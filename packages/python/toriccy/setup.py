@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
 from setuptools import setup;
 

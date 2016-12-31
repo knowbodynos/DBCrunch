@@ -46,24 +46,22 @@ ResCWS=Transpose["RESCWS"/.Geometry];
 ITensXD="ITENSXD"/.Geometry;
 SRIdeal="SRIDEAL"/.Geometry;
 
-(*maxmem=MaxMemoryUsed[
-    timedresult=TimeConstrained[
-        MemoryConstrained[
-            AbsoluteTiming[Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True]]
-        ,MemoryLimit,"MemorySkipped"]
-    ,TimeLimit,"TimeSkipped"]
-];*)
-
-timemem=TimeConstrained[
+(*timemem=TimeConstrained[
     MemoryConstrained[
         AbsoluteTiming[MaxMemoryUsed[involutionsresult=Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True]]]
     ,MemoryLimit,"MemorySkipped"]
+,TimeLimit,"TimeSkipped"];*)
+
+result=TimeConstrained[
+    MemoryConstrained[
+        Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True]
+    ,MemoryLimit,"MemorySkipped"]
 ,TimeLimit,"TimeSkipped"];
 
-If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
-    involutionsstats=timemem;
+If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
+    (*involutionsstats=timemem;
     {involutionstime,involutionsmem}=involutionsstats;
-    result=involutionsresult;
+    result=involutionsresult;*)
     TriangIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN"}->{H11,PolyID,GeomN,TriangN}];
     NewTriangFields={"DIVCOHOM"->("DIVCOHOM"/.result),"NINVOLS"->Length["INVOLLIST"/.result]};
     InvolDoc=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
@@ -75,11 +73,12 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
     (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];
     storage=storage+BSONSize[InvolDoc];
 	output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
-    WriteString[$Output,"Total Time: "<>ToString[involutionstime]<>"\n"];
+    (*WriteString[$Output,"Total Time: "<>ToString[involutionstime]<>"\n"];
     WriteString[$Output,"Total Max Memory: "<>ToString[involutionsmem]<>"\n"];
-    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];
+    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];*)
 ,
-	output=timemem;
+	(*output=timemem;*)
+    output=result;
     WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}],InputForm]];
 ];
 

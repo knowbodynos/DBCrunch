@@ -29,8 +29,8 @@ INVOLWebfaction=ToricCYWebfaction@getCollection["INVOL"];*)
 MongoClient[mongouri_]:=JavaNew["com.mongodb.MongoClient",JavaNew["com.mongodb.MongoClientURI",mongouri]];
 MongoDB[mongoclient_]:=mongoclient@getDB["ToricCY"];
 
-ToricCYTiers=ReadList[FileNameDrop[DirectoryName[$InputFileName],-1]<>"/state/tiers",String];
-ToricCYIndexes=ReadList[FileNameDrop[DirectoryName[$InputFileName],-1]<>"/state/indexes",String];
+(*ToricCYTiers=ReadList[FileNameDrop[DirectoryName[$InputFileName],-1]<>"/state/tiers",String];
+ToricCYIndexes=ReadList[FileNameDrop[DirectoryName[$InputFileName],-1]<>"/state/indexes",String];*)
 
 (*Get size of document in bytes.*)
 BSONSize[doc_]:=(JavaNew["org.bson.BasicBSONEncoder"]@encode[StringRulestoJSONJava@doc])[[1]];
@@ -109,13 +109,24 @@ CollectionFind[DB_,Collection_,Query_,Projection_,FormatResult_:"Expression"]:=M
     ];
 ];
 
+GetTiers[DB_]:="TIER"/.CollectionFind[DB ,"TIERS",{},{"_id"->0,"TIER"->1}];
+
+GetIndexes[DB_,Collection_:"All"]:=Module[{Indexes},
+    If[Collection=="All",
+        Indexes=DeleteDuplicates[Flatten["INDEX"/.("INDEXES"/.CollectionFind[DB ,"TIERS",{},{"_id"->0,"INDEXES.INDEX"->1}])]];
+    ,
+        Indexes=Flatten["INDEX"/.("INDEXES"/.CollectionFind[DB ,"TIERS",{"TIER"->Collection},{"_id"->0,"INDEXES.INDEX"->1}])];
+    ];
+    Return[Indexes];
+];
+
 (*Check if specific field exists in the collection.*)
 (*CollectionFieldExists[DB_,Collection_,Field_]:=(DB@getCollection[Collection])@find[StringRulestoJSONJava@{Field->{"$exists"->True,"$ne"->Null}}]@limit[1]@length[]==1;*)
 CollectionFieldExists[DB_,Collection_,Field_]:=!(DB@getCollection[Collection])@find[StringRulestoJSONJava@{},StringRulestoJSONJava@{"_id"->0,Field->1}]@limit[1]@next[]@isEmpty[];
 
 (*List the minimal sets of indexes from one collection's query required to specify documents in the next collection's query.*)
 ListIndexes[DB_,Collection_,Filter_]:=Module[{Indexes,TrueIndexes,TransposeIndexList,IndexList},
-    Indexes=ToricCYIndexes;
+    Indexes=GetIndexes[DB];
     TrueIndexes=Select[Indexes,CollectionFieldExists[DB,Collection,#]&];
     If[Length[TrueIndexes]==0,
         Return[{}];
@@ -126,15 +137,15 @@ ListIndexes[DB_,Collection_,Filter_]:=Module[{Indexes,TrueIndexes,TransposeIndex
 ];
 
 (*Check whether documents from two different collection's queries share the same minimal indexes and should be concatenated.*)
-SameIndexes[Filter1_,Filter2_]:=Module[{Indexes,Result},
-    Indexes=ToricCYIndexes;
+SameIndexes[DB_,Filter1_,Filter2_]:=Module[{Indexes,Result},
+    Indexes=GetIndexes[DB];
     Result=Equal@@Transpose[Select[Transpose[Indexes/.{Filter1,Filter2}],Length[Intersection[#,Indexes]]==0&]];
     Return[Result];
 ];
 
 (*Query all collections in the database and concatenate the documents of each that refer to the same object.*)
 QueryDatabase[DB_,Queries_,FormatResult_:"Expression"]:=Module[{Tiers,SortedProjQueries,MaxCountQuery,SortedQueries,TotalResult,IndexList,OrGroup,NextResult,i},
-    Tiers=ToricCYTiers;
+    Tiers=GetTiers[DB];
     SortedProjQueries=Reverse[SortBy[Select[Queries,#[[3]]=!="Count"&],Join[{Length[#[[2]]]},Flatten[Position[Tiers,#[[1]]],1]]&]];
     MaxCountQuery=MaximalBy[Complement[Queries,SortedProjQueries],Length[#[[2]]]&];
     SortedQueries=Join[SortedProjQueries,MaxCountQuery];
@@ -153,7 +164,7 @@ QueryDatabase[DB_,Queries_,FormatResult_:"Expression"]:=Module[{Tiers,SortedProj
         If[SortedQueries[[i,3]]==="Count",
             Return[NextResult];
         ];
-        TotalResult=Flatten[Map[Function[u,Map[Union[u,#]&,Select[NextResult,SameIndexes[#,u]&]]][#]&,TotalResult],1];
+        TotalResult=Flatten[Map[Function[u,Map[Union[u,#]&,Select[NextResult,SameIndexes[DB,#,u]&]]][#]&,TotalResult],1];
     ];
     Return[TotalResult];
 ];

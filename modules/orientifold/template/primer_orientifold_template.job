@@ -59,7 +59,7 @@ memorylimit="100000000000"
 #Input database info
 mongouri="mongodb://frontend:password@129.10.135.170:27017/ToricCY"
 queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1}],['GEOM',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1}],['TRIANG',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'INVOL':{'\$ne':None}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'INVOLN':1,'INVOL':1}]]"
-dbindexes="POLYID,GEOMN,TRIANGN,INVOLN"
+dbcoll="INVOL"
 newcollfield="INVOL,H11SPLIT"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbindexes}" "${newcollfield}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${sleeptime}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcoll}" "${newcollfield}"

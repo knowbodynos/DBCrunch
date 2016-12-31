@@ -263,25 +263,23 @@ SRIdeal="SRIDEAL"/.Geometry;
 InvolN="INVOLN"/.Geometry;
 Invol="INVOL"/.Geometry;
 
-(*maxmem=MaxMemoryUsed[
-    timedresults=TimeConstrained[
-        MemoryConstrained[
-            {AbsoluteTiming[FixedLoci[ResCWS,Invol,SRIdeal,True]],AbsoluteTiming[AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]]}
-        ,MemoryLimit,"MemorySkipped"]
-    ,TimeLimit,"TimeSkipped"]
-];*)
-
-timemem=TimeConstrained[
+(*timemem=TimeConstrained[
     MemoryConstrained[
         {AbsoluteTiming[MaxMemoryUsed[fixedlociresult=FixedLoci[ResCWS,Invol,SRIdeal,True]]],AbsoluteTiming[MaxMemoryUsed[hodgesplitresult=AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]]]}
     ,MemoryLimit,"MemorySkipped"]
+,TimeLimit,"TimeSkipped"];*)
+
+result=TimeConstrained[
+    MemoryConstrained[
+        Join[FixedLoci[ResCWS,Invol,SRIdeal,True],AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]]
+    ,MemoryLimit,"MemorySkipped"]
 ,TimeLimit,"TimeSkipped"];
 
-If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
-    {fixedlocistats,hodgesplitstats}=timemem;
+If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
+    (*{fixedlocistats,hodgesplitstats}=timemem;
     {fixedlocitime,fixedlocimem}=fixedlocistats;
     {hodgesplittime,hodgesplitmem}=hodgesplitstats;
-    result=Join[fixedlociresult,hodgesplitresult];
+    result=Join[fixedlociresult,hodgesplitresult];*)
     InvolIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN","INVOLN"}->{H11,PolyID,GeomN,TriangN,InvolN}];
     NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];
     outresult=Join[InvolIDField,result];
@@ -289,15 +287,16 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},timemem],
     (ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];
     storage=BSONSize[NewInvolFields];
 	output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
-    WriteString[$Output,"Fixed Loci Time: "<>ToString[fixedlocitime]<>"\n"];
+    (*WriteString[$Output,"Fixed Loci Time: "<>ToString[fixedlocitime]<>"\n"];
     WriteString[$Output,"Hodge Split Time: "<>ToString[hodgesplittime]<>"\n"];
     WriteString[$Output,"Total Time: "<>ToString[fixedlocitime+hodgesplittime]<>"\n"];
     WriteString[$Output,"Fixed Loci Max Memory: "<>ToString[fixedlocimem]<>"\n"];
     WriteString[$Output,"Hodge Split Max Memory: "<>ToString[hodgesplitmem]<>"\n"];
     WriteString[$Output,"Total Max Memory: "<>ToString[Max[fixedlocimem,hodgesplitmem]]<>"\n"];
-    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];
+    WriteString[$Output,"Total Storage: "<>ToString[storage]<>"\n"];*)
 ,
-	output=timemem;
+	(*output=timemem;*)
+    output=result;
     WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN,"_",InvolN," ",output,"\n"}],InputForm]];
 ];
 
