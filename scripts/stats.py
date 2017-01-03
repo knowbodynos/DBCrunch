@@ -15,14 +15,14 @@ def PrintException():
     print "More info: ",traceback.format_exc();
 
 try:
-    mongouri=sys.argv[1];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    mongouri=sys.argv[1];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
     modname=sys.argv[2];
     jobstepid=sys.argv[3];
     dbcoll=sys.argv[4];
     newindexes=eval(sys.argv[5]);
     logfile=sys.argv[6];
 
-    mongoclient=toriccy.MongoClient(mongouri);
+    mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 

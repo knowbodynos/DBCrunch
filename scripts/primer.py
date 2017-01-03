@@ -414,7 +414,7 @@ try:
     scriptmemorylimit=sys.argv[17];
 
     #Input database info
-    mongouri=sys.argv[18];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    mongouri=sys.argv[18];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
     queries=eval(sys.argv[19]);
     #dumpfile=sys.argv[13];
     dbcoll=sys.argv[20];
@@ -439,7 +439,7 @@ try:
 
     primerpartitiontimelimit,primerbuffertimelimit=getpartitiontimelimit(primerpartition,"",buffertime);
     
-    mongoclient=toriccy.MongoClient(mongouri);
+    mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 

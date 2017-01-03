@@ -13,6 +13,7 @@ SetOptions[ReinstallJava, JVMArguments->"-Xmx32g"];
 ReinstallJava[];
 AddToClassPath[MongoDBJarDirectory,"Prepend"->True];
 LoadJavaClass@"com.mongodb.util.JSON";
+LoadJavaClass@"com.mongodb.MongoCredential";
 (*mongoDirac=JavaNew["com.mongodb.MongoClient",JavaNew["com.mongodb.MongoClientURI","mongodb://"<>RemoteDBUsername<>":"<>RemoteDBPassword<>"@"<>RemoteHostDirac<>":"<>RemotePortDirac<>"/"<>RemoteDB]];
 mongoWebfaction=JavaNew["com.mongodb.MongoClient",JavaNew["com.mongodb.MongoClientURI","mongodb://"<>RemoteDBUsername<>":"<>RemoteDBPassword<>"@"<>RemoteHostWebfaction<>":"<>RemotePortWebfaction<>"/"<>RemoteDB]];
 ToricCYDirac=mongoDirac@getDB["ToricCY"];
@@ -26,8 +27,14 @@ GEOMWebfaction=ToricCYWebfaction@getCollection["GEOM"];
 TRIANGWebfaction=ToricCYWebfaction@getCollection["TRIANG"];
 INVOLWebfaction=ToricCYWebfaction@getCollection["INVOL"];*)
 
-MongoClient[mongouri_]:=JavaNew["com.mongodb.MongoClient",JavaNew["com.mongodb.MongoClientURI",mongouri]];
-MongoDB[mongoclient_]:=mongoclient@getDB["ToricCY"];
+MongoClient[mongouri_String]:=Module[{username,password,host,port,authDB,credential,credentialarray,mongoclient},
+    {username,password,host,port,authDB}=StringSplit[mongouri,{"://",":","@","/"}][[2;;]];    
+    credential=MongoCredential`createCredential[username,authDB,MakeJavaObject[password]@toCharArray[]];
+    credentialarray=JavaNew["java.util.ArrayList"];
+    credentialarray@add[credential];
+    mongoclient=JavaNew["com.mongodb.MongoClient",JavaNew["com.mongodb.ServerAddress",host,ToExpression[port]],credentialarray];
+    Return[mongoclient];
+];
 
 (*ToricCYTiers=ReadList[FileNameDrop[DirectoryName[$InputFileName],-1]<>"/state/tiers",String];
 ToricCYIndexes=ReadList[FileNameDrop[DirectoryName[$InputFileName],-1]<>"/state/indexes",String];*)
