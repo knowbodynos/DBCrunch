@@ -481,7 +481,7 @@ try:
             orderedpartitions=orderpartitions(largemempartitions);
             #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
             orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-            nodedistribution=distributeovernodes(statepath,orderedpartitions,ndocsleft,scriptmemorylimit.,maxstepcount);
+            nodedistribution=distributeovernodes(statepath,orderedpartitions,ndocsleft,scriptmemorylimit,maxstepcount);
             if nodedistribution=="Error":
                 nsteps=1;
             else:
