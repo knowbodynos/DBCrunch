@@ -143,7 +143,7 @@ def jobstepnamescontract(jobstepnames):
     return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
 
 def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
-    maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1",shell=True,stdout=subprocess.PIPE).communicate()[0];
+    maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0];
     if SLURMtimelimit in ["","infinite"]:
         timelimit=maxtimelimit;
     else:
