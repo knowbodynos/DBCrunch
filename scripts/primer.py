@@ -164,8 +164,12 @@ def timeleftq(starttime,buffertimelimit):
     else:
         return (time.time()-starttime)<buffertimelimit;
 
+#def clusterjobslotsleft(maxjobcount):
+#    njobs=eval(subprocess.Popen("squeue -h -r | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+#    return njobs<maxjobcount;
+
 def clusterjobslotsleft(maxjobcount):
-    njobs=eval(subprocess.Popen("squeue -h -r | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    njobs=eval(subprocess.Popen("squeue -h -r -u altman.ro | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
     return njobs<maxjobcount;
 
 def userjobsrunningq(username,modname,primername):
@@ -384,7 +388,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimeli
 try:
     #Timer and maxjobcount initialization
     starttime=time.time();
-    maxjobcount,maxstepcount=[eval(x) for x in subprocess.Popen("scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed  cut -d'=' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",")];
+    maxjobcount,maxstepcount=[eval(x) for x in subprocess.Popen("scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed 's/\s//g' | cut -d'=' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",")];
 
     #Cluster info
     username=sys.argv[1];
@@ -392,7 +396,7 @@ try:
     #Input primer info
     modname=sys.argv[2];
     primername=sys.argv[3];
-    primerpartition=sys.argv[4].split(",");
+    primerpartition=sys.argv[4];
     partitions=sys.argv[5].split(",");
     largemempartitions=sys.argv[6].split(",");
     writemode=sys.argv[7];
@@ -483,7 +487,7 @@ try:
             else:
                 partition,nnodes,ncores,nsteps,memoryperstep=nodedistribution;
                 docs=newqueryresult[i:i+nsteps];
-                if clusterjobslotsleft(maxjobcount):
+                if clusterjobslotsleft(1000):#maxjobcount):
                     #doc=json.loads(doc.rstrip('\n'));
                     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
                     jobname=jobstepnamescontract(jobstepnames);
