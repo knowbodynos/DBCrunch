@@ -157,7 +157,7 @@ def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
         buffertimelimit=timestamp2unit(timelimit)-timestamp2unit(buffertime);
     return [timelimit,buffertimelimit];
 
-def timeleftq(starttime,buffertimelimit):
+def timeleftq(starttime,primerbuffertimelimit):
     "Determine if runtime limit has been reached."
     if buffertimelimit=="infinite":
         return True;
@@ -453,7 +453,7 @@ try:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
-    while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,buffertimelimit):
+    while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
         queryresult=toriccy.querydatabase(db,queries);
         oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         if len(oldqueryresultinds)==0:
@@ -472,10 +472,10 @@ try:
         #querystream.seek(seekpos);
 
         #doc=querystream.readline();
-        #while doc and timeleftq(starttime,buffertimelimit):
+        #while doc and timeleftq(starttime,primerbuffertimelimit):
         nnewqueryresult=len(newqueryresult);
         i=0;
-        while (i<nnewqueryresult) and timeleftq(starttime,buffertimelimit):
+        while (i<nnewqueryresult) and timeleftq(starttime,primerbuffertimelimit):
             releaseheldjobs(username,modname,primername);
             ndocsleft=nnewqueryresult-i;
             orderedpartitions=orderpartitions(largemempartitions);
@@ -503,11 +503,11 @@ try:
                     time.sleep(sleeptime);
             i+=nsteps;
         
-        if timeleftq(starttime,buffertimelimit):
+        if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
             releaseheldjobs(username,modname,primername);
 
-    #while userjobsrunningq(username,modname,primername) and timeleftq(starttime,buffertimelimit):
+    #while userjobsrunningq(username,modname,primername) and timeleftq(starttime,primerbuffertimelimit):
     #    releaseheldjobs(username,modname,primername);
     #    skippedjobs=skippedjobslist(username,modname,primername,workpath);
     #    for x in skippedjobs:
@@ -515,7 +515,7 @@ try:
     #        submitjob(workpath,x,primerpartition,nodemaxmemory,resubmit=True);
     #    time.sleep(sleeptime);
 
-    if (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and not timeleftq(starttime,buffertimelimit):
+    if (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and not timeleftq(starttime,primerbuffertimelimit):
         #Resubmit primer job
         nodemaxmemory=getnodemaxmemory(statepath,primerpartition);
         submitjob(primerpath,"primer_"+modname+"_"+primername,primerpartition,nodemaxmemory,resubmit=True);
