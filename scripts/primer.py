@@ -281,7 +281,7 @@ def distributeovernodes(statepath,partitions,ndocsleft,scriptmemorylimit,maxstep
     nnodes=1;
     if nstepsdistribmem<1:
         if len(partitions)>1:
-            return distributeovernodes(statepath,partitions[1:],ndocsleft,scriptmemorylimit);
+            return distributeovernodes(statepath,partitions[1:],ndocsleft,scriptmemorylimit,maxstepcount);
         else:
             print "Memory requirement is too large for this cluster.";
             sys.stdout.flush();
@@ -481,7 +481,7 @@ try:
             orderedpartitions=orderpartitions(largemempartitions);
             #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
             orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-            nodedistribution=distributeovernodes(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
+            nodedistribution=distributeovernodes(statepath,orderedpartitions,ndocsleft,scriptmemorylimit.,maxstepcount);
             if nodedistribution=="Error":
                 nsteps=1;
             else:
