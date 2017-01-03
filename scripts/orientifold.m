@@ -247,10 +247,10 @@ AllBasesHodgeSplit[H11_,H21_,Invol_,DResVerts_,ResCWS_,FormatString_:True]:=Modu
 
 MongoDirac=MongoClient[$CommandLine[[7]]];
 ToricCYDirac=MongoDB[MongoDirac];
-TimeLimit=ToExpression[$CommandLine[[8]]];
+(*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
-SkippedFile=$CommandLine[[10]];
-Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[11]]]];
+SkippedFile=$CommandLine[[10]];*)
+Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[8]]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;
@@ -269,7 +269,7 @@ Invol="INVOL"/.Geometry;
     ,MemoryLimit,"MemorySkipped"]
 ,TimeLimit,"TimeSkipped"];*)
 
-result=TimeConstrained[
+(*result=TimeConstrained[
     MemoryConstrained[
         Join[FixedLoci[ResCWS,Invol,SRIdeal,True],AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]]
     ,MemoryLimit,"MemorySkipped"]
@@ -298,7 +298,15 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
 	(*output=timemem;*)
     output=result;
     WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN,"_",InvolN," ",output,"\n"}],InputForm]];
-];
+];*)
+
+result=Join[FixedLoci[ResCWS,Invol,SRIdeal,True],AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]];
+InvolIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN","INVOLN"}->{H11,PolyID,GeomN,TriangN,InvolN}];
+NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];
+outresult=Join[InvolIDField,result];
+    
+(ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];
+output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)

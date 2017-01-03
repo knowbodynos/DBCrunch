@@ -86,25 +86,42 @@ def py2matdict(dic):
     return str(dic).replace("u'","'").replace(" ","").replace("'","\\\"").replace(":","->");
 '''
 
-def timestamp2seconds(timestamp,unit="seconds"):
-    days=0;
-    if "-" in timestamp:
-        daysstr,timestamp=timestamp.split("-");
-        days=int(daysstr);
-    hours,minutes,seconds=[int(x) for x in timestamp.split(":")];
-    hours+=days*24;
-    minutes+=hours*60;
-    seconds+=minutes*60;
-    if unit=="seconds":
-        return seconds;
-    elif unit=="minutes":
-        return float(seconds)/60.;
-    elif unit=="hours":
-        return float(seconds)/(60.*60.);
-    elif unit=="days":
-        return float(seconds)/(60.*60.*24.);
+def timestamp2unit(timestamp,unit="seconds"):
+    if timestamp=="infinite":
+        return timestamp;
     else:
-        return 0;
+        days=0;
+        if "-" in timestamp:
+            daysstr,timestamp=timestamp.split("-");
+            days=int(daysstr);
+        hours,minutes,seconds=[int(x) for x in timestamp.split(":")];
+        hours+=days*24;
+        minutes+=hours*60;
+        seconds+=minutes*60;
+        if unit=="seconds":
+            return seconds;
+        elif unit=="minutes":
+            return float(seconds)/60.;
+        elif unit=="hours":
+            return float(seconds)/(60.*60.);
+        elif unit=="days":
+            return float(seconds)/(60.*60.*24.);
+        else:
+            return 0;
+
+def seconds2timestamp(seconds):
+    timestamp="";
+    days=str(seconds/(60*60*24));
+    remainder=seconds%(60*60*24);
+    hours=str(remainder/(60*60)).zfill(2);
+    remainder=remainder%(60*60);
+    minutes=str(remainder/60).zfill(2);
+    remainder=remainder%60;
+    seconds=str(remainder).zfill(2);
+    if days!="0":
+        timestamp+=days+"-";
+    timestamp+=hours+":"+minutes+":"+seconds;
+    return timestamp;
 
 def jobname2jobjson(jobname,dbindexes):
     indexsplit=[[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")];
@@ -125,19 +142,37 @@ def jobstepnamescontract(jobstepnames):
     bracketcontracted=[x.split("_") for x in jobstepnames];
     return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
 
-def timeleft(starttime,maxtime=82800):
+def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
+    maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1",shell=True,stdout=subprocess.PIPE).communicate()[0];
+    if SLURMtimelimit in ["","infinite"]:
+        timelimit=maxtimelimit;
+    else:
+        if maxtimelimit=="infinite":
+            timelimit=SLURMtimelimit;
+        else:
+            timelimit=min(maxtimelimit,SLURMtimelimit,key=timestamp2unit);
+    if timelimit=="infinite":
+        buffertimelimit=timelimit;
+    else:
+        buffertimelimit=timestamp2unit(timelimit)-timestamp2unit(buffertime);
+    return [timelimit,buffertimelimit];
+
+def timeleftq(starttime,buffertimelimit):
     "Determine if runtime limit has been reached."
-    return (time.time()-starttime)<maxtime;
+    if buffertimelimit=="infinite":
+        return True;
+    else:
+        return (time.time()-starttime)<buffertimelimit;
 
-def jobslotsleft(username,maxnjobs):
-    njobs=eval(subprocess.Popen("squeue -h -u "+username+" | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
-    return njobs<maxnjobs;
+def clusterjobslotsleft(maxjobcount):
+    njobs=eval(subprocess.Popen("squeue -h -r | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    return njobs<maxjobcount;
 
-def jobsrunningq(username,modname,primername):
+def userjobsrunningq(username,modname,primername):
     njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
     return njobsrunning>0;
 
-def primersrunningq(username,modlist,primername):
+def prevprimersrunningq(username,modlist,primername):
     if len(modlist)==0:
         njobsrunning=0;
     else:
@@ -145,7 +180,7 @@ def primersrunningq(username,modlist,primername):
         njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '"+grepstr+"' | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
     return njobsrunning>0;
 
-def jobsrunninglist(username,modname,primername):
+def userjobsrunninglist(username,modname,primername):
     jobsrunningstring=subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0];
     if jobsrunningstring=='':
         return [];
@@ -153,7 +188,7 @@ def jobsrunninglist(username,modname,primername):
         jobsrunning=jobsrunningstring.split(",");
         return jobsrunning;
 
-def submitjob(jobpath,jobname,resubmit=False):
+def submitjob(jobpath,jobname,partition,memory,resubmit=False):
     submit=subprocess.Popen("sbatch "+jobpath+"/"+jobname+".job",shell=True,stdout=subprocess.PIPE);
     submitcomm=submit.communicate()[0].rstrip("\n");
     #Print information about primer job submission
@@ -163,27 +198,27 @@ def submitjob(jobpath,jobname,resubmit=False):
         print "\n";
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
         if "primer" in jobname:
-            print "Res"+submitcomm[1:]+" as "+jobname+".";
+            print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
         else:
             jobstepnames=jobnameexpand(jobname);
             submitcomm=submitcomm.replace("job ","job step ");
             for i in range(len(jobstepnames)):
-                print "Res"+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+".";
+                print "Res"+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
         print "\n\n";
     else:
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
         if "primer" in jobname:
-            print submitcomm+" as "+jobname+".";
+            print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
         else:
             jobstepnames=jobnameexpand(jobname);
             submitcomm=submitcomm.replace("job ","job step ");
             for i in range(len(jobstepnames)):
-                print submitcomm+"."+str(i)+" as "+jobstepnames[i]+".";
+                print submitcomm+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
         print "\n";
     sys.stdout.flush();
 
 #def skippedjobslist(username,modname,primername,workpath):
-#    jobsrunning=jobsrunninglist(username,modname,primername);
+#    jobsrunning=userjobsrunninglist(username,modname,primername);
 #    blankfilesstring=subprocess.Popen("find '"+workpath+"' -maxdepth 1 -type f -name '*.out' -empty | rev | cut -d'/' -f1 | rev | cut -d'.' -f1 | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0];
 #    if blankfilesstring=='':
 #        return [];
@@ -216,10 +251,7 @@ def orderpartitions(partitions):
     orderedpartitions=[x for x in toriccy.deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend) if x!=""];
     return orderedpartitions;
 
-def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
-    partition=partitions[0];
-    ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
-    maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0].rstrip("\n"));
+def getnodemaxmemory(statepath,partition):
     nodemaxmemory=0;
     with open(statepath+"/resources","r") as resourcesstream:
         for resourcesstring in resourcesstream:
@@ -227,28 +259,37 @@ def nodedistribution(statepath,partitions,ndocsleft,scriptmemorylimit):
             if resources[0]==partition:
                 nodemaxmemory=eval(resources[1]);
                 break;
-    if scriptmemorylimit=="":
-        nprocsdistribmem=1;
-    else:
-        nprocsdistribmem=nodemaxmemory/eval(scriptmemorylimit);
-    #nprocsfloat=min(float(ndocsleft),float(ncoresperpartition),nprocsdistribmem);
-    #nnodes=int(min(maxnnodes,math.ceil(1./nprocsfloat)));
-    #ncores=nnodes*ncoresperpartition;
-    #nprocs=int(max(1,nprocsfloat));
-    nnodes=1;
-    if nprocsdistribmem<1:
-        if len(partition)>1:
-            return nodedistribution(statepath,partitions[1:],ndocsleft,scriptmemorylimit);
-        else:
-            return "Memory requirement is too large for this cluster.";
-    else:
-        nprocsfloat=min(ndocsleft,ncoresperpartition,nprocsdistribmem);
-        ncores=nnodes*ncoresperpartition;
-        nprocs=nprocsfloat;
-        memoryperproc=nodemaxmemory/nprocsdistribmem;
-        return [partition,nnodes,ncores,nprocs,memoryperproc];
+    return nodemaxmemory;
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperproc,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,dbcoll,dbindexes,docs):
+def distributeovernodes(statepath,partitions,ndocsleft,scriptmemorylimit,maxstepcount):
+    partition=partitions[0];
+    ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0].rstrip("\n"));
+    nodemaxmemory=getnodemaxmemory(statepath,partition);
+    if scriptmemorylimit=="":
+        nstepsdistribmem=1;
+    else:
+        nstepsdistribmem=nodemaxmemory/eval(scriptmemorylimit);
+    #nstepsfloat=min(float(ndocsleft),float(ncoresperpartition),nstepsdistribmem);
+    #nnodes=int(min(maxnnodes,math.ceil(1./nstepsfloat)));
+    #ncores=nnodes*ncoresperpartition;
+    #nsteps=int(max(1,nstepsfloat));
+    nnodes=1;
+    if nstepsdistribmem<1:
+        if len(partitions)>1:
+            return distributeovernodes(statepath,partitions[1:],ndocsleft,scriptmemorylimit);
+        else:
+            print "Memory requirement is too large for this cluster.";
+            sys.stdout.flush();
+            return "Error";
+    else:
+        nstepsfloat=min(ndocsleft,ncoresperpartition,nstepsdistribmem,maxstepcount);
+        ncores=nnodes*ncoresperpartition;
+        nsteps=nstepsfloat;
+        memoryperstep=nodemaxmemory/nstepsdistribmem;
+        return [partition,nnodes,ncores,nsteps,memoryperstep];
+
+def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcoll,dbindexes,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
@@ -271,7 +312,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="#SBATCH --open-mode=\""+writemode+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Job max time\n";
-    jobstring+="#SBATCH --time=\""+SLURMtimelimit+"\"\n";
+    jobstring+="#SBATCH --time=\""+partitiontimelimit+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Partition (queue) to use for job\n";
     jobstring+="#SBATCH --partition=\""+partition+"\"\n";
@@ -297,9 +338,9 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstring+="\n";
     jobstring+="#Job info\n";
     jobstring+="modname=\""+modname+"\"\n";
-    jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
-    jobstring+="scriptmemorylimit=\""+str(memoryperproc)+"\"\n";
-    jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
+    #jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
+    #jobstring+="scriptmemorylimit=\""+str(memoryperstep)+"\"\n";
+    #jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
         jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
@@ -310,7 +351,8 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
         jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperproc/1000000)+"M\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    #jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" --time=\""+buffertimelimit+"\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -321,7 +363,12 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     #jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
-    jobstring+="    srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperproc/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcoll}\" \"${newindexes[${i}]}\" >> ${jobstepnames[${i}]}.log &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    if test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+    jobstring+="    then\n";
+    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcoll}\" \"${newindexes[${i}]}\" \"${workpath}/${jobstepnames[${i}]}.log\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="    else\n";
+    jobstring+="        echo \"${jobstepnames[${i}]}\" >> \"${primerpath}/skipped\"; sacct -j \"${SLURM_JOBID}.${i}\" -o 'State,ExitCode,DerivedExitCode' >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
+    jobstring+="    fi\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -335,9 +382,9 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,
     jobstream.close();
 
 try:
-    #Timer and maxnjobs initialization
+    #Timer and maxjobcount initialization
     starttime=time.time();
-    maxnjobs=eval(subprocess.Popen("scontrol show config | grep 'MaxJobCount' | sed 's/\s*//g' | cut -d'=' -f2",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    maxjobcount,maxstepcount=[eval(x) for x in subprocess.Popen("scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed  cut -d'=' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",")];
 
     #Cluster info
     username=sys.argv[1];
@@ -345,31 +392,33 @@ try:
     #Input primer info
     modname=sys.argv[2];
     primername=sys.argv[3];
-    sleeptime=timestamp2seconds(sys.argv[4]);
+    primerpartition=sys.argv[4].split(",");
     partitions=sys.argv[5].split(",");
     largemempartitions=sys.argv[6].split(",");
     writemode=sys.argv[7];
     SLURMtimelimit=sys.argv[8];
+    buffertime=sys.argv[9];
+    sleeptime=timestamp2unit(sys.argv[10]);
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[9];
-    packagepath=sys.argv[10];
-    scriptpath=sys.argv[11];
+    mainpath=sys.argv[11];
+    packagepath=sys.argv[12];
+    scriptpath=sys.argv[13];
 
     #Input script info
-    scripttype=sys.argv[12];
-    scriptext=sys.argv[13];
-    scripttimelimit=timestamp2seconds(sys.argv[14]);
-    scriptmemorylimit=sys.argv[15];
+    scripttype=sys.argv[14];
+    scriptext=sys.argv[15];
+    scripttimelimit=timestamp2unit(sys.argv[16]);
+    scriptmemorylimit=sys.argv[17];
 
     #Input database info
-    mongouri=sys.argv[16];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[17]);
+    mongouri=sys.argv[18];#"mongodb://frontend:password@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[19]);
     #dumpfile=sys.argv[13];
-    dbcoll=sys.argv[18];
-    newcollection,newfield=sys.argv[19].split(",");
+    dbcoll=sys.argv[20];
+    newcollection,newfield=sys.argv[21].split(",");
     
     #Read seek position from file
     #with open(primerpath+"/"+seekfile,"r") as seekstream:
@@ -387,6 +436,8 @@ try:
     primerpath=modulepath+"/"+primername;
     workpath=primerpath+"/jobs";  
     scriptfile=modname+scriptext;
+
+    primerpartitiontimelimit,primerbuffertimelimit=getpartitiontimelimit(primerpartition,"",buffertime);
     
     mongoclient=toriccy.MongoClient(mongouri);
     dbname=mongouri.split("/")[-1];
@@ -397,15 +448,15 @@ try:
     with open(statepath+"/modules","r") as modstream:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
-    lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername)));
-    while (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and timeleft(starttime):
+    lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
+    while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,buffertimelimit):
         queryresult=toriccy.querydatabase(db,queries);
         oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         if len(oldqueryresultinds)==0:
             oldqueryresult=[];
         else:
             oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
-        oldqueryresultrunning=[y for x in jobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
+        oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
         newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
         #Query database and dump to file
         #querytofile(db,queries,primerpath,"querydump");
@@ -417,47 +468,53 @@ try:
         #querystream.seek(seekpos);
 
         #doc=querystream.readline();
-        #while doc and timeleft(starttime):
+        #while doc and timeleftq(starttime,buffertimelimit):
         nnewqueryresult=len(newqueryresult);
         i=0;
-        while (i<nnewqueryresult) and timeleft(starttime):
+        while (i<nnewqueryresult) and timeleftq(starttime,buffertimelimit):
             releaseheldjobs(username,modname,primername);
             ndocsleft=nnewqueryresult-i;
             orderedpartitions=orderpartitions(largemempartitions);
-            if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
-                orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-            partition,nnodes,ncores,nprocs,memoryperproc=nodedistribution(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
-            docs=newqueryresult[i:i+nprocs];
-            if jobslotsleft(username,maxnjobs):
-                #doc=json.loads(doc.rstrip('\n'));
-                jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
-                jobname=jobstepnamescontract(jobstepnames);
-                writejobfile(modname,jobname,primerpath,primername,writemode,SLURMtimelimit,partition,nnodes,ncores,memoryperproc,mongouri,scriptpath,scripttype,scriptext,scripttimelimit,dbcoll,dbindexes,docs);
-                #Submit job file
-                submitjob(workpath,jobname,resubmit=False);
-                #seekstream.write(querystream.tell());
-                #seekstream.flush();
-                #seekstream.seek(0);
-                #doc=querystream.readline();
+            #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
+            orderedpartitions=orderpartitions(partitions)+orderedpartitions;
+            nodedistribution=distributeovernodes(statepath,orderedpartitions,ndocsleft,scriptmemorylimit);
+            if nodedistribution=="Error":
+                nsteps=1;
             else:
-                time.sleep(sleeptime);
-            i+=nprocs;
+                partition,nnodes,ncores,nsteps,memoryperstep=nodedistribution;
+                docs=newqueryresult[i:i+nsteps];
+                if clusterjobslotsleft(maxjobcount):
+                    #doc=json.loads(doc.rstrip('\n'));
+                    jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
+                    jobname=jobstepnamescontract(jobstepnames);
+                    partitiontimelimit,buffertimelimit=getpartitiontimelimit(partition,SLURMtimelimit,buffertime);
+                    writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcoll,dbindexes,docs);
+                    #Submit job file
+                    submitjob(workpath,jobname,partition,memoryperstep,resubmit=False);
+                    #seekstream.write(querystream.tell());
+                    #seekstream.flush();
+                    #seekstream.seek(0);
+                    #doc=querystream.readline();
+                else:
+                    time.sleep(sleeptime);
+            i+=nsteps;
         
-        if timeleft(starttime):
-            #time.sleep(sleeptime);
-            lastrun=(not (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun));
+        if timeleftq(starttime,buffertimelimit):
+            lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
             releaseheldjobs(username,modname,primername);
 
-    #while jobsrunningq(username,modname,primername) and timeleft(starttime):
+    #while userjobsrunningq(username,modname,primername) and timeleftq(starttime,buffertimelimit):
     #    releaseheldjobs(username,modname,primername);
     #    skippedjobs=skippedjobslist(username,modname,primername,workpath);
     #    for x in skippedjobs:
-    #        submitjob(workpath,x,resubmit=True);
+    #        nodemaxmemory=getnodemaxmemory(statepath,primerpartition);
+    #        submitjob(workpath,x,primerpartition,nodemaxmemory,resubmit=True);
     #    time.sleep(sleeptime);
 
-    if (primersrunningq(username,prevmodlist,primername) or jobsrunningq(username,modname,primername) or lastrun) and not timeleft(starttime):
+    if (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and not timeleftq(starttime,buffertimelimit):
         #Resubmit primer job
-        submitjob(primerpath,"primer_"+modname+"_"+primername,resubmit=True);
+        nodemaxmemory=getnodemaxmemory(statepath,primerpartition);
+        submitjob(primerpath,"primer_"+modname+"_"+primername,primerpartition,nodemaxmemory,resubmit=True);
 
     #querystream.close();
     #seekstream.close();

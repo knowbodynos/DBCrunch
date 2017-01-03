@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,subprocess,toriccy;
+import sys,linecache,traceback,subprocess,bson,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -20,6 +20,7 @@ try:
     jobstepid=sys.argv[3];
     dbcoll=sys.argv[4];
     newindexes=eval(sys.argv[5]);
+    logfile=sys.argv[6];
 
     mongoclient=toriccy.MongoClient(mongouri);
     dbname=mongouri.split("/")[-1];
@@ -27,11 +28,18 @@ try:
 
     cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");
 
-    db[dbcoll].update(newindexes,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize}}});
+    bsonsize=0;
+    with open(logfile,"r") as logstream:
+        for line in logstream:
+            doc=eval(line.rstrip("\n").replace("Output:","").replace(" ",""));
+            bsonsize+=len(bson.BSON.encode(doc));
 
-    print "CPUTime: "+str(cputime);
-    print "MaxRSS: "+str(maxrss);
-    print "MaxVMSize: "+str(maxvmsize);
+    db[dbcoll].update(newindexes,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});
+
+    print "CPUTime: "+str(cputime)+" seconds";
+    print "MaxRSS: "+str(maxrss)+" bytes";
+    print "MaxVMSize: "+str(maxvmsize)+" bytes";
+    print "BSONSize: "+str(bsonsize)+" bytes";
     sys.stdout.flush();
 
     mongoclient.close();

@@ -32,10 +32,10 @@ Involutions[FundGp_,ResCWS_,ITensXD_,SRIdeal_,FormatString_:True]:=Module[{TDivs
 
 MongoDirac=MongoClient[$CommandLine[[7]]];
 ToricCYDirac=MongoDB[MongoDirac];
-TimeLimit=ToExpression[$CommandLine[[8]]];
+(*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
-SkippedFile=$CommandLine[[10]];
-Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[11]]]];
+SkippedFile=$CommandLine[[10]];*)
+Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[8]]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;
@@ -52,7 +52,7 @@ SRIdeal="SRIDEAL"/.Geometry;
     ,MemoryLimit,"MemorySkipped"]
 ,TimeLimit,"TimeSkipped"];*)
 
-result=TimeConstrained[
+(*result=TimeConstrained[
     MemoryConstrained[
         Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True]
     ,MemoryLimit,"MemorySkipped"]
@@ -80,7 +80,18 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
 	(*output=timemem;*)
     output=result;
     WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}],InputForm]];
-];
+];*)
+
+result=Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True];
+TriangIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN"}->{H11,PolyID,GeomN,TriangN}];
+NewTriangFields={"DIVCOHOM"->("DIVCOHOM"/.result),"NINVOLS"->Length["INVOLLIST"/.result]};
+InvolDoc=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
+outresult=Join[NewTriangFields,{"INVOLLIST"->InvolDoc}];
+    
+(ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
+If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->Null,"INVOL"->Null}]}];
+(ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];
+output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
