@@ -157,7 +157,7 @@ def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
         buffertimelimit=timestamp2unit(timelimit)-timestamp2unit(buffertime);
     return [timelimit,buffertimelimit];
 
-def timeleftq(starttime,primerbuffertimelimit):
+def timeleftq(starttime,buffertimelimit):
     "Determine if runtime limit has been reached."
     if buffertimelimit=="infinite":
         return True;
