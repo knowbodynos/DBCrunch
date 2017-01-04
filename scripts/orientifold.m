@@ -246,7 +246,7 @@ AllBasesHodgeSplit[H11_,H21_,Invol_,DResVerts_,ResCWS_,FormatString_:True]:=Modu
 
 
 MongoDirac=MongoClient[$CommandLine[[7]]];
-ToricCYDirac=MongoDB[MongoDirac];
+ToricCYDirac=MongoDirac@getDB["ToricCY"];
 (*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)

@@ -31,7 +31,7 @@ Involutions[FundGp_,ResCWS_,ITensXD_,SRIdeal_,FormatString_:True]:=Module[{TDivs
 
 
 MongoDirac=MongoClient[$CommandLine[[7]]];
-ToricCYDirac=MongoDB[MongoDirac];
+ToricCYDirac=MongoDirac@getDB["ToricCY"];
 (*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
