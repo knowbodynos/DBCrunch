@@ -86,7 +86,7 @@ result=Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True];
 TriangIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN"}->{H11,PolyID,GeomN,TriangN}];
 NewTriangFields={"DIVCOHOM"->("DIVCOHOM"/.result),"NINVOLS"->Length["INVOLLIST"/.result]};
 InvolDoc=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
-If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->Null,"INVOL"->Null}]}];
+If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->None,"INVOL"->None}]}];
 outresult=Join[{NewTriangFields},InvolDoc];
     
 (*(ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
