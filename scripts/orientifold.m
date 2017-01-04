@@ -6,7 +6,7 @@ WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine
 IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[6]]);
 
 Get["cohomCalgKoszulExtensionSilent`"];
-Get["ToricCY`"];
+(*Get["ToricCY`"];*)
 
 
 OrientedPolynomials[ResCWS_,Invol_]:=Module[{TDivs,TDivs2Inds,InvolGroups,DiffVecs,DiffKernel,CoordTerms,MonomialTerms,BinomialTerms,PolynomialTerms,PolynomialsSplit,NewResCWSSplit,i},
@@ -245,12 +245,12 @@ AllBasesHodgeSplit[H11_,H21_,Invol_,DResVerts_,ResCWS_,FormatString_:True]:=Modu
 ];
 
 
-MongoDirac=MongoClient[$CommandLine[[7]]];
-ToricCYDirac=MongoDirac@getDB["ToricCY"];
+(*MongoDirac=MongoClient[$CommandLine[[7]]];
+ToricCYDirac=MongoDirac@getDB["ToricCY"];*)
 (*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
-Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[8]]]];
+Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;

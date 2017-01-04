@@ -293,7 +293,7 @@ def distributeovernodes(statepath,partitions,ndocsleft,scriptmemorylimit,maxstep
         memoryperstep=nodemaxmemory/nstepsdistribmem;
         return [partition,nnodes,ncores,nsteps,memoryperstep];
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcoll,dbindexes,docs):
+def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
@@ -333,7 +333,8 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimeli
     jobstring+="\n";
     jobstring+="#Database info\n";
     jobstring+="mongouri=\""+mongouri+"\"\n";
-    jobstring+="dbcoll=\""+dbcoll+"\"\n";
+    jobstring+="dbcollection=\""+dbcollection+"\"\n";
+    jobstring+="newollection=\""+newcollection+"\"\n";
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
@@ -347,7 +348,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimeli
     #jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
-        jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
+        #jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
         if scriptext==".m":
             jobstring+="docs["+str(i)+"]=\""+str(toriccy.pythondictionary2mathematicarules(docs[i]))+"\"\n";
         else:
@@ -356,7 +357,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimeli
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
     #jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" --time=\""+seconds2timestamp(buffertimelimit)+"\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" --time=\""+seconds2timestamp(buffertimelimit)+"\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -369,7 +370,7 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimeli
     #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
     jobstring+="    if test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
     jobstring+="    then\n";
-    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcoll}\" \"${newindexes[${i}]}\" \"${workpath}/${jobstepnames[${i}]}.log\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
     jobstring+="        echo \"${jobstepnames[${i}]}\" >> \"${primerpath}/skipped\"; sacct -j \"${SLURM_JOBID}.${i}\" -o 'State,ExitCode,DerivedExitCode' >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    fi\n";
@@ -421,7 +422,7 @@ try:
     mongouri=sys.argv[18];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
     queries=eval(sys.argv[19]);
     #dumpfile=sys.argv[13];
-    dbcoll=sys.argv[20];
+    dbcollection=sys.argv[20];
     newcollection,newfield=sys.argv[21].split(",");
     
     #Read seek position from file
@@ -447,7 +448,7 @@ try:
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    dbindexes=toriccy.getindexes(db,dbcoll);
+    dbindexes=toriccy.getindexes(db,dbcollection);
 
     with open(statepath+"/modules","r") as modstream:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
@@ -492,7 +493,7 @@ try:
                     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
                     jobname=jobstepnamescontract(jobstepnames);
                     partitiontimelimit,buffertimelimit=getpartitiontimelimit(partition,SLURMtimelimit,buffertime);
-                    writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcoll,dbindexes,docs);
+                    writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs);
                     #Submit job file
                     submitjob(workpath,jobname,partition,memoryperstep,resubmit=False);
                     #seekstream.write(querystream.tell());

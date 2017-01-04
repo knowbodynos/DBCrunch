@@ -6,7 +6,7 @@ WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine
 IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[6]]);
 
 Get["cohomCalgKoszulExtensionSilent`"];
-Get["ToricCY`"];
+(*Get["ToricCY`"];*)
 
 
 Involutions[FundGp_,ResCWS_,ITensXD_,SRIdeal_,FormatString_:True]:=Module[{TDivs,DivTrivCohom,DivEuler,DivCohom,SameDivCohomSets,SameDivCohomPairs,NaiveInvolInds,DisjointInvolInds,DisjointInvols,SRInvols,i,j,Result},
@@ -30,12 +30,12 @@ Involutions[FundGp_,ResCWS_,ITensXD_,SRIdeal_,FormatString_:True]:=Module[{TDivs
 ];
 
 
-MongoDirac=MongoClient[$CommandLine[[7]]];
-ToricCYDirac=MongoDirac@getDB["ToricCY"];
+(*MongoDirac=MongoClient[$CommandLine[[7]]];
+ToricCYDirac=MongoDirac@getDB["ToricCY"];*)
 (*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
-Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[8]]]];
+Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;

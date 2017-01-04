@@ -26,10 +26,25 @@ def gettiers(db):
 def getindexes(db,collection="all"):
     "Return all indexes for a collection."
     if collection=="all":
-        indexes=tools.deldup([y["INDEX"] for x in collectionfind(db,"TIERS",{},{"_id":0,"INDEXES.INDEX":1}) for y in x["INDEXES"]]);
+        query={};
     else:
-        indexes=[y["INDEX"] for x in collectionfind(db,"TIERS",{"TIER":collection},{"_id":0,"INDEXES.INDEX":1}) for y in x["INDEXES"]];
-    return indexes;
+        query={"TIER":collection};
+    result=[x["INDEX"] for x in collectionfind(db,"INDEXES",query,{"_id":0,"INDEX":1})];
+    return result;
+
+def gettierfromdoc(db,doc):
+    tiers=gettiers(db);
+    indexes=getindexes(db);
+    dbindexes=[x for x in doc.keys() if x in indexes];
+    i=0;
+    tierindexes=getindexes(db,tiers[i]);
+    while (i<len(tiers)) and not (all([x in tierindexes for x in dbindexes]) and all([x in dbindexes for x in tierindexes])):
+        i+=1;
+        tierindexes=getindexes(db,tiers[i]);
+    if i<len(tiers):
+        return tiers[i];
+    else:
+        return "";
 
 def collectionfieldexists(db,collection,field):
     "Check if specific field exists in the collection."
@@ -50,9 +65,8 @@ def sameindexes(filter1,filter2,indexes):
 
 def querydatabase(db,queries,formatresult="string"):
     "Query all collections in the database and concatenate the documents of each that refer to the same object."
-    tierlist=collectionfind(db,"TIERS",{},{"_id":0,"TIER":1,"INDEXES.INDEX":1});
-    tiers=[x["TIER"] for x in tierlist];
-    indexes=tools.deldup([y["INDEX"] for x in tierlist for y in x["INDEXES"]]);
+    tiers=gettiers(db);
+    indexes=getindexes(db);
     sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (len(x[1]),tiers.index(x[0])),reverse=True);
     maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
     sortedqueries=sortedprojqueries+maxcountquery;

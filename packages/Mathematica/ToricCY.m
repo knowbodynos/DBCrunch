@@ -118,13 +118,14 @@ CollectionFind[DB_,Collection_,Query_,Projection_,FormatResult_:"Expression"]:=M
 
 GetTiers[DB_]:="TIER"/.CollectionFind[DB ,"TIERS",{},{"_id"->0,"TIER"->1}];
 
-GetIndexes[DB_,Collection_:"All"]:=Module[{Indexes},
+GetIndexes[DB_,Collection_:"All"]:=Module[{Query,Result},
     If[Collection=="All",
-        Indexes=DeleteDuplicates[Flatten["INDEX"/.("INDEXES"/.CollectionFind[DB ,"TIERS",{},{"_id"->0,"INDEXES.INDEX"->1}])]];
+        Query={};
     ,
-        Indexes=Flatten["INDEX"/.("INDEXES"/.CollectionFind[DB ,"TIERS",{"TIER"->Collection},{"_id"->0,"INDEXES.INDEX"->1}])];
+        Query={"TIER"->Collection};
     ];
-    Return[Indexes];
+    Result=DeleteDuplicates["INDEX"/.CollectionFind[ToricCYDirac ,"INDEXES",Query,{"_id"->0,"INDEX"->1}]];
+    Return[Result];
 ];
 
 (*Check if specific field exists in the collection.*)
