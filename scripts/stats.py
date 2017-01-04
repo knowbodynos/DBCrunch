@@ -45,7 +45,7 @@ try:
     bsonsize=0;
     with open(workpath+"/"+jobstepname+".log","r") as logstream:
         for line in logstream:
-            doc=eval(line.rstrip("\n").replace("Output:","").replace(" ",""));
+            doc=eval(line.rstrip("\n").replace("Output:","").replace(" ","")).replace("Null","None");
             bsonsize+=len(bson.BSON.encode(doc));
             fulldoc=merge_dicts(indexdoc,doc);
             newcollection=toriccy.gettierfromdoc(db,fulldoc);
