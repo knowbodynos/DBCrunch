@@ -116,7 +116,7 @@ CollectionFind[DB_,Collection_,Query_,Projection_,FormatResult_:"Expression"]:=M
     ];
 ];
 
-GetTiers[DB_]:="TIER"/.CollectionFind[DB ,"TIERS",{},{"_id"->0,"TIER"->1}];
+GetTiers[DB_]:="TIER"/.CollectionFind[DB ,"TIERS",{},{"_id"->0,"TIER"->1},"String"];
 
 GetIndexes[DB_,Collection_:"All"]:=Module[{Query,Result},
     If[Collection=="All",
@@ -124,8 +124,25 @@ GetIndexes[DB_,Collection_:"All"]:=Module[{Query,Result},
     ,
         Query={"TIER"->Collection};
     ];
-    Result=DeleteDuplicates["INDEX"/.CollectionFind[ToricCYDirac ,"INDEXES",Query,{"_id"->0,"INDEX"->1}]];
+    Result=DeleteDuplicates["INDEX"/.CollectionFind[ToricCYDirac ,"INDEXES",Query,{"_id"->0,"INDEX"->1},"String"]];
     Return[Result];
+];
+
+GetTierFromDoc[DB_,Doc_]:=Module[{Tiers,Indexes,DBIndexes,i,TierIndexes},
+    Tiers=GetTiers[DB];
+    Indexes=GetIndexes[DB];
+    DBIndexes=Intersection[Doc/.Rule[x_,y_]->x,Indexes];
+    i=1;
+    TierIndexes=GetIndexes[DB,Tiers[[i]]];
+    While[(i<=Length[Tiers])&&!(Intersection[TierIndexes,DBIndexes]==DBIndexes),
+        i++;
+        TierIndexes=GetIndexes[DB,Tiers[[i]]];
+    ];
+    If[i<=Length[Tiers],
+        Return[Tiers[[i]]];
+    ,
+        Return[""];
+    ];
 ];
 
 (*Check if specific field exists in the collection.*)

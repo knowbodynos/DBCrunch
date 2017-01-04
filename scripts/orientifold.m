@@ -305,7 +305,7 @@ InvolIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN","INVOLN"}->{H11,PolyID,Geo
 NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];
 outresult={Join[InvolIDField,result]};
     
-(ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];
+(*(ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];*)
 outputlist=Map[StringReplace[StringRulestoJSON[#],{" "->""}]&,outresult];
 output=(StringJoin@@Table[outputlist[[i]]<>"\n        ",{i,Length[outputlist]-1}])<>outputlist[[-1]];
 
