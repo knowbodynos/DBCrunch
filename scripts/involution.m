@@ -86,12 +86,13 @@ result=Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True];
 TriangIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN"}->{H11,PolyID,GeomN,TriangN}];
 NewTriangFields={"DIVCOHOM"->("DIVCOHOM"/.result),"NINVOLS"->Length["INVOLLIST"/.result]};
 InvolDoc=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
-outresult=Join[NewTriangFields,{"INVOLLIST"->InvolDoc}];
+outresult=Join[{NewTriangFields},InvolDoc];
     
 (ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
 If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->Null,"INVOL"->Null}]}];
 (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];
-output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
+outputlist=Map[StringReplace[StringRulestoJSON[#],{" "->""}]&,outresult];
+output=(StringJoin@@Table[outputlist[[i]]<>"\n        ",{i,Length[outputlist]-1}])<>outputlist[[-1]];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)

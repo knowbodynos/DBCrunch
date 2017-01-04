@@ -303,10 +303,11 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
 result=Join[FixedLoci[ResCWS,Invol,SRIdeal,True],AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]];
 InvolIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN","INVOLN"}->{H11,PolyID,GeomN,TriangN,InvolN}];
 NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];
-outresult=Join[InvolIDField,result];
+outresult={Join[InvolIDField,result]};
     
 (ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];
-output=StringReplace[StringRulestoJSON[outresult],{" "->""}];
+outputlist=Map[StringReplace[StringRulestoJSON[#],{" "->""}]&,outresult];
+output=(StringJoin@@Table[outputlist[[i]]<>"\n        ",{i,Length[outputlist]-1}])<>outputlist[[-1]];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
