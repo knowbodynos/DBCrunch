@@ -192,7 +192,7 @@ def userjobsrunninglist(username,modname,primername):
         jobsrunning=jobsrunningstring.split(",");
         return jobsrunning;
 
-def submitjob(jobpath,jobname,partition,memory,resubmit=False):
+def submitjob(jobpath,jobname,jobstepnames,partition,memory,resubmit=False):
     submit=subprocess.Popen("sbatch "+jobpath+"/"+jobname+".job",shell=True,stdout=subprocess.PIPE);
     submitcomm=submit.communicate()[0].rstrip("\n");
     #Print information about primer job submission
@@ -204,7 +204,6 @@ def submitjob(jobpath,jobname,partition,memory,resubmit=False):
         if "primer" in jobname:
             print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
         else:
-            jobstepnames=jobnameexpand(jobname);
             submitcomm=submitcomm.replace("job ","job step ");
             for i in range(len(jobstepnames)):
                 print "Res"+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
@@ -214,7 +213,6 @@ def submitjob(jobpath,jobname,partition,memory,resubmit=False):
         if "primer" in jobname:
             print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
         else:
-            jobstepnames=jobnameexpand(jobname);
             submitcomm=submitcomm.replace("job ","job step ");
             for i in range(len(jobstepnames)):
                 print submitcomm+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memory/1000000)+"MB RAM allocated.";
@@ -291,7 +289,7 @@ def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
     memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep];
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
+def writejobfile(modname,jobstepnamescontract,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
@@ -392,19 +390,20 @@ def doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcou
     partition,nnodes,ncores,nsteps,memoryperstep=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep};
 
-def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,inputdoc,docbatch):
+def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,counter,inputdoc,docbatch):
     releaseheldjobs(username,modname,primername);
     while not clusterjobslotsleft(maxjobcount):
         time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
-    jobname=jobstepnamescontract(jobstepnames);
+    #jobstepnamescontract=jobstepnamescontract(jobstepnames);
+    jobname=modname+"_"+primername+"_job_"+str(counter);
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
     writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docbatch);
     #Submit job file
-    submitjob(workpath,jobname,inputdoc["partition"],inputdoc["memoryperstep"],resubmit=False);
+    submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],resubmit=False);
     #seekstream.write(querystream.tell());
     #seekstream.flush();
     #seekstream.seek(0);
@@ -482,6 +481,7 @@ try:
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
     firstrun=True;
+    counter=1;
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
         #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         #if len(oldqueryresultinds)==0:
@@ -493,7 +493,7 @@ try:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),firstrun=firstrun,top=True);
+        counter=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,counter,x,y),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),counter=counter,firstrun=firstrun,top=True);
         firstrun=False;
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
