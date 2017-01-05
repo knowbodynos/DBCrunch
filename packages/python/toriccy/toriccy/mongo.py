@@ -147,7 +147,8 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
     return totalresult;
 
 #def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
-def dbdive(db,queries,n,filepath="/gss_gpfs_scratch/altman.ro/queries",allindexes=getunionindexes(db),top=True):
+def dbdive(db,queries,n,filepath="/gss_gpfs_scratch/altman.ro/queries",top=True):
+    allindexes=getunionindexes(db);
     if top:
         iostream=open(filepath,"w+");
     else:
@@ -173,7 +174,7 @@ def dbdive(db,queries,n,filepath="/gss_gpfs_scratch/altman.ro/queries",allindexe
                     #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
                     newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch]},queries[1][2]]]+queries[2:];
                     #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
-                    subdocbatch=dbdive(db,newqueries,n-len(docbatch),filepath=filepath,allindexes=allindexes,top=False);
+                    subdocbatch=dbdive(db,newqueries,n-len(docbatch),filepath=filepath,top=False);
                     docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
                     if len(docbatch)==n:
                         if top:
