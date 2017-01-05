@@ -24,33 +24,33 @@ def gettiers(db):
     "Return all tiers (i.e. collections) of database."
     return [x["TIER"] for x in collectionfind(db,"TIERS",{},{"_id":0,"TIER":1})];
 
-def getindexes(db,collection="all"):
-    "Return all indexes for a collection."
-    if collection=="all":
-        query={};
-    else:
-        query={"TIER":collection};
-    result=deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",query,{"_id":0,"INDEX":1})]);
-    return result;
+#def getindexes(db,collection="all"):
+#    "Return all indexes for a collection."
+#    if collection=="all":
+#        query={};
+#    else:
+#        query={"TIER":collection};
+#    result=tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",query,{"_id":0,"INDEX":1})]);
+#    return result;
 
 def getcommonindexes(db,*collections):
     if len(collections)==0:
-        return deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
+        return tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
     else:
         result=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[0]},{"_id":0,"INDEX":1})];
         for i in range(1,len(collections)):
             result=[y for y in result if y in [x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[i]},{"_id":0,"INDEX":1})]];
-        return deldup(result);
+        return tools.deldup(result);
 
 def gettierfromdoc(db,doc):
     tiers=gettiers(db);
-    indexes=getindexes(db);
+    indexes=getcommonindexes(db);
     dbindexes=[x for x in doc.keys() if x in indexes];
     i=0;
-    tierindexes=getindexes(db,tiers[i]);
+    tierindexes=getcommonindexes(db,tiers[i]);
     while (i<len(tiers)) and not (all([x in tierindexes for x in dbindexes]) and all([x in dbindexes for x in tierindexes])):
         i+=1;
-        tierindexes=getindexes(db,tiers[i]);
+        tierindexes=getcommonindexes(db,tiers[i]);
     if i<len(tiers):
         return tiers[i];
     else:
@@ -66,7 +66,7 @@ def collectionfieldexists(db,collection,field):
 #    if len(commonindexes)==0:
 #        indexlist=distribfilter;
 #    else:
-#        #indexlist=deldup([dict([(x,z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters]);
+#        #indexlist=tools.deldup([dict([(x,z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters]);
 #        indexlist=[{"$and":[dict([z]) for z in distribfilter.items()]+[{x:y[x]} for x in commonindexes]} for y in filters];
 #    return indexlist;
 
@@ -75,15 +75,13 @@ def listindexes(db,distribfilter,commonindexes,filters):
     if len(commonindexes)==0:
         indexlist=distribfilter;
     else:
-        #indexlist=deldup([dict([(x,z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters]);
+        #indexlist=tools.deldup([dict([(x,z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters]);
         indexlist={"$or":[{"$and":[dict([z]) for z in distribfilter.items()]+[{x:y[x]} for x in commonindexes]} for y in filters]};
     return indexlist;
 
 #def sameindexes(filter1,filter2,indexes):
 #    "Check whether documents from two different collection's queries share the same minimal indexes and should be concatenated."
 #    return all([filter1[x]==filter2[x] for x in filter1 if (x in indexes) and (x in filter2)]);
-
-import math;
 
 def mergenextquery(commonindexes,nextquery,prevresult,chunk=100,formatresult="string"):
     n=int(ceil(float(len(prevresult))/float(chunk)));
@@ -100,7 +98,7 @@ def mergenextquery(commonindexes,nextquery,prevresult,chunk=100,formatresult="st
 #def querydatabase(db,queries,formatresult="string"):
 #    "Query all collections in the database and concatenate the documents of each that refer to the same object."
 #    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"TIERS",{},{"_id":0,"TIER":1,"TIERID":1})]);
-#    indexes=getindexes(db);
+#    indexes=getcommonindexes(db);
 #    maxquerylen=max([len(x[1]) for x in queries]);
 #    sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (maxquerylen-len(x[1]),tiersord[x[0]]));
 #    maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
