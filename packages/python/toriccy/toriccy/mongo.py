@@ -85,7 +85,7 @@ def listindexes(db,distribfilter,commonindexes,filters):
 
 import math;
 
-def mergenextquery(commonindexes,nextquery,prevresult,chunk=100,formatresult=formatresult):
+def mergenextquery(commonindexes,nextquery,prevresult,chunk=100,formatresult="string"):
     n=int(ceil(float(len(prevresult))/float(chunk)));
     totalresult=[];
     for k in range(n):
