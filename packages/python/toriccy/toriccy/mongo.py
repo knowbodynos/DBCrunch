@@ -151,7 +151,7 @@ def printasfunc(*args):
     sys.stdout.flush();
 
 #def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
-def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,top=True):#,isnew=lambda x:True
+def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,top=True):#,isnew=lambda x:True
     allindexes=getunionindexes(db);
     if top:
         iostream=open(filepath,"w+");
@@ -191,26 +191,31 @@ def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},a
                             iostream.flush();
                         #olddocbatch+=docbatch;
                         docbatch=[];
+                        if stopat():
+                            break;
                     else:
                         iostream.close();
                         return docbatch;
                 else:
                     break;
+            if top and stopat():
+                break;
         else:
             docbatch+=[doc];
             if len(docbatch)==inputdoc["nsteps"]:
                 iostream.close();
                 return docbatch;
     if top:
-        if len(docbatch)>0:
-            action(inputdoc,docbatch);
-            iostream.seek(0,2);
-            for line in docbatch:
-                iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
-                iostream.flush();
-        #print len(olddocbatch+docbatch);
-        iostream.seek(0,0);
-        iostream.close();
+        if not stopat():
+            if len(docbatch)>0:
+                action(inputdoc,docbatch);
+                iostream.seek(0,2);
+                for line in docbatch:
+                    iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                    iostream.flush();
+            #print len(olddocbatch+docbatch);
+            iostream.seek(0,0);
+            iostream.close();
     else:
         iostream.close();
         return docbatch;

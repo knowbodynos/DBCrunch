@@ -475,12 +475,24 @@ try:
 
     dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
+    allindexes=toriccy.getunionindexes(db);
+
     with open(statepath+"/modules","r") as modstream:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
-        toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y),top=True);
+        oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
+        if len(oldqueryresultinds)==0:
+            oldqueryresult=[];
+        else:
+            oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
+        oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
+        with open(primerpath+"/querystate","a") as iostream:
+            for line in oldqueryresult+oldqueryresultrunning:
+                iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                iostream.flush();
+        toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),top=True);
         
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
