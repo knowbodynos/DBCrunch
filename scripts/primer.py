@@ -473,7 +473,7 @@ try:
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    dbindexes=toriccy.getcommonindexes(db,dbcollection);
+    dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
     with open(statepath+"/modules","r") as modstream:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];

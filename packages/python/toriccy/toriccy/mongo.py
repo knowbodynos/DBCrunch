@@ -34,7 +34,7 @@ def gettiers(db):
 #    result=tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",query,{"_id":0,"INDEX":1})]);
 #    return result;
 
-def getintersectindexes(db,*collections):
+def getintersectionindexes(db,*collections):
     if len(collections)==0:
         return tools.eldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
     else:
@@ -54,13 +54,13 @@ def getunionindexes(db,*collections):
 
 def gettierfromdoc(db,doc):
     tiers=gettiers(db);
-    indexes=getintersectindexes(db);
+    indexes=getintersectionindexes(db);
     dbindexes=[x for x in doc.keys() if x in indexes];
     i=0;
-    tierindexes=getintersectindexes(db,tiers[i]);
+    tierindexes=getintersectionindexes(db,tiers[i]);
     while (i<len(tiers)) and not (all([x in tierindexes for x in dbindexes]) and all([x in dbindexes for x in tierindexes])):
         i+=1;
-        tierindexes=getintersectindexes(db,tiers[i]);
+        tierindexes=getintersectionindexes(db,tiers[i]);
     if i<len(tiers):
         return tiers[i];
     else:
@@ -108,7 +108,7 @@ def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult=
 #def querydatabase(db,queries,formatresult="string"):
 #    "Query all collections in the database and concatenate the documents of each that refer to the same object."
 #    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"TIERS",{},{"_id":0,"TIER":1,"TIERID":1})]);
-#    indexes=getintersectindexes(db);
+#    indexes=getintersectionindexes(db);
 #    maxquerylen=max([len(x[1]) for x in queries]);
 #    sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (maxquerylen-len(x[1]),tiersord[x[0]]));
 #    maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
@@ -140,7 +140,7 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
         return len(totalresult);
     for i in range(1,len(sortedqueries)):
         prevcollections=[x[0] for x in sortedqueries[:i+1]];
-        commonindexes=getintersectindexes(db,*prevcollections);
+        commonindexes=getintersectionindexes(db,*prevcollections);
         totalresult=mergenextquery(db,commonindexes,sortedqueries[i],totalresult,chunk=chunk,formatresult=formatresult);
         if sortedqueries[i][2]=="count":
             return len(totalresult);
@@ -163,7 +163,7 @@ def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},a
         #if isnew(doc):
         if len(queries)>1:
             subdocbatch=[0];
-            commonindexes=getintersectindexes(db,queries[0][0],queries[1][0]);
+            commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
             newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
             while len(subdocbatch)>0:
                 iostream.seek(0,0);
