@@ -1,5 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
+import sys;
 from pymongo import MongoClient;
 from math import ceil;
 from . import tools;
@@ -33,24 +34,33 @@ def gettiers(db):
 #    result=tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",query,{"_id":0,"INDEX":1})]);
 #    return result;
 
-def getcommonindexes(db,*collections):
+def getintersectindexes(db,*collections):
     if len(collections)==0:
-        return tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
+        return deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
     else:
         result=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[0]},{"_id":0,"INDEX":1})];
         for i in range(1,len(collections)):
             result=[y for y in result if y in [x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[i]},{"_id":0,"INDEX":1})]];
-        return tools.deldup(result);
+        return deldup(result);
+
+def getunionindexes(db,*collections):
+    if len(collections)==0:
+        return deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
+    else:
+        result=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[0]},{"_id":0,"INDEX":1})];
+        for i in range(1,len(collections)):
+            result+=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[i]},{"_id":0,"INDEX":1})];
+        return deldup(result);
 
 def gettierfromdoc(db,doc):
     tiers=gettiers(db);
-    indexes=getcommonindexes(db);
+    indexes=getintersectindexes(db);
     dbindexes=[x for x in doc.keys() if x in indexes];
     i=0;
-    tierindexes=getcommonindexes(db,tiers[i]);
+    tierindexes=getintersectindexes(db,tiers[i]);
     while (i<len(tiers)) and not (all([x in tierindexes for x in dbindexes]) and all([x in dbindexes for x in tierindexes])):
         i+=1;
-        tierindexes=getcommonindexes(db,tiers[i]);
+        tierindexes=getintersectindexes(db,tiers[i]);
     if i<len(tiers):
         return tiers[i];
     else:
@@ -98,7 +108,7 @@ def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult=
 #def querydatabase(db,queries,formatresult="string"):
 #    "Query all collections in the database and concatenate the documents of each that refer to the same object."
 #    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"TIERS",{},{"_id":0,"TIER":1,"TIERID":1})]);
-#    indexes=getcommonindexes(db);
+#    indexes=getintersectindexes(db);
 #    maxquerylen=max([len(x[1]) for x in queries]);
 #    sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (maxquerylen-len(x[1]),tiersord[x[0]]));
 #    maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
@@ -130,11 +140,76 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
         return len(totalresult);
     for i in range(1,len(sortedqueries)):
         prevcollections=[x[0] for x in sortedqueries[:i+1]];
-        commonindexes=getcommonindexes(db,*prevcollections);
+        commonindexes=getintersectindexes(db,*prevcollections);
         totalresult=mergenextquery(db,commonindexes,sortedqueries[i],totalresult,chunk=chunk,formatresult=formatresult);
         if sortedqueries[i][2]=="count":
             return len(totalresult);
     return totalresult;
+
+#def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
+def dbdive(db,queries,n,filepath="/gss_gpfs_scratch/altman.ro/queries",allindexes=getunionindexes(db),top=True):
+    if top:
+        iostream=open(filepath,"w+");
+    else:
+        iostream=open(filepath,"a+");
+    docbatch=[];
+    docs=collectionfind(db,*queries[0]);
+    for doc in docs:
+        #if isnew(doc):
+        if 1==1:
+            if len(queries)>1:
+                subdocbatch=[0];
+                commonindexes=getintersectindexes(db,queries[0][0],queries[1][0]);
+                newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
+                while len(subdocbatch)>0:
+                    iostream.seek(0,0);
+                    alldocbatch=[];
+                    for line in iostream:
+                        linedoc=eval(line.rstrip("\n"));
+                        if all([linedoc[x]==doc[x] for x in commonindexes]):
+                            alldocbatch+=[linedoc];
+                    #alldocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
+                    #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
+                    #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
+                    newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch]},queries[1][2]]]+queries[2:];
+                    #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
+                    subdocbatch=dbdive(db,newqueries,n-len(docbatch),filepath=filepath,allindexes=allindexes,top=False);
+                    docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
+                    if len(docbatch)==n:
+                        if top:
+                            print docbatch;
+                            sys.stdout.flush();
+                            iostream.seek(0,2);
+                            for line in docbatch:
+                                iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                                iostream.flush();
+                            #olddocbatch+=docbatch;
+                            docbatch=[];
+                        else:
+                            iostream.close();
+                            return docbatch;
+                    else:
+                        break;
+            else:
+                docbatch+=[doc];
+                if len(docbatch)==n:
+                    iostream.close();
+                    return docbatch;
+    if top:
+        if len(docbatch)>0:
+            print docbatch;
+            iostream.seek(0,2);
+            for line in docbatch:
+                iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                iostream.flush();
+        #print len(olddocbatch+docbatch);
+        iostream.seek(0,0);
+        print len(iostream.readlines());
+        sys.stdout.flush();
+        iostream.close();
+    else:
+        iostream.close();
+        return docbatch;
 
 '''
 username="frontend";
