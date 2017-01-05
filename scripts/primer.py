@@ -289,9 +289,8 @@ def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
     memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep];
 
-def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
+def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
     ndocs=len(docs);
-    jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
     jobstring+="#Created "+str(datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"))+"\n";
@@ -401,7 +400,7 @@ def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMti
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docbatch);
+    writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,partitiontimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docbatch);
     #Submit job file
     submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],resubmit=False);
     #seekstream.write(querystream.tell());
