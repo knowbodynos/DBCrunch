@@ -455,7 +455,9 @@ try:
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
+        sys.stdout.flush();
         queryresult=toriccy.querydatabase(db,queries);
+        sys.stdout.flush();
         oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         if len(oldqueryresultinds)==0:
             oldqueryresult=[];
@@ -463,6 +465,7 @@ try:
             oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
         oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
         newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
+        sys.stdout.flush();
         #Query database and dump to file
         #querytofile(db,queries,primerpath,"querydump");
         #mongoclient.close();
