@@ -36,7 +36,7 @@ def gettiers(db):
 
 def getintersectionindexes(db,*collections):
     if len(collections)==0:
-        return tools.eldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
+        return tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
     else:
         result=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[0]},{"_id":0,"INDEX":1})];
         for i in range(1,len(collections)):
