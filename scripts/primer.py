@@ -289,7 +289,7 @@ def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
     memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep];
 
-def writejobfile(modname,jobstepnamescontract,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
+def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
     ndocs=len(docs);
     jobstepnames=jobnameexpand(jobname);
     jobstring="#!/bin/bash\n";
