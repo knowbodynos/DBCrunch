@@ -493,7 +493,7 @@ try:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        counter=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,counter,x,y),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),counter=counter,firstrun=firstrun,top=True);
+        counter=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y,z:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y,z),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),counter=counter,firstrun=firstrun,top=True);
         firstrun=False;
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
