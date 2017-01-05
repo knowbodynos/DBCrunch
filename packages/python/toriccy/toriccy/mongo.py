@@ -83,7 +83,7 @@ def listindexes(db,distribfilter,commonindexes,filters):
 #    "Check whether documents from two different collection's queries share the same minimal indexes and should be concatenated."
 #    return all([filter1[x]==filter2[x] for x in filter1 if (x in indexes) and (x in filter2)]);
 
-def mergenextquery(commonindexes,nextquery,prevresult,chunk=100,formatresult="string"):
+def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult="string"):
     n=int(ceil(float(len(prevresult))/float(chunk)));
     totalresult=[];
     for k in range(n):
@@ -131,7 +131,7 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
     for i in range(1,len(sortedqueries)):
         prevcollections=[x[0] for x in sortedqueries[:i+1]];
         commonindexes=getcommonindexes(db,*prevcollections);
-        totalresult=mergenextquery(commonindexes,sortedqueries[i],totalresult,chunk=chunk,formatresult=formatresult);
+        totalresult=mergenextquery(db,commonindexes,sortedqueries[i],totalresult,chunk=chunk,formatresult=formatresult);
         if sortedqueries[i][2]=="count":
             return len(totalresult);
     return totalresult;
