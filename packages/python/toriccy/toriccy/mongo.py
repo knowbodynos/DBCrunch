@@ -146,8 +146,13 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
             return len(totalresult);
     return totalresult;
 
+def printasfunc(*args):
+    print list(args)[-1];
+    sys.stdout.flush();
+
 #def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
-def dbdive(db,queries,n,filepath="/gss_gpfs_scratch/altman.ro/queries",top=True):
+def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},action=printasfun,top=True):#,isnew=lambda x:True
+    inputdoc=input();
     allindexes=getunionindexes(db);
     if top:
         iostream=open(filepath,"w+");
@@ -157,56 +162,53 @@ def dbdive(db,queries,n,filepath="/gss_gpfs_scratch/altman.ro/queries",top=True)
     docs=collectionfind(db,*queries[0]);
     for doc in docs:
         #if isnew(doc):
-        if 1==1:
-            if len(queries)>1:
-                subdocbatch=[0];
-                commonindexes=getintersectindexes(db,queries[0][0],queries[1][0]);
-                newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
-                while len(subdocbatch)>0:
-                    iostream.seek(0,0);
-                    alldocbatch=[];
-                    for line in iostream:
-                        linedoc=eval(line.rstrip("\n"));
-                        if all([linedoc[x]==doc[x] for x in commonindexes]):
-                            alldocbatch+=[linedoc];
-                    #alldocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
-                    #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
-                    #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
-                    newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch]},queries[1][2]]]+queries[2:];
-                    #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
-                    subdocbatch=dbdive(db,newqueries,n-len(docbatch),filepath=filepath,top=False);
-                    docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
-                    if len(docbatch)==n:
-                        if top:
-                            print docbatch;
-                            sys.stdout.flush();
-                            iostream.seek(0,2);
-                            for line in docbatch:
-                                iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
-                                iostream.flush();
-                            #olddocbatch+=docbatch;
-                            docbatch=[];
-                        else:
-                            iostream.close();
-                            return docbatch;
+        if len(queries)>1:
+            subdocbatch=[0];
+            commonindexes=getintersectindexes(db,queries[0][0],queries[1][0]);
+            newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
+            while len(subdocbatch)>0:
+                iostream.seek(0,0);
+                alldocbatch=[];
+                for line in iostream:
+                    linedoc=eval(line.rstrip("\n"));
+                    if all([linedoc[x]==doc[x] for x in commonindexes]):
+                        alldocbatch+=[linedoc];
+                #alldocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
+                #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
+                #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
+                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch]},queries[1][2]]]+queries[2:];
+                #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
+                subdocbatch=dbdive(db,newqueries,filepath,input=lambda:{"nsteps":inputdoc["nsteps"]-len(docbatch)},action=printasfun,top=False);
+                docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
+                if len(docbatch)==inputdoc["nsteps"]:
+                    inputdoc=input();
+                    if top:
+                        action(inputdoc,docbatch);
+                        iostream.seek(0,2);
+                        for line in docbatch:
+                            iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                            iostream.flush();
+                        #olddocbatch+=docbatch;
+                        docbatch=[];
                     else:
-                        break;
-            else:
-                docbatch+=[doc];
-                if len(docbatch)==n:
-                    iostream.close();
-                    return docbatch;
+                        iostream.close();
+                        return docbatch;
+                else:
+                    break;
+        else:
+            docbatch+=[doc];
+            if len(docbatch)==inputdoc["nsteps"]:
+                iostream.close();
+                return docbatch;
     if top:
         if len(docbatch)>0:
-            print docbatch;
+            action(inputdoc,docbatch);
             iostream.seek(0,2);
             for line in docbatch:
                 iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
                 iostream.flush();
         #print len(olddocbatch+docbatch);
         iostream.seek(0,0);
-        print len(iostream.readlines());
-        sys.stdout.flush();
         iostream.close();
     else:
         iostream.close();
