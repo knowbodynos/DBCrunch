@@ -481,6 +481,7 @@ try:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
+    firstrun=True;
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
         #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         #if len(oldqueryresultinds)==0:
@@ -492,8 +493,8 @@ try:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),top=True);
-        
+        toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),firstrun=firstrun,top=True);
+        firstrun=False;
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
             releaseheldjobs(username,modname,primername);

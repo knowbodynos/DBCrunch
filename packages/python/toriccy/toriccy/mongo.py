@@ -151,9 +151,9 @@ def printasfunc(*args):
     sys.stdout.flush();
 
 #def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
-def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,top=True):#,isnew=lambda x:True
+def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,firstrun=True,top=True):#,isnew=lambda x:True
     allindexes=getunionindexes(db);
-    if top:
+    if firstrun and top:
         iostream=open(filepath,"w+");
     else:
         iostream=open(filepath,"a+");
