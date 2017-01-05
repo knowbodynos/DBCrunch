@@ -265,7 +265,7 @@ def getnodemaxmemory(statepath,partition):
                 break;
     return nodemaxmemory;
 
-def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
+def distributeovernodes(statepath,partitions,ndocsleft,scriptmemorylimit,maxstepcount):
     partition=partitions[0];
     ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
     maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0].rstrip("\n"));
@@ -281,15 +281,17 @@ def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
     nnodes=1;
     if nstepsdistribmem<1:
         if len(partitions)>1:
-            return distributeovernodes(statepath,partitions[1:],scriptmemorylimit,maxstepcount);
+            return distributeovernodes(statepath,partitions[1:],ndocsleft,scriptmemorylimit,maxstepcount);
         else:
             print "Memory requirement is too large for this cluster.";
             sys.stdout.flush();
-    nstepsfloat=min(ncoresperpartition,nstepsdistribmem,maxstepcount);
-    ncores=nnodes*ncoresperpartition;
-    nsteps=int(nstepsfloat);
-    memoryperstep=nodemaxmemory/nsteps;#distribmem;
-    return [partition,nnodes,ncores,nsteps,memoryperstep];
+            return "Error";
+    else:
+        nstepsfloat=min(ndocsleft,ncoresperpartition,nstepsdistribmem,maxstepcount);
+        ncores=nnodes*ncoresperpartition;
+        nsteps=nstepsfloat;
+        memoryperstep=nodemaxmemory/nstepsdistribmem;
+        return [partition,nnodes,ncores,nsteps,memoryperstep];
 
 def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
     ndocs=len(docs);
@@ -384,33 +386,6 @@ def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimeli
     jobstream.flush();
     jobstream.close();
 
-def doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount):
-    orderedpartitions=orderpartitions(largemempartitions);
-    #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
-    orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-    nodedistribution=distributeovernodes(statepath,orderedpartitions,scriptmemorylimit,maxstepcount);
-    partition,nnodes,ncores,nsteps,memoryperstep=nodedistribution;
-    return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep};
-
-def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,inputdoc,docbatch):
-    releaseheldjobs(username,modname,primername);
-    while not clusterjobslotsleft(maxjobcount):
-        time.sleep(sleeptime);
-    #doc=json.loads(doc.rstrip('\n'));
-    jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
-    jobname=jobstepnamescontract(jobstepnames);
-    partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
-    if len(docbatch)<inputdoc["nsteps"]:
-        inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docbatch);
-    #Submit job file
-    submitjob(workpath,jobname,inputdoc["partition"],inputdoc["memoryperstep"],resubmit=False);
-    #seekstream.write(querystream.tell());
-    #seekstream.flush();
-    #seekstream.seek(0);
-    #doc=querystream.readline();
-        
-
 try:
     #Timer and maxjobcount initialization
     starttime=time.time();
@@ -480,7 +455,54 @@ try:
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
-        toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda x,y:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,x,y),top=True);
+        queryresult=toriccy.querydatabase(db,queries);
+        oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
+        if len(oldqueryresultinds)==0:
+            oldqueryresult=[];
+        else:
+            oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
+        oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
+        newqueryresult=[x for x in queryresult if dict([(y,x[y]) for y in dbindexes]) not in oldqueryresult+oldqueryresultrunning];
+        #Query database and dump to file
+        #querytofile(db,queries,primerpath,"querydump");
+        #mongoclient.close();
+        #seekpos=0;
+
+        #Open file stream
+        #querystream=open(primerpath+"/"+dumpfile,"r");
+        #querystream.seek(seekpos);
+
+        #doc=querystream.readline();
+        #while doc and timeleftq(starttime,primerbuffertimelimit):
+        nnewqueryresult=len(newqueryresult);
+        i=0;
+        while (i<nnewqueryresult) and timeleftq(starttime,primerbuffertimelimit):
+            releaseheldjobs(username,modname,primername);
+            ndocsleft=nnewqueryresult-i;
+            orderedpartitions=orderpartitions(largemempartitions);
+            #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
+            orderedpartitions=orderpartitions(partitions)+orderedpartitions;
+            nodedistribution=distributeovernodes(statepath,orderedpartitions,ndocsleft,scriptmemorylimit,maxstepcount);
+            if nodedistribution=="Error":
+                nsteps=1;
+            else:
+                partition,nnodes,ncores,nsteps,memoryperstep=nodedistribution;
+                docs=newqueryresult[i:i+nsteps];
+                if clusterjobslotsleft(1000):#maxjobcount):
+                    #doc=json.loads(doc.rstrip('\n'));
+                    jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docs];
+                    jobname=jobstepnamescontract(jobstepnames);
+                    partitiontimelimit,buffertimelimit=getpartitiontimelimit(partition,SLURMtimelimit,buffertime);
+                    writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs);
+                    #Submit job file
+                    submitjob(workpath,jobname,partition,memoryperstep,resubmit=False);
+                    #seekstream.write(querystream.tell());
+                    #seekstream.flush();
+                    #seekstream.seek(0);
+                    #doc=querystream.readline();
+                else:
+                    time.sleep(sleeptime);
+            i+=nsteps;
         
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
