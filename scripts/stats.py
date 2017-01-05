@@ -36,7 +36,7 @@ try:
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    dbindexes=toriccy.getcommonindexes(db,dbcollection);
+    dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
     cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");
 
@@ -49,7 +49,7 @@ try:
             bsonsize+=toriccy.bsonsize(doc);
             fulldoc=merge_dicts(indexdoc,doc);
             newcollection=toriccy.gettierfromdoc(db,fulldoc);
-            newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getcommonindexes(db,newcollection)]);
+            newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
             db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
 
     db[dbcollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});

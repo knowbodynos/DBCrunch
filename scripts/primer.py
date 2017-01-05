@@ -288,7 +288,7 @@ def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
     nstepsfloat=min(ncoresperpartition,nstepsdistribmem,maxstepcount);
     ncores=nnodes*ncoresperpartition;
     nsteps=int(nstepsfloat);
-    memoryperstep=nodemaxmemory/nsteps;#distribmem;
+    memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep];
 
 def writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docs):
@@ -400,8 +400,8 @@ def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMti
     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
     jobname=jobstepnamescontract(jobstepnames);
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
-    if len(docbatch)<inputdoc["nsteps"]:
-        inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
+    #if len(docbatch)<inputdoc["nsteps"]:
+    #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
     writejobfile(modname,jobname,primerpath,primername,writemode,partitiontimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docbatch);
     #Submit job file
     submitjob(workpath,jobname,inputdoc["partition"],inputdoc["memoryperstep"],resubmit=False);
