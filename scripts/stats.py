@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,subprocess,re,bson,toriccy;
+import sys,linecache,traceback,subprocess,re,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -46,7 +46,7 @@ try:
     with open(workpath+"/"+jobstepname+".log","r") as logstream:
         for line in logstream:
             doc=eval(re.sub(":[nN]ull",":None",line.rstrip("\n").replace("Output:","").replace(" ","")));
-            bsonsize+=len(bson.BSON.encode(doc));
+            bsonsize+=toriccy.bsonsize(doc);
             fulldoc=merge_dicts(indexdoc,doc);
             newcollection=toriccy.gettierfromdoc(db,fulldoc);
             newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getindexes(db,newcollection)]);
