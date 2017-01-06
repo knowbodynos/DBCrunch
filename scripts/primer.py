@@ -377,7 +377,7 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     jobstring+="    then\n";
     jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
-    jobstring+="        exitcode=$(sacct -n -j \"${SLURM_JOBID}.${i}\" -o 'ExitCode' | sed 's/\s*//g')"
+    jobstring+="        exitcode=$(sacct -n -j \"${SLURM_JOBID}.${i}\" -o 'ExitCode' | sed 's/\s*//g')\n";
     jobstring+="        echo \"${jobstepnames[${i}]} ${exitcode}\" >> \"${primerpath}/skipped\"\n";
     jobstring+="    fi\n";
     jobstring+="    pids[${i}]=$!\n";
