@@ -179,7 +179,7 @@ def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},a
                 #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-                subdocbatch=dbdive(db,newqueries,filepath,input=input,inputdoc=newinputdoc,action=printasfunc,stopat=stopat,batchcounter=counter,stepcounter=stepcounter,firstrun=firstrun,top=False);
+                subdocbatch=dbdive(db,newqueries,filepath,input=input,inputdoc=newinputdoc,action=printasfunc,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,firstrun=firstrun,top=False);
                 docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
                 if len(docbatch)==inputdoc["nsteps"]:
                     if top:
