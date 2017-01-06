@@ -168,9 +168,17 @@ def timeleftq(starttime,buffertimelimit):
 #    njobs=eval(subprocess.Popen("squeue -h -r | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
 #    return njobs<maxjobcount;
 
-def clusterjobslotsleft(maxjobcount):
+def nmathematicalicensesleft():
+    nlicensesleft=eval(subprocess.Popen("echo \"-$(/shared/apps/mathematica/mathematica_10/monitorlm | grep 'MathKernel' | head -n1 | sed 's/\s\s*/+/g' | cut -d'+' -f3,4)\" | bc | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
+    return nlicensesleft;
+
+def clusterjobslotsleft(maxjobcount,scriptext,minnsteps=1):
     njobs=eval(subprocess.Popen("squeue -h -r -u altman.ro | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
-    return njobs<maxjobcount;
+    jobsleft=(njobs<maxjobcount);
+    if scriptext==".m":
+        nlicensesleft=nmathematicalicensesleft();
+        jobsleft=(jobsleft and (nlicensesleft>=minnsteps));
+    return jobsleft;
 
 def userjobsrunningq(username,modname,primername):
     njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | wc -l",shell=True,stdout=subprocess.PIPE).communicate()[0]);
@@ -265,7 +273,7 @@ def getnodemaxmemory(statepath,partition):
                 break;
     return nodemaxmemory;
 
-def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
+def distributeovernodes(statepath,partitions,scriptmemorylimit,maxsteps):
     partition=partitions[0];
     ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1",shell=True,stdout=subprocess.PIPE).communicate()[0]);
     maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g'",shell=True,stdout=subprocess.PIPE).communicate()[0].rstrip("\n"));
@@ -281,11 +289,11 @@ def distributeovernodes(statepath,partitions,scriptmemorylimit,maxstepcount):
     nnodes=1;
     if nstepsdistribmem<1:
         if len(partitions)>1:
-            return distributeovernodes(statepath,partitions[1:],scriptmemorylimit,maxstepcount);
+            return distributeovernodes(statepath,partitions[1:],scriptmemorylimit,maxsteps);
         else:
             print "Memory requirement is too large for this cluster.";
             sys.stdout.flush();
-    nstepsfloat=min(ncoresperpartition,nstepsdistribmem,maxstepcount);
+    nstepsfloat=min(ncoresperpartition,nstepsdistribmem,maxsteps);
     ncores=nnodes*ncoresperpartition;
     nsteps=int(nstepsfloat);
     memoryperstep=nodemaxmemory/nstepsdistribmem;
@@ -383,17 +391,23 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     jobstream.flush();
     jobstream.close();
 
-def doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount):
+def doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext):
+    while not clusterjobslotsleft(maxjobcount,scriptext):
+        time.sleep(sleeptime);
     orderedpartitions=orderpartitions(largemempartitions);
     #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
     orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-    nodedistribution=distributeovernodes(statepath,orderedpartitions,scriptmemorylimit,maxstepcount);
+    if scriptext==".m":
+        maxsteps=min(maxstepcount,nmathematicalicensesleft());
+    else:
+        maxsteps=maxstepcount;
+    nodedistribution=distributeovernodes(statepath,orderedpartitions,scriptmemorylimit,maxsteps,scriptext);
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
 def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,batchcounter,stepcounter,inputdoc,docbatch):
     releaseheldjobs(username,modname,primername);
-    while not clusterjobslotsleft(maxjobcount):
+    while not clusterjobslotsleft(maxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
         time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
@@ -495,7 +509,7 @@ try:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),inputdoc=doinput(statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount),action=lambda w,x,y,z:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,firstrun=firstrun,top=True);
+        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,firstrun=firstrun,top=True);
         firstrun=False;
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
