@@ -401,7 +401,7 @@ def doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,
         maxsteps=min(maxstepcount,nmathematicalicensesleft());
     else:
         maxsteps=maxstepcount;
-    nodedistribution=distributeovernodes(statepath,orderedpartitions,scriptmemorylimit,maxsteps,scriptext);
+    nodedistribution=distributeovernodes(statepath,orderedpartitions,scriptmemorylimit,maxsteps);
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
