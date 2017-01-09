@@ -521,7 +521,7 @@ try:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(licensestream,username,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,top=True);
+        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",inputfunc=lambda:doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(licensestream,username,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(primerpath+"/counterstate","w") as counterstream:
             counterstream.write(str(batchcounter)+" "+str(stepcounter));

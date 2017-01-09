@@ -150,8 +150,8 @@ def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
 
-#def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
-def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,batchcounter=1,stepcounter=1,top=True):#,isnew=lambda x:True
+#def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),toplevel=True):
+def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):#,isnew=lambda x:True
     allindexes=getunionindexes(db);
     iostream=open(filepath,"a+");
     docbatch=[];
@@ -173,13 +173,13 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
                 newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch]},queries[1][2]]]+queries[2:];
-                #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
+                #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,toplevel=False);
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-                subdocbatch=dbdive(db,newqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,top=False);
+                subdocbatch=dbdive(db,newqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
                 docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
                 if len(docbatch)==inputdoc["nsteps"]:
-                    if top:
+                    if toplevel:
                         action(batchcounter,stepcounter,inputdoc,docbatch);
                         inputdoc.update(inputfunc());
                         iostream.seek(0,2);
@@ -198,14 +198,14 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                         return docbatch;
                 else:
                     break;
-            if top and stopat():
+            if toplevel and stopat():
                 break;
         else:
             docbatch+=[doc];
             if len(docbatch)==inputdoc["nsteps"]:
                 iostream.close();
                 return docbatch;
-    if top:
+    if toplevel:
         if not stopat():
             if len(docbatch)>0:
                 action(batchcounter,stepcounter,inputdoc,docbatch);
