@@ -156,6 +156,8 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
     iostream=open(filepath,"a+");
     docbatch=[];
     docs=collectionfind(db,*queries[0]);
+    if toplevel:
+        print [[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch]},queries[1][2]]]+queries[2:];
     for doc in docs:
         #if isnew(doc):
         if len(queries)>1:
@@ -164,15 +166,15 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
             newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
             while len(subdocbatch)>0:
                 iostream.seek(0,0);
-                alldocbatch=[];
+                prevdocbatch=[];
                 for line in iostream:
                     linedoc=readform(line.rstrip("\n"));
                     if all([linedoc[x]==doc[x] for x in commonindexes]):
-                        alldocbatch+=[linedoc];
-                #alldocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
+                        prevdocbatch+=[linedoc];
+                #prevdocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
-                #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
-                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in alldocbatch]},queries[1][2]]]+queries[2:];
+                #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
+                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch]},queries[1][2]]]+queries[2:];
                 #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,toplevel=False);
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
