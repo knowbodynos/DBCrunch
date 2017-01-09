@@ -213,23 +213,35 @@ def submitjob(jobpath,jobname,jobstepnames,partition,memoryperstep,nodemaxmemory
         #maketop=subprocess.Popen("scontrol top "+jobid,shell=True,stdout=subprocess.PIPE);
         print "\n";
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-        if "primer" in jobname:
-            print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
-        else:
-            print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
-            submitcomm=submitcomm.replace("Submitted batch job ","With job step ");
-            for i in range(len(jobstepnames)):
-                print "...."+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memoryperstep/1000000)+"MB RAM allocated.";
+        print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
+        submitcomm=submitcomm.replace("Submitted batch job ","With job step ");
+        for i in range(len(jobstepnames)):
+            print "...."+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memoryperstep/1000000)+"MB RAM allocated.";
+        print "\n\n";
+    else:
+        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
+        submitcomm=submitcomm.replace("Submitted batch job ","With job step ");
+        for i in range(len(jobstepnames)):
+            print "...."+submitcomm+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memoryperstep/1000000)+"MB RAM allocated.";
+        print "\n";
+    sys.stdout.flush();
+
+def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
+    submit=subprocess.Popen("sbatch "+jobpath+"/"+jobname+".job",shell=True,stdout=subprocess.PIPE);
+    submitcomm=submit.communicate()[0].rstrip("\n");
+    #Print information about primer job submission
+    if resubmit:
+        #jobid=submitcomm.split(' ')[-1];
+        #maketop=subprocess.Popen("scontrol top "+jobid,shell=True,stdout=subprocess.PIPE);
+        print "\n";
+        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
         print "\n\n";
     else:
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
         if "primer" in jobname:
-            print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
-        else:
-            print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
-            submitcomm=submitcomm.replace("Submitted batch job ","With job step ");
-            for i in range(len(jobstepnames)):
-                print "...."+submitcomm+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(memoryperstep/1000000)+"MB RAM allocated.";
+        print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
         print "\n";
     sys.stdout.flush();
 
@@ -544,7 +556,7 @@ try:
     if (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and not timeleftq(starttime,primerbuffertimelimit):
         #Resubmit primer job
         nodemaxmemory=getnodemaxmemory(statepath,primerpartition);
-        submitjob(primerpath,"primer_"+modname+"_"+primername,primerpartition,nodemaxmemory,nodemaxmemory,resubmit=True);
+        submitprimerjob(primerpath,"primer_"+modname+"_"+primername,primerpartition,nodemaxmemory,resubmit=True);
 
     #querystream.close();
     #seekstream.close();
