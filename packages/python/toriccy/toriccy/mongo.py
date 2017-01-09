@@ -151,12 +151,9 @@ def printasfunc(*args):
     sys.stdout.flush();
 
 #def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),top=True):
-def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,batchcounter=1,stepcounter=1,firstrun=True,top=True):#,isnew=lambda x:True
+def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,batchcounter=1,stepcounter=1,top=True):#,isnew=lambda x:True
     allindexes=getunionindexes(db);
-    if firstrun and top:
-        iostream=open(filepath,"w+");
-    else:
-        iostream=open(filepath,"a+");
+    iostream=open(filepath,"a+");
     docbatch=[];
     docs=collectionfind(db,*queries[0]);
     for doc in docs:
@@ -179,15 +176,16 @@ def dbdive(db,queries,filepath,input=lambda:{"nsteps":1},inputdoc={"nsteps":1},a
                 #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,top=False);
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-                subdocbatch=dbdive(db,newqueries,filepath,input=input,inputdoc=newinputdoc,action=printasfunc,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,firstrun=firstrun,top=False);
+                subdocbatch=dbdive(db,newqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,top=False);
                 docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
                 if len(docbatch)==inputdoc["nsteps"]:
                     if top:
                         action(batchcounter,stepcounter,inputdoc,docbatch);
-                        inputdoc.update(input());
+                        inputdoc.update(inputfunc());
                         iostream.seek(0,2);
                         for line in docbatch:
-                            iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                            linedict=dict([(x,line[x]) for x in allindexes if x in line.keys()]);
+                            iostream.write(str(writeform(linedict)).replace(" ","")+"\n");
                             iostream.flush();
                         #olddocbatch+=docbatch;
                         batchcounter+=1;

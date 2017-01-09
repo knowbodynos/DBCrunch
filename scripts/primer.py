@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,subprocess,time,datetime,toriccy;#,json;
+import sys,linecache,fcntl,traceback,subprocess,time,datetime,toriccy;#,json;
 #from pymongo import MongoClient;
 
 #Misc. function definitions
@@ -240,7 +240,7 @@ def submitjob(jobpath,jobname,jobstepnames,partition,memoryperstep,nodemaxmemory
 #        return skippedjobs;
 
 def skippedjobslist(username,modname,primername,primerpath):
-    with open(primerpath+"/skipped","r") as skippedstream:
+    with open(primerpath+"/skippedstate","r") as skippedstream:
         skippedjobs=[];
         for skippedjob in skippedstream:
             skippedjobsplit=skippedjob.rstrip("\n").split("_");
@@ -350,7 +350,7 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     jobstring+="modname=\""+modname+"\"\n";
     #jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     #jobstring+="scriptmemorylimit=\""+str(memoryperstep)+"\"\n";
-    #jobstring+="skippedfile=\"${primerpath}/skipped\"\n";
+    #jobstring+="skippedfile=\"${primerpath}/skippedstate\"\n";
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
         #jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
@@ -378,7 +378,7 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
     jobstring+="        exitcode=$(sacct -n -j \"${SLURM_JOBID}.${i}\" -o 'ExitCode' | sed 's/\s*//g')\n";
-    jobstring+="        echo \"${jobstepnames[${i}]} ${exitcode}\" >> \"${primerpath}/skipped\"\n";
+    jobstring+="        echo \"${jobstepnames[${i}]} ${exitcode}\" >> \"${primerpath}/skippedstate\"\n";
     jobstring+="    fi\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
@@ -392,24 +392,27 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     jobstream.flush();
     jobstream.close();
 
-def doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext):
+def doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext):
     while not clusterjobslotsleft(maxjobcount,scriptext):
         time.sleep(sleeptime);
+    if scriptext==".m":
+        fcntl.flock(licensestream,fcntl.LOCK_EX);
+        nlicensesleft=nmathematicalicensesleft();
+        licensestream.seek(0,0);
+        licensestream.write(str(nlicensesleft));
+        maxsteps=min(maxstepcount,nlicensesleft);
+    else:
+        maxsteps=maxstepcount;
     orderedpartitions=orderpartitions(largemempartitions);
     #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
     orderedpartitions=orderpartitions(partitions)+orderedpartitions;
-    if scriptext==".m":
-        maxsteps=min(maxstepcount,nmathematicalicensesleft());
-    else:
-        maxsteps=maxstepcount;
     nodedistribution=distributeovernodes(statepath,orderedpartitions,scriptmemorylimit,maxsteps);
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
-def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,batchcounter,stepcounter,inputdoc,docbatch):
-    releaseheldjobs(username,modname,primername);
-    while not clusterjobslotsleft(maxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
-        time.sleep(sleeptime);
+def doaction(licensestream,username,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,batchcounter,stepcounter,inputdoc,docbatch):
+    #while not clusterjobslotsleft(maxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
+    #    time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
     #jobstepnamescontract=jobstepnamescontract(jobstepnames);
@@ -420,6 +423,9 @@ def doaction(maxjobcount,username,sleeptime,modname,primername,dbindexes,SLURMti
     writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,partitiontimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scripttype,scriptext,buffertimelimit,dbcollection,dbindexes,docbatch);
     #Submit job file
     submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],inputdoc["nodemaxmemory"],resubmit=False);
+    if scriptext==".m":
+        fcntl.flock(licensestream,fcntl.LOCK_UN);
+    releaseheldjobs(username,modname,primername);
     #seekstream.write(querystream.tell());
     #seekstream.flush();
     #seekstream.seek(0);
@@ -492,13 +498,18 @@ try:
 
     allindexes=toriccy.getunionindexes(db);
 
+    if scriptext==".m":
+        licensestream=open(statepath+"/licenses","w");
+
     with open(statepath+"/modules","r") as modstream:
         modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
-    firstrun=True;
-    batchcounter=1;
-    stepcounter=1;
+    #firstrun=True;
+    with open(primerpath+"/counterstate","r") as counterstream:
+        [batchcounter,stepcounter]=[int(x) for x in counterstream.readline().rstrip("\n").split(" ")];
+    #batchcounter=1;
+    #stepcounter=1;
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun) and timeleftq(starttime,primerbuffertimelimit):
         #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         #if len(oldqueryresultinds)==0:
@@ -510,8 +521,10 @@ try:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(1000,username,sleeptime,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:not timeleftq(starttime,primerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,firstrun=firstrun,top=True);
-        firstrun=False;
+        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",input=lambda:doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(licensestream,username,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,top=True);
+        #firstrun=False;
+        with open(primerpath+"/counterstate","w") as counterstream:
+            counterstream.write(str(batchcounter)+" "+str(stepcounter));
         if timeleftq(starttime,primerbuffertimelimit):
             lastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or lastrun));
             releaseheldjobs(username,modname,primername);
