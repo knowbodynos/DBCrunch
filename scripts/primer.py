@@ -129,7 +129,7 @@ def contractededjobname2jobdocs(jobname,dbindexes):
 
 def jobname2jobdoc(jobname,dbindexes):
     indexsplit=jobname.split("_");
-    return dict([(dbindexes[i],indexsplit[i]) for i in range(len(dbindexes))]);
+    return dict([(dbindexes[i],eval(indexsplit[i])) for i in range(len(dbindexes))]);
 
 def doc2jobname(doc,dbindexes):
     return '_'.join([str(doc[x]) for x in dbindexes]);
