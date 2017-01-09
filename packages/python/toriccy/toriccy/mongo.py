@@ -224,8 +224,8 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 batchcounter+=1;
                 stepcounter+=len(docbatch);
             #print len(olddocbatch+docbatch);
-            iostream.close();
-            return [batchcounter,stepcounter];
+        iostream.close();
+        return [batchcounter,stepcounter];
     else:
         iostream.close();
         return docbatch;
