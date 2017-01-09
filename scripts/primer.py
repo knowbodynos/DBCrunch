@@ -240,7 +240,6 @@ def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
         print "\n\n";
     else:
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-        if "primer" in jobname:
         print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(nodemaxmemory/1000000)+"MB RAM allocated.";
         print "\n";
     sys.stdout.flush();
