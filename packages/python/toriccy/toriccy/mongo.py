@@ -174,9 +174,9 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                         #print linedoc;
                         if all([linedoc[x]==doc[x] for x in commonindexes]):
                             prevdocbatch+=[linedoc];
-                else:
-                    if toplevel:
-                        prevdocbatch+=subdocbatch;
+                #else:
+                #    if toplevel:
+                #        prevdocbatch+=subdocbatch;
                 #prevdocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
@@ -203,6 +203,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                             #olddocbatch+=docbatch;
                             batchcounter+=1;
                             stepcounter+=len(docbatch);
+                            prevdocbatch+=docbatch;
                             docbatch=[];
                         else:
                             iostream.close();
