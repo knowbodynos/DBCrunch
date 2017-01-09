@@ -163,7 +163,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
             newindexes=[x for x in getunionindexes(db,queries[1][0]) if x not in commonindexes];
             #newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
-            while len(subdocbatch)>0:
+            while (len(subdocbatch)>0) and not stopat():
                 if subdocbatch==[0]:
                     iostream.seek(0,0);
                     prevdocbatch=[];
@@ -175,7 +175,8 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                         if all([linedoc[x]==doc[x] for x in commonindexes]):
                             prevdocbatch+=[linedoc];
                 else:
-                    prevdocbatch+=subdocbatch;
+                    if toplevel:
+                        prevdocbatch+=subdocbatch;
                 #prevdocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in olddocbatch+docbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
                 #newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch if all([x[z]==doc[z] for z in commonindexes])]},queries[1][2]]]+queries[2:];
@@ -188,32 +189,35 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
                 subdocbatch=dbdive(db,newqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,writeform=writeform,readform=readform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
-                docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
-                if len(docbatch)==inputdoc["nsteps"]:
-                    if toplevel:
-                        action(batchcounter,stepcounter,inputdoc,docbatch);
-                        inputdoc.update(inputfunc());
-                        iostream.seek(0,2);
-                        for line in docbatch:
-                            linedict=dict([(x,line[x]) for x in allindexes if x in line.keys()]);
-                            iostream.write(str(writeform(linedict)).replace(" ","")+"\n");
-                            iostream.flush();
-                        #olddocbatch+=docbatch;
-                        batchcounter+=1;
-                        stepcounter+=len(docbatch);
-                        docbatch=[];
-                        if stopat():
-                            break;
+                if not stopat():
+                    docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
+                    if len(docbatch)==inputdoc["nsteps"]:
+                        if toplevel:
+                            action(batchcounter,stepcounter,inputdoc,docbatch);
+                            inputdoc.update(inputfunc());
+                            iostream.seek(0,2);
+                            for line in docbatch:
+                                linedict=dict([(x,line[x]) for x in allindexes if x in line.keys()]);
+                                iostream.write(str(writeform(linedict)).replace(" ","")+"\n");
+                                iostream.flush();
+                            #olddocbatch+=docbatch;
+                            batchcounter+=1;
+                            stepcounter+=len(docbatch);
+                            docbatch=[];
+                        else:
+                            iostream.close();
+                            return docbatch;
                     else:
-                        iostream.close();
-                        return docbatch;
-                else:
-                    break;
-            if toplevel and stopat():
-                break;
+                        break;
         else:
             docbatch+=[doc];
             if len(docbatch)==inputdoc["nsteps"]:
+                iostream.close();
+                return docbatch;
+        if stopat():
+            if toplevel:
+                break;
+            else:
                 iostream.close();
                 return docbatch;
     if toplevel:
