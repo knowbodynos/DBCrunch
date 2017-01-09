@@ -168,6 +168,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
         if len(queries)>1:
             subdocbatch=[0];
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
+            newindexes=[x for x in getunionindexes(db,queries[0][0],queries[1][0]) if x not in commonindexes];
             #newindexes=[x for x in getunionindexes(db,queries[1][0]) if x not in commonindexes];
             #newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
             while (len(subdocbatch)>0) and not stopat():
@@ -191,11 +192,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 #print prevdocbatch;
                 #print {"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch]};
                 #print "";
-                skiplist=[];
-                if len(queries)==2:
-                    newindexes=[x for x in getunionindexes(db,queries[0][0],queries[1][0]) if x not in commonindexes];
-                    skiplist=[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch];
-                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+skiplist},queries[1][2]]]+queries[2:];
+                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch]},queries[1][2]]]+queries[2:];
                 #newqueries=[[queries[i][0],{"$and":[dict([x]) for x in queries[i][1].items()]+[{x:doc[x]} for x in getintersectionindexes(db,*[w[0] for w in queries[:i+1]])]+[{"$or":[{y:{"$ne":x[y]}} for y in getcomplementindexes(db,*[w[0] for w in queries[:i+1]])]} for x in prevdocbatch]},queries[i][2]] for i in range(1,len(queries))];
                 #print newqueries;
                 #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,toplevel=False);
