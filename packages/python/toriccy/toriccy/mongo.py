@@ -161,19 +161,19 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
         if len(queries)>1:
             subdocbatch=[0];
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
-            newindexes=[x for x in getunionindexes(db,queries[1][0]) if x not in commonindexes];
-            #newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
+            #newindexes=[x for x in getunionindexes(db,queries[1][0]) if x not in commonindexes];
+            newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
             while (len(subdocbatch)>0) and not stopat():
-                #if subdocbatch==[0]:
-                iostream.seek(0,0);
-                prevdocbatch=[];
-                #print "a";
-                for line in iostream:
-                    linedoc=readform(line.rstrip("\n"));
-                    #print doc;
-                    #print linedoc;
-                    if all([linedoc[x]==doc[x] for x in commonindexes]):
-                        prevdocbatch+=[linedoc];
+                if subdocbatch==[0]:
+                    iostream.seek(0,0);
+                    prevdocbatch=[];
+                    #print "a";
+                    for line in iostream:
+                        linedoc=readform(line.rstrip("\n"));
+                        #print doc;
+                        #print linedoc;
+                        if all([linedoc[x]==doc[x] for x in commonindexes]):
+                            prevdocbatch+=[linedoc];
                 #else:
                 #    if toplevel:
                 #        prevdocbatch+=subdocbatch;
@@ -203,7 +203,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                             #olddocbatch+=docbatch;
                             batchcounter+=1;
                             stepcounter+=len(docbatch);
-                            #prevdocbatch+=[y for y in docbatch if all([y[x]==doc[x] for x in commonindexes])];
+                            prevdocbatch+=[y for y in docbatch if all([y[x]==doc[x] for x in commonindexes])];
                             docbatch=[];
                         else:
                             iostream.close();
