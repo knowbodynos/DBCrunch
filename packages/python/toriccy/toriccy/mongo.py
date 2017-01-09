@@ -52,6 +52,9 @@ def getunionindexes(db,*collections):
             result+=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[i]},{"_id":0,"INDEX":1})];
         return tools.deldup(result);
 
+def getcomplementindexes(db,*collections):
+    return [x for x in getunionindexes(db,*collections) if x not in getintersectionindexes(db,*collections)];
+
 def gettierfromdoc(db,doc):
     tiers=gettiers(db);
     indexes=getintersectionindexes(db);
@@ -154,15 +157,19 @@ def printasfunc(*args):
 def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,writeform=lambda x:x,readform=lambda x:eval(x),stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):#,isnew=lambda x:True
     allindexes=getunionindexes(db);
     iostream=open(filepath,"a+");
+    #prevdocbatch[];
     docbatch=[];
     docs=collectionfind(db,*queries[0]);
-    for doc in docs:
+    i=0;
+    while (i<len(docs)) and not stopat():
+        doc=docs[i];
+    #for doc in docs:
         #if isnew(doc):
         if len(queries)>1:
             subdocbatch=[0];
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
             #newindexes=[x for x in getunionindexes(db,queries[1][0]) if x not in commonindexes];
-            newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
+            #newindexes=[x for x in getunionindexes(db,*[y[0] for y in queries[1:]]) if x not in commonindexes];
             while (len(subdocbatch)>0) and not stopat():
                 if subdocbatch==[0]:
                     iostream.seek(0,0);
@@ -184,7 +191,13 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 #print prevdocbatch;
                 #print {"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch]};
                 #print "";
-                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch]},queries[1][2]]]+queries[2:];
+                skiplist=[];
+                if len(queries)==2:
+                    newindexes=[x for x in getunionindexes(db,queries[0][0],queries[1][0]) if x not in commonindexes];
+                    skiplist=[{"$or":[{y:{"$ne":x[y]}} for y in newindexes]} for x in prevdocbatch];
+                newqueries=[[queries[1][0],{"$and":[dict([x]) for x in queries[1][1].items()]+[{x:doc[x]} for x in commonindexes]+skiplist},queries[1][2]]]+queries[2:];
+                #newqueries=[[queries[i][0],{"$and":[dict([x]) for x in queries[i][1].items()]+[{x:doc[x]} for x in getintersectionindexes(db,*[w[0] for w in queries[:i+1]])]+[{"$or":[{y:{"$ne":x[y]}} for y in getcomplementindexes(db,*[w[0] for w in queries[:i+1]])]} for x in prevdocbatch]},queries[i][2]] for i in range(1,len(queries))];
+                #print newqueries;
                 #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,toplevel=False);
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
@@ -213,14 +226,29 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
         else:
             docbatch+=[doc];
             if len(docbatch)==inputdoc["nsteps"]:
-                iostream.close();
-                return docbatch;
-        if stopat():
-            if toplevel:
-                break;
-            else:
-                iostream.close();
-                return docbatch;
+                if toplevel:
+                    action(batchcounter,stepcounter,inputdoc,docbatch);
+                    inputdoc.update(inputfunc());
+                    iostream.seek(0,2);
+                    for line in docbatch:
+                        linedict=dict([(x,line[x]) for x in allindexes if x in line.keys()]);
+                        iostream.write(str(writeform(linedict)).replace(" ","")+"\n");
+                        iostream.flush();
+                    #olddocbatch+=docbatch;
+                    batchcounter+=1;
+                    stepcounter+=len(docbatch);
+                    #prevdocbatch+=[y for y in docbatch if all([y[x]==doc[x] for x in commonindexes])];
+                    docbatch=[];
+                else:
+                    iostream.close();
+                    return docbatch;
+        #if stopat():
+        #    if toplevel:
+        #        break;
+        #    else:
+        #        iostream.close();
+        #        return docbatch;
+        i+=1;
     if toplevel:
         if not stopat():
             if len(docbatch)>0:
