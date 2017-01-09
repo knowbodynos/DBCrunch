@@ -203,7 +203,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                             #olddocbatch+=docbatch;
                             batchcounter+=1;
                             stepcounter+=len(docbatch);
-                            prevdocbatch+=docbatch;
+                            prevdocbatch+=[y for y in docbatch if all([y[x]==doc[x] for x in commonindexes])];
                             docbatch=[];
                         else:
                             iostream.close();
