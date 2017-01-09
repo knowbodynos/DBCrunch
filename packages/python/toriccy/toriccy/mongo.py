@@ -151,7 +151,7 @@ def printasfunc(*args):
     sys.stdout.flush();
 
 #def dbdive(db,queries,n,olddocbatch=[],allindexes=getunionindexes(db),toplevel=True):
-def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):#,isnew=lambda x:True
+def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,writeform=lambda x:x,readform=lambda x:eval(x),stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):#,isnew=lambda x:True
     allindexes=getunionindexes(db);
     iostream=open(filepath,"a+");
     docbatch=[];
@@ -166,7 +166,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 iostream.seek(0,0);
                 alldocbatch=[];
                 for line in iostream:
-                    linedoc=eval(line.rstrip("\n"));
+                    linedoc=readform(line.rstrip("\n"));
                     if all([linedoc[x]==doc[x] for x in commonindexes]):
                         alldocbatch+=[linedoc];
                 #alldocbatch=[eval(x.rstrip("\n")) for x in iostream.readlines()];
@@ -176,7 +176,7 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 #subdocbatch=dbdive(db,newqueries,n-len(docbatch),olddocbatch=olddocbatch+docbatch,allindexes=allindexes,toplevel=False);
                 newinputdoc=inputdoc.copy();
                 newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-                subdocbatch=dbdive(db,newqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
+                subdocbatch=dbdive(db,newqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,writeform=writeform,readform=readform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
                 docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
                 if len(docbatch)==inputdoc["nsteps"]:
                     if toplevel:
@@ -211,7 +211,8 @@ def dbdive(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":
                 action(batchcounter,stepcounter,inputdoc,docbatch);
                 iostream.seek(0,2);
                 for line in docbatch:
-                    iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
+                    linedict=dict([(x,line[x]) for x in allindexes if x in line.keys()]);
+                    iostream.write(str(writeform(linedict)).replace(" ","")+"\n");
                     iostream.flush();
                 batchcounter+=1;
                 stepcounter+=len(docbatch);

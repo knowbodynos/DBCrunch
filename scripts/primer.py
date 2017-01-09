@@ -123,9 +123,13 @@ def seconds2timestamp(seconds):
     timestamp+=hours+":"+minutes+":"+seconds;
     return timestamp;
 
-def jobname2jobjson(jobname,dbindexes):
+def contractededjobname2jobdocs(jobname,dbindexes):
     indexsplit=[[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")];
     return [dict([(dbindexes[i],x[i]) for i in range(len(dbindexes))]) for x in indexsplit];
+
+def jobname2jobdoc(jobname,dbindexes):
+    indexsplit=jobname.split("_");
+    return dict([(dbindexes[i],indexsplit[i]) for i in range(len(dbindexes))]);
 
 def doc2jobname(doc,dbindexes):
     return '_'.join([str(doc[x]) for x in dbindexes]);
@@ -516,12 +520,12 @@ try:
         #    oldqueryresult=[];
         #else:
         #    oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
-        #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in jobname2jobjson(x,dbindexes) if len(x)>0];
+        #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in contractededjobname2jobdocs(x,dbindexes) if len(x)>0];
         #with open(primerpath+"/querystate","a") as iostream:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
-        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",inputfunc=lambda:doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(licensestream,username,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
+        [batchcounter,stepcounter]=toriccy.dbdive(db,queries,primerpath+"/querystate",inputfunc=lambda:doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),inputdoc=doinput(licensestream,maxjobcount,sleeptime,statepath,partitions,largemempartitions,scriptmemorylimit,maxstepcount,scriptext),action=lambda w,x,y,z:doaction(licensestream,username,modname,primername,dbindexes,SLURMtimelimit,buffertime,primerpath,writemode,mongouri,scriptpath,scripttype,scriptext,dbcollection,workpath,w,x,y,z),writeform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),readform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(primerpath+"/counterstate","w") as counterstream:
             counterstream.write(str(batchcounter)+" "+str(stepcounter));
