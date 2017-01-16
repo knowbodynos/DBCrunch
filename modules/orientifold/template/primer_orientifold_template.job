@@ -50,8 +50,7 @@ packagepath="${mainpath}/ToricCY"
 scriptpath="${packagepath}/scripts"
 
 #Input script info
-scripttype="math -noprompt -script"
-scriptext=".m"
+scriptlanguage="mathematica"
 scripttimelimit="23:50:00"
 scriptmemorylimit="1000000000"
 
@@ -61,4 +60,4 @@ queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'H21':1,
 dbcoll="INVOL"
 newcollfield="INVOL,H11SPLIT"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scripttype}" "${scriptext}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcoll}" "${newcollfield}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcoll}" "${newcollfield}"
