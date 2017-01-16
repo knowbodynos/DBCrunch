@@ -331,10 +331,10 @@ def dbcrawl(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps"
                             with tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
                                 for line in alliostreams[l]:
                                     linesubdoc=readform(line.rstrip("\n"));
-                                    print linedoctrim;
-                                    print linesubdoc;
-                                    print "";
-                                    sys.stdout.flush();
+                                    #print linedoctrim;
+                                    #print linesubdoc;
+                                    #print "";
+                                    #sys.stdout.flush();
                                     if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
                                         tempstream.write(line);
                                         tempstream.flush();

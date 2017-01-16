@@ -483,7 +483,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,primern
     #doc=json.loads(doc.rstrip('\n'));
     jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
     #jobstepnamescontract=jobstepnamescontract(jobstepnames);
-    jobname=modname+"_"+primername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+inputdoc["nsteps"]-1);
+    jobname=modname+"_"+primername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
