@@ -294,6 +294,9 @@ def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
 def reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollection):
     skippedjobs=[];
     with open(primerpath+"/skippedstate","r") as skippedstream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+        skippedheader=skippedstream.readline();
+        tempstream.write(skippedheader);
+        tempstream.flush();
         for line in skippedstream:
             [skippedjob,exitcode]=line.rstrip("\n").split(",");
             if exitcode=="0:0":
@@ -308,7 +311,7 @@ def reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollect
                 tempstream.flush();
         os.rename(tempstream.name,skippedstream.name);
     if len(skippedjobs)>0:
-        querystatetierfilenames=subprocess.Popen("find "+primerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");
+        querystatetierfilenames=subprocess.Popen("find "+primerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
         for querystatetierfilename in querystatetierfilenames:
             #if querystatetierfilename==querystatefilename+dbcollection:
             #    with open(primerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
@@ -560,15 +563,15 @@ try:
 
     #Input script info
     scriptlanguage=sys.argv[14];
-    scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[16];
+    #scripttimelimit=timestamp2unit(sys.argv[15]);
+    scriptmemorylimit=sys.argv[15];
 
     #Input database info
-    mongouri=sys.argv[17];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[18]);
+    mongouri=sys.argv[16];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[17]);
     #dumpfile=sys.argv[13];
-    dbcollection=sys.argv[19];
-    newcollection,newfield=sys.argv[20].split(",");
+    dbcollection=sys.argv[18];
+    newcollection,newfield=sys.argv[19].split(",");
     
     #Read seek position from file
     #with open(primerpath+"/"+seekfile,"r") as seekstream:
@@ -627,7 +630,9 @@ try:
            fcntl.flock(licensestream,fcntl.LOCK_UN);
     #firstrun=True;
     with open(counterstatefile,"r") as counterstream:
-        [batchcounter,stepcounter]=[int(x) for x in counterstream.readline().rstrip("\n").split(",")];
+        counterheader=counterstream.readline();
+        counterline=counterstream.readline();
+        [batchcounter,stepcounter]=[int(x) for x in counterline.rstrip("\n").split(",")];
     #batchcounter=1;
     #stepcounter=1;
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or firstlastrun) and timeleftq(starttime,primerbuffertimelimit):
@@ -648,7 +653,9 @@ try:
         [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,primerpath,filename=querystatefilename,inputfunc=lambda:doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,primername,SLURMtimelimit,buffertime,writemode,mongouri,dbcollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(counterstatefile,"w") as counterstream:
+            counterstream.write(counterheader);
             counterstream.write(str(batchcounter)+","+str(stepcounter));
+            counterstream.flush();
         if timeleftq(starttime,primerbuffertimelimit):
             firstlastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or firstlastrun));
             releaseheldjobs(username,modname,primername);

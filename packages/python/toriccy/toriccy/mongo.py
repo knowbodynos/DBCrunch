@@ -165,7 +165,7 @@ def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs
                         i-=1;
                     k+=1;
             docbatch[i]=dict([(x,docbatch[i][x]) for x in allcollindexes[j]]);
-            with open(filepath+"/querystate"+queries[j][0],"a") as querystatestream:
+            with open(filepath+"/"+filename+queries[j][0],"a") as querystatestream:
                 #alliostreams[j].seek(0,2);
                 querystatestream.write(str(writeform(docbatch[i])).replace(" ","")+"\n");
                 querystatestream.flush();
@@ -173,14 +173,20 @@ def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs
     #Update querystate files by removing the subdocument records of completed documents
     minupdatetier=min([x.index(True) for x in endofdocs])+1;
     for i in range(minupdatetier,len(queries)):
-        with open(filepath+"/querystate"+queries[i][0],"r") as querystatestream, tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
-            for line in querystatestream:
-                linesubdoc=readform(line.rstrip("\n"));
-                #If not a subdocument of any document in the list, keep it
-                if not any([all([x in linesubdoc.items() for x in docbatch[j].items()]) for j in range(len(endofdocs)) if endofdocs[j].index(True)<i]):
-                    tempstream.write(line);
-                    tempstream.flush();
-            os.rename(tempstream.name,querystatestream.name);
+        try:
+            with open(filepath+"/"+filename+queries[i][0],"r") as querystatestream, tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
+                for line in querystatestream:
+                    linesubdoc=readform(line.rstrip("\n"));
+                    #If not a subdocument of any document in the list, keep it
+                    if not any([all([x in linesubdoc.items() for x in docbatch[j].items()]) for j in range(len(endofdocs)) if endofdocs[j].index(True)<i]):
+                        tempstream.write(line);
+                        tempstream.flush();
+                os.rename(tempstream.name,querystatestream.name);
+        except IOError:
+            querystatestream=open(filepath+"/"+filename+queries[i][0],"w");
+            querystatestream.close();
+
+
 
 def printasfunc(*args):
     print list(args)[-1];
@@ -194,13 +200,17 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
         thiscollindexes=allcollindexes[0];
     else:
         thiscollindexes=getunionindexes(db,queries[0][0]);
-    thisiostream=open(filepath+"/querystate"+queries[0][0],"r");
-    prevfilters=[];
-    for line in thisiostream:
-        linedoc=readform(line.rstrip("\n"));
-        if all([linedoc[x]==queries[0][1][x] for x in thiscollindexes if x in queries[0][1].keys()]):
-            linefilter={"$or":[{x:{"$ne":linedoc[x]}} for x in thiscollindexes if x not in queries[0][1].keys()]};
-            prevfilters+=[linefilter];
+    try:
+        thisiostream=open(filepath+"/"+filename+queries[0][0],"r");
+        prevfilters=[];
+        for line in thisiostream:
+            linedoc=readform(line.rstrip("\n"));
+            if all([linedoc[x]==queries[0][1][x] for x in thiscollindexes if x in queries[0][1].keys()]):
+                linefilter={"$or":[{x:{"$ne":linedoc[x]}} for x in thiscollindexes if x not in queries[0][1].keys()]};
+                prevfilters+=[linefilter];
+    except IOError:
+        thisiostream=open(filepath+"/"+filename+queries[0][0],"w");
+    thisiostream.close();
     thisquery=[queries[0][0],{"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters},queries[0][2]];
     docs=collectionfind(db,*thisquery);
     i=0;
@@ -244,8 +254,8 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
                 #                        tempstream.write(line);
                 #                        tempstream.flush();
                 #                alliostreams[l].close();
-                #                os.rename(tempstream.name,filepath+"/querystate"+queries[l][0]);
-                #                alliostreams[l]=open(filepath+"/querystate"+queries[l][0],"a+");
+                #                os.rename(tempstream.name,filepath+"/"+filename+queries[l][0]);
+                #                alliostreams[l]=open(filepath+"/"+filename+queries[l][0],"a+");
                 #    stepcounter+=1;
                 #batchcounter+=1;
                 docbatch=[];
@@ -255,7 +265,6 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
         else:
             endofdocs+=[[all(x) and (i==len(docs)-1)]+x for x in endofsubdocs];
             if len(docbatch)==inputdoc["nsteps"]:
-                thisiostream.close();
                 return [endofdocs,docbatch];
         i+=1;
     if toplevel:
@@ -266,7 +275,6 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
             stepcounter+=len(docbatch);
         return [batchcounter,stepcounter];
     else:
-        thisiostream.close();
         return [endofdocs,docbatch];
 
 '''

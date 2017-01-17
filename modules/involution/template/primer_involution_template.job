@@ -51,7 +51,6 @@ scriptpath="${packagepath}/scripts"
 
 #Input script info
 scriptlanguage="mathematica"
-scripttimelimit="23:50:00"
 scriptmemorylimit="10000000000"
 
 #Input database info
