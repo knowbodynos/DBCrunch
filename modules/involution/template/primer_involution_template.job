@@ -57,7 +57,7 @@ scriptmemorylimit="10000000000"
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
 queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1}],['TRIANG',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1}]]"
-dbcoll="TRIANG"
-newcollfield="INVOL,INVOLN"
+dbcollection="TRIANG"
+newcollectionfield="INVOL,INVOLN"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcoll}" "${newcollfield}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}"

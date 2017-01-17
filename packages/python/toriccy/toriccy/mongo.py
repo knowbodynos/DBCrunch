@@ -149,27 +149,52 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
             return len(totalresult);
     return totalresult;
 
+def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs,readform=lambda x:eval(x),writeform=lambda x:x):
+    #Compress docbatch to top tier that has completed
+    i=len(docbatch)-1;
+    while i>=0:
+        if True in endofdocs[i]:
+            j=endofdocs[i].index(True);
+            if j<len(endofdocs[i])-1: 
+                k=0;
+                while k<i:
+                    if all([docbatch[i][x]==docbatch[k][x] for x in allcollindexes[j]]):
+                        docbatch=docbatch[:k]+docbatch[k+1:];
+                        endofdocs=endofdocs[:k]+endofdocs[k+1:];
+                        k-=1;
+                        i-=1;
+                    k+=1;
+            docbatch[i]=dict([(x,docbatch[i][x]) for x in allcollindexes[j]]);
+            with open(filepath+"/querystate"+queries[j][0],"a") as querystatestream:
+                #alliostreams[j].seek(0,2);
+                querystatestream.write(str(writeform(docbatch[i])).replace(" ","")+"\n");
+                querystatestream.flush();
+        i-=1;
+    #Update querystate files by removing the subdocument records of completed documents
+    minupdatetier=min([x.index(True) for x in endofdocs])+1;
+    for i in range(minupdatetier,len(queries)):
+        with open(filepath+"/querystate"+queries[i][0],"r") as querystatestream, tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
+            for line in querystatestream:
+                linesubdoc=readform(line.rstrip("\n"));
+                #If not a subdocument of any document in the list, keep it
+                if not any([all([x in linesubdoc.items() for x in docbatch[j].items()]) for j in range(len(endofdocs)) if endofdocs[j].index(True)<i]):
+                    tempstream.write(line);
+                    tempstream.flush();
+            os.rename(tempstream.name,querystatestream.name);
+
 def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
 
-def dbcrawl(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,writeform=lambda x:x,readform=lambda x:eval(x),stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):
+def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):
     docbatch=[];
     endofdocs=[];
     if toplevel:
-        allcollindexes=[];
-        alliostreams=[];
-        for x in queries:
-            collname=x[0];
-            allcollindexes+=[getunionindexes(db,collname)];
-            alliostreams+=[open(filepath+"/querystate"+collname,"a+")];
-        thisiostream=alliostreams[0];
+        allcollindexes=[getunionindexes(db,x[0]) for x in queries];
         thiscollindexes=allcollindexes[0];
     else:
-        collname=queries[0][0];
-        thiscollindexes=getunionindexes(db,collname);
-        thisiostream=open(filepath+"/querystate"+collname,"a+");
-    thisiostream.seek(0,0);
+        thiscollindexes=getunionindexes(db,queries[0][0]);
+    thisiostream=open(filepath+"/querystate"+queries[0][0],"r");
     prevfilters=[];
     for line in thisiostream:
         linedoc=readform(line.rstrip("\n"));
@@ -177,232 +202,72 @@ def dbcrawl(db,queries,filepath,inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps"
             linefilter={"$or":[{x:{"$ne":linedoc[x]}} for x in thiscollindexes if x not in queries[0][1].keys()]};
             prevfilters+=[linefilter];
     thisquery=[queries[0][0],{"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters},queries[0][2]];
-    #print "Collection: "+str(queries[0][0]);
-    #print "To Include: "+str([dict([x]) for x in queries[0][1].items()]);
-    #print "To Skip: "+str(prevfilters);
-    #print "";
-    #sys.stdout.flush();
     docs=collectionfind(db,*thisquery);
-    #print "ndocs: "+str(len(docs));
-    #sys.stdout.flush();
     i=0;
     while (i<len(docs)) and not stopat():
         doc=docs[i];
-        #print "len(queries)="+str(len(queries));
-        #sys.stdout.flush();
         if len(queries)>1:
-            #subdocbatch=None;
-            #endofsubdocs=None;
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
             nextqueries=[[queries[1][0],dict(queries[1][1].items()+[(x,doc[x]) for x in commonindexes]),queries[1][2]]]+queries[2:];
-            #print "i="+str(i);
-            #sys.stdout.flush();
             newinputdoc=inputdoc.copy();
             newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-            [endofsubdocs,subdocbatch]=dbcrawl(db,nextqueries,filepath,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,writeform=writeform,readform=readform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
-            
-            docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
-            #print "toplevel="+str(toplevel);
-            #sys.stdout.flush();
-            if toplevel:
-                endofdocs+=endofsubdocs;
-                #if doc["POLYID"]==55:
-                #    print "55: "+str(len(docbatch))+" "+str(docbatch)+"        "+str(len(endofdocs))+" "+str(endofdocs);
-                #    sys.stdout.flush();
-                if len(docbatch)==inputdoc["nsteps"]:
-                    #print "Docbatch: "+str(len(docbatch));
-                    #print "nsteps: "+str(inputdoc["nsteps"]);
-                    #print "Equal?: "+str(len(docbatch)==inputdoc["nsteps"]);
-                    #sys.stdout.flush();
-                    action(batchcounter,stepcounter,inputdoc,docbatch);
-                    inputdoc.update(inputfunc());
-                    docbatchtier=[];
-                    for j in range(len(docbatch)):
-                        linedoc=docbatch[j];
-                        #if True in endofdocs[j]:
-                        k=endofdocs[j].index(True);
-                        linedoctrim=dict([(x,linedoc[x]) for x in allcollindexes[k]]);
-                        if linedoctrim not in docbatchtier:
-                            alliostreams[k].seek(0,2);
-                            alliostreams[k].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
-                            alliostreams[k].flush();
-                            docbatchtier+=[linedoctrim];
-                            for l in range(k+1,len(endofdocs[j])):
-                                alliostreams[l].seek(0,0);
-                                with tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
-                                    for line in alliostreams[l]:
-                                        linesubdoc=readform(line.rstrip("\n"));
-                                        #print linedoctrim;
-                                        #print linesubdoc;
-                                        #print "";
-                                        #sys.stdout.flush();
-                                        if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
-                                            tempstream.write(line);
-                                            tempstream.flush();
-                                    alliostreams[l].close();
-                                    os.rename(tempstream.name,filepath+"/querystate"+queries[l][0]);
-                                    alliostreams[l]=open(filepath+"/querystate"+queries[l][0],"a+");
-                        stepcounter+=1;
-                    #print "docbatchtier: "+str(docbatchtier);
-                    #sys.stdout.flush();
-                    #stepcounter+=len(docbatch);
-                    batchcounter+=1;
-                    docbatch=[];
-                    if not (endofdocs[-1][0] or stopat()):
-                        i-=1;
-                    endofdocs=[];
-            else:
-                lastdocq=(i==len(docs)-1);
-                endofdocs+=[[all(x) and lastdocq]+x for x in endofsubdocs];
-                if len(docbatch)==inputdoc["nsteps"]:
-                    #print "Docbatch: "+str(len(docbatch));
-                    #print "nsteps: "+str(inputdoc["nsteps"]);
-                    #print "Equal?: "+str(len(docbatch)==inputdoc["nsteps"]);
-                    #sys.stdout.flush();
-                    thisiostream.close();
-                    return [endofdocs,docbatch];
+            [endofsubdocs,subdocbatch]=dbcrawl(db,nextqueries,filepath,filename=filename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
         else:
-            docbatch+=[doc];
-            #print "toplevel="+str(toplevel);
-            #sys.stdout.flush();
-            if toplevel:
-                endofdocs+=[[True]];
-                if len(docbatch)==inputdoc["nsteps"]:
-                    #print "Docbatch: "+str(len(docbatch));
-                    #print "nsteps: "+str(inputdoc["nsteps"]);
-                    #print "Equal?: "+str(len(docbatch)==inputdoc["nsteps"]);
-                    #sys.stdout.flush();
-                    action(batchcounter,stepcounter,inputdoc,docbatch);
-                    inputdoc.update(inputfunc());
-                    docbatchtier=[];
-                    for j in range(len(docbatch)):
-                        linedoc=docbatch[j];
-                        linedoctrim=dict([(x,linedoc[x]) for x in thiscollindexes]);
-                        if linedoctrim not in docbatchtier:
-                            alliostreams[j].seek(0,2);
-                            alliostreams[j].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
-                            alliostreams[j].flush();
-                            docbatchtier+=[linedoctrim];
-                        stepcounter+=1;
-                    #print "docbatchtier: "+str(docbatchtier);
-                    #sys.stdout.flush();
-                    #stepcounter+=len(docbatch);
-                    batchcounter+=1;
-                    docbatch=[];
-                    endofdocs=[];
-                    #if (len(subdocbatch)>0) and not stopat():
-                    #    i-=1;
-            else:
-                lastdocq=(i==len(docs)-1);
-                endofdocs+=[[lastdocq,True]];
-                if len(docbatch)==inputdoc["nsteps"]:
-                    #print "Docbatch: "+str(len(docbatch));
-                    #print "nsteps: "+str(inputdoc["nsteps"]);
-                    #print "Equal?: "+str(len(docbatch)==inputdoc["nsteps"]);
-                    #sys.stdout.flush();
-                    thisiostream.close();
-                    return [endofdocs,docbatch];
+            [endofsubdocs,subdocbatch]=[[[True]],[{}]];
+
+        docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
+
+        if toplevel:
+            endofdocs+=endofsubdocs;
+            if len(docbatch)==inputdoc["nsteps"]:
+                action(batchcounter,stepcounter,inputdoc,docbatch);
+                inputdoc.update(inputfunc());
+                updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
+                batchcounter+=1;
+                stepcounter+=len(docbatch);
+                #docbatchtier=[];
+                #for j in range(len(docbatch)):
+                #    linedoc=docbatch[j];
+                #    k=endofdocs[j].index(True);
+                #    linedoctrim=dict([(x,linedoc[x]) for x in allcollindexes[k]]);
+                #    if linedoctrim not in docbatchtier:
+                #        alliostreams[k].seek(0,2);
+                #        alliostreams[k].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
+                #        alliostreams[k].flush();
+                #        docbatchtier+=[linedoctrim];
+                #        for l in range(k+1,len(endofdocs[j])):
+                #            alliostreams[l].seek(0,0);
+                #            with tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
+                #                for line in alliostreams[l]:
+                #                    linesubdoc=readform(line.rstrip("\n"));
+                #                    if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
+                #                        tempstream.write(line);
+                #                        tempstream.flush();
+                #                alliostreams[l].close();
+                #                os.rename(tempstream.name,filepath+"/querystate"+queries[l][0]);
+                #                alliostreams[l]=open(filepath+"/querystate"+queries[l][0],"a+");
+                #    stepcounter+=1;
+                #batchcounter+=1;
+                docbatch=[];
+                if not endofdocs[-1][0]:
+                    i-=1;
+                endofdocs=[];
+        else:
+            endofdocs+=[[all(x) and (i==len(docs)-1)]+x for x in endofsubdocs];
+            if len(docbatch)==inputdoc["nsteps"]:
+                thisiostream.close();
+                return [endofdocs,docbatch];
         i+=1;
-    #print "len(queries)="+str(len(queries));
-    #sys.stdout.flush();
-    if len(queries)>1:
-        #print "toplevel="+str(toplevel);
-        #sys.stdout.flush();
-        if toplevel:
-            if len(docbatch)>0:
-                #print "Docbatch: "+str(len(docbatch));
-                #print "nsteps: "+str(inputdoc["nsteps"]);
-                #print "Equal?: "+str(len(docbatch)>0);
-                #sys.stdout.flush();
-                action(batchcounter,stepcounter,inputdoc,docbatch);
-                docbatchtier=[];
-                for j in range(len(docbatch)):
-                    linedoc=docbatch[j];
-                    #if True in endofdocs[j]:
-                    k=endofdocs[j].index(True);
-                    linedoctrim=dict([(x,linedoc[x]) for x in allcollindexes[k]]);
-                    if linedoctrim not in docbatchtier:
-                        alliostreams[k].seek(0,2);
-                        alliostreams[k].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
-                        alliostreams[k].flush();
-                        docbatchtier+=[linedoctrim];
-                        for l in range(k+1,len(endofdocs[j])):
-                            alliostreams[l].seek(0,0);
-                            with tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
-                                for line in alliostreams[l]:
-                                    linesubdoc=readform(line.rstrip("\n"));
-                                    #print linedoctrim;
-                                    #print linesubdoc;
-                                    #print "";
-                                    #sys.stdout.flush();
-                                    if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
-                                        tempstream.write(line);
-                                        tempstream.flush();
-                                alliostreams[l].close();
-                                os.rename(tempstream.name,filepath+"/querystate"+queries[l][0]);
-                                alliostreams[l]=open(filepath+"/querystate"+queries[l][0],"a+");
-                    stepcounter+=1;
-                #print "docbatchtier: "+str(docbatchtier);
-                #sys.stdout.flush();
-                #stepcounter+=len(docbatch);
-                batchcounter+=1;
-            for j in range(len(alliostreams)):
-                alliostreams[j].close();
-            return [batchcounter,stepcounter];
-        else:
-            thisiostream.close();
-            #print "Docbatch: "+str(len(docbatch));
-            #sys.stdout.flush();
-            return [endofdocs,docbatch];
+    if toplevel:
+        if len(docbatch)>0:
+            action(batchcounter,stepcounter,inputdoc,docbatch);
+            updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
+            batchcounter+=1;
+            stepcounter+=len(docbatch);
+        return [batchcounter,stepcounter];
     else:
-        #print "toplevel="+str(toplevel);
-        #sys.stdout.flush();
-        if toplevel:
-            if len(docbatch)>0:
-                #print "Docbatch: "+str(len(docbatch));
-                #print "nsteps: "+str(inputdoc["nsteps"]);
-                #print "Equal?: "+str(len(docbatch)>0);
-                #sys.stdout.flush();
-                action(batchcounter,stepcounter,inputdoc,docbatch);
-                docbatchtier=[];
-                for j in range(len(docbatch)):
-                    linedoc=docbatch[j];
-                    #if True in endofdocs[j]:
-                    k=endofdocs[j].index(True);
-                    linedoctrim=dict([(x,linedoc[x]) for x in allcollindexes[k]]);
-                    if linedoctrim not in docbatchtier:
-                        alliostreams[k].seek(0,2);
-                        alliostreams[k].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
-                        alliostreams[k].flush();
-                        docbatchtier+=[linedoctrim];
-                        for l in range(k+1,len(endofdocs[j])):
-                            alliostreams[l].seek(0,0);
-                            with tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
-                                for line in alliostreams[l]:
-                                    linesubdoc=readform(line.rstrip("\n"));
-                                    print linedoctrim;
-                                    print linesubdoc;
-                                    print "";
-                                    sys.stdout.flush();
-                                    if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
-                                        tempstream.write(line);
-                                        tempstream.flush();
-                                alliostreams[l].close();
-                                os.rename(tempstream.name,filepath+"/querystate"+queries[l][0]);
-                                alliostreams[l]=open(filepath+"/querystate"+queries[l][0],"a+");
-                    stepcounter+=1;
-                #print "docbatchtier: "+str(docbatchtier);
-                #sys.stdout.flush();
-                #stepcounter+=len(docbatch);
-                batchcounter+=1;
-            for j in range(len(alliostreams)):
-                alliostreams[j].close();
-            return [batchcounter,stepcounter];
-        else:
-            thisiostream.close();
-            #print "Docbatch: "+str(len(docbatch));
-            #sys.stdout.flush();
-            return [endofdocs,docbatch];
+        thisiostream.close();
+        return [endofdocs,docbatch];
 
 '''
 username="frontend";

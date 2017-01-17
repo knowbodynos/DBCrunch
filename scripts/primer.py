@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,signal,fcntl,traceback,subprocess,time,datetime,toriccy;#,json;
+import sys,os,linecache,signal,fcntl,traceback,subprocess,time,datetime,tempfile,toriccy;#,json;
 #from pymongo import MongoClient;
 
 #Misc. function definitions
@@ -291,14 +291,42 @@ def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
 #        skippedjobs=[modname+"_"+primername+"_"+x for x in blankfiles if x not in jobsrunning];
 #        return skippedjobs;
 
-def skippedjobslist(username,modname,primername,primerpath):
-    with open(primerpath+"/skippedstate","r") as skippedstream:
-        skippedjobs=[];
-        for skippedjob in skippedstream:
-            skippedjobsplit=skippedjob.rstrip("\n").split("_");
-            if skippedjobsplit[:2]==[modname,primername]:
-                skippedjobs+=['_'.join(skippedjobsplit[2:])];
-    return skippedjobs;
+def reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollection):
+    skippedjobs=[];
+    with open(primerpath+"/skippedstate","r") as skippedstream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+        for line in skippedstream:
+            [skippedjob,exitcode]=line.rstrip("\n").split(",");
+            if exitcode=="0:0":
+                skippedjobsplit=skippedjob.split("_");
+                if skippedjobsplit[:2]==[modname,primername]:
+                    skippedjobs+=[skippedjob];
+                else:
+                    tempstream.write(line);
+                    tempstream.flush();
+            else:
+                tempstream.write(line);
+                tempstream.flush();
+        os.rename(tempstream.name,skippedstream.name);
+    if len(skippedjobs)>0:
+        querystatetierfilenames=subprocess.Popen("find "+primerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");
+        for querystatetierfilename in querystatetierfilenames:
+            #if querystatetierfilename==querystatefilename+dbcollection:
+            #    with open(primerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
+            #        for i in range(len(skippedjobs)):
+            #            line=skippedjobs[i];
+            #            if i<len(skippedjobs)-1:
+            #                line+="\n";
+            #            querystatefilestream.write(line);
+            #            querystatefilestream.flush();
+            #else:
+            if querystatetierfilename!=querystatefilename+dbcollection:
+                with open(primerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+                    for line in querystatefilestream:
+                        linestrip=line.rstrip("\n");
+                        if not any([linestrip+"_" in x for x in skippedjobs]):
+                            tempstream.write(line);
+                            tempstream.flush();
+                    os.rename(tempstream.name,querystatefilestream.name);
 
 def releaseheldjobs(username,modname,primername):
     subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+primername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
@@ -444,7 +472,7 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
     jobstring+="        exitcode=$(sacct -n -j \"${SLURM_JOBID}.${i}\" -o 'ExitCode' | sed 's/\s*//g')\n";
-    jobstring+="        echo \"${jobstepnames[${i}]} ${exitcode}\" >> \"${primerpath}/skippedstate\"\n";
+    jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${primerpath}/skippedstate\"\n";
     jobstring+="    fi\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
@@ -562,6 +590,7 @@ try:
     modulesstatefile=statepath+"/modules";
     softwarestatefile=statepath+"/software";
     counterstatefile=primerpath+"/counterstate";
+    querystatefilename="querystate";
     #querystatefile=primerpath+"/querystate";
 
     primerpartitiontimelimit,primerbuffertimelimit=getpartitiontimelimit(primerpartition,"",buffertime);
@@ -615,7 +644,8 @@ try:
         #print "Next Run";
         #print "";
         #sys.stdout.flush();
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,primerpath,inputfunc=lambda:doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,primername,SLURMtimelimit,buffertime,writemode,mongouri,dbcollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream),writeform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
+        reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollection);
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,primerpath,filename=querystatefilename,inputfunc=lambda:doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,primername,SLURMtimelimit,buffertime,writemode,mongouri,dbcollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(counterstatefile,"w") as counterstream:
             counterstream.write(str(batchcounter)+","+str(stepcounter));
