@@ -14,6 +14,9 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
     print "More info: ",traceback.format_exc();
 
+def default_sigpipe():
+    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
+
 def jobstepname2doc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_")[2:];
     return dict([(dbindexes[i],indexsplit[i]) for i in range(len(dbindexes))]);
@@ -38,7 +41,7 @@ try:
 
     dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
-    cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");
+    cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
 
     indexdoc=jobstepname2doc(jobstepname,dbindexes);
 
