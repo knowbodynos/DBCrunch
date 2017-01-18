@@ -59,4 +59,4 @@ queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'H21':1,
 dbcollection="INVOL"
 newcollectionfield="INVOL,H11SPLIT"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scripttimelimit}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}"

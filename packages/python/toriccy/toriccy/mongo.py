@@ -200,9 +200,9 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
         thiscollindexes=allcollindexes[0];
     else:
         thiscollindexes=getunionindexes(db,queries[0][0]);
+    prevfilters=[];
     try:
         thisiostream=open(filepath+"/"+filename+queries[0][0],"r");
-        prevfilters=[];
         for line in thisiostream:
             linedoc=readform(line.rstrip("\n"));
             if all([linedoc[x]==queries[0][1][x] for x in thiscollindexes if x in queries[0][1].keys()]):
