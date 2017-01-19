@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,subprocess,re,toriccy;
+import sys,linecache,traceback,signal,subprocess,re,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -41,14 +41,18 @@ try:
 
     dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
-    cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    if len(sacctstats)==3:
+        cputime,maxrss,maxvmsize=sacctstats;
+    else:
+        cputime,maxrss,maxvmsize=["N/A","N/A","N/A"];
 
     indexdoc=jobstepname2doc(jobstepname,dbindexes);
 
     bsonsize=0;
     with open(workpath+"/"+jobstepname+".log","r") as logstream:
         for line in logstream:
-            doc=eval(re.sub(":[nN]ull",":None",line.rstrip("\n").replace("Output:","").replace(" ","")));
+            doc=eval(re.sub(":[nN]ull",":None",line.rstrip("\n").replace("Output:","").replace("........","").replace(" ","")));
             bsonsize+=toriccy.bsonsize(doc);
             fulldoc=merge_dicts(indexdoc,doc);
             newcollection=toriccy.gettierfromdoc(db,fulldoc);

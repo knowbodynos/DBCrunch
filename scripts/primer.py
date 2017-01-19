@@ -1,6 +1,11 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,os,linecache,signal,fcntl,traceback,subprocess,time,datetime,tempfile,toriccy;#,json;
+import sys,os,re,linecache,signal,fcntl,traceback,subprocess,time,datetime,tempfile,matplotlib,toriccy;#,json;
+import networkx as nx;
+matplotlib.use('Agg');
+import matplotlib.pyplot as plt;
+from matplotlib.backends.backend_pdf import PdfPages;
+plt.ioff();
 #from pymongo import MongoClient;
 
 #Misc. function definitions
@@ -158,6 +163,96 @@ def formatinput(doc,scriptlanguage):
     elif scriptlanguage=="mathematica":
         formatteddoc=toriccy.pythondictionary2mathematicarules(doc);
     return str(formatteddoc).replace(" ","");
+
+def plotjobgraph(modname,primerpath,primername,workpath,pdffile):
+    joblist=[];
+    jobsteplist=[];
+    with open(primerpath+"/primer_"+modname+"_"+primername+".out","r") as outstream:
+        for line in outstream:
+            if "batch job" in line:
+                if len(jobsteplist)>0:
+                    joblist+=[jobsteplist];
+                jobsteplist=[];
+            if "job step" in line:
+                jobsteplist+=[re.sub("^.* "+modname+"_.*?_(.*?) .*$\n",r"\1",line).split("_")];
+        if len(jobsteplist)>0:
+            joblist+=[jobsteplist];
+
+    maxdepth=len(joblist[0][0]);
+    expandedleaves=[];
+    for leavesbatch in joblist:
+        ileaf=0;
+        expandedfirst=[leavesbatch[ileaf][:i+1] for i in range(len(leavesbatch[ileaf])-1)];
+        while ileaf<len(leavesbatch)-1:
+            leavespair=leavesbatch[ileaf:ileaf+2];
+            if all([len(x)>1 for x in leavespair]):
+                expandedpairfirst=list(reversed([leavespair[0][:i+1] for i in range(len(leavespair[0])-1)]));
+                expandedpairlast=[leavespair[1][:i+1] for i in range(len(leavespair[1])-1)];
+                while (len(expandedpairfirst)>0) and (len(expandedpairlast)>0) and (expandedpairfirst[-1]==expandedpairlast[0]):
+                    expandedpairfirst=expandedpairfirst[:-1];
+                    expandedpairlast=expandedpairlast[1:];
+                recombineleavespair=[leavespair[0]]+expandedpairfirst+expandedpairlast+[leavespair[1]];
+            else:
+                recombineleavespair=leavespair;
+            leavesbatch=leavesbatch[:ileaf]+recombineleavespair+leavesbatch[ileaf+2:];
+            ileaf+=len(recombineleavespair)-1;
+        expandedlast=list(reversed([leavespair[1][:i+1] for i in range(len(leavespair[1])-1)]));
+        expandedleaves+=[expandedfirst+leavesbatch+expandedlast];
+
+    orderedexpandedleaves=toriccy.deldup([y for x in expandedleaves for y in x]);
+    expandedleavesindexes=[[orderedexpandedleaves.index(y) for y in x] for x in expandedleaves];
+    expandedleavessplitindexes=[];
+    for i in range(len(expandedleaves)):
+        expandedleavessplitindexbatch=[z+max([0]+[y for x in expandedleavessplitindexes for y in x if len(x)>0])-expandedleavesindexes[i][0]+1 for z in expandedleavesindexes[i]];
+        expandedleavessplitindexes+=[expandedleavessplitindexbatch];
+    expandedleavesitems=toriccy.deldup([(expandedleavessplitindexes[i][j],expandedleaves[i][j]) for i in range(len(expandedleaves)) for j in range(len(expandedleaves[i]))]);
+
+    expandedleavespathrules=[(x[i],x[i+1]) for x in expandedleavessplitindexes for i in range(len(x)-1)];
+    indexestolabels=[(x[0],x[1][-1]) for x in expandedleavesitems];
+    indexestocoords=[(expandedleavesitems[i][0],((len(expandedleavesitems[i][1])-1),-1.5-4*sum([len(x[1])==maxdepth for x in expandedleavesitems[:i]]))) for i in range(len(expandedleavesitems))];
+    indexnodecolors=['lightgray' for x in expandedleavesitems];
+    indexnodesizes=[500 for x in expandedleavesitems];
+    newindexeslabels=[];
+    newindlist=[];
+    newind=max([x[0] for x in expandedleavesitems])+1;
+    ycoord=0;
+    for x in expandedleavesitems:
+        if len(x[1])==maxdepth:
+            logfilename=modname+"_"+primername+"_"+"_".join(x[1])+".log";
+            with open(workpath+"/"+logfilename,"r") as logstream:
+                for line in logstream:
+                    if any([y in line for y in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
+                        expandedleavespathrules+=[(x[0],newind)];
+                        #indexestolabels+=[(newind,line.rstrip("\n"))];
+                        indexestocoords+=[(newind,(maxdepth+1,ycoord))];
+                        indexnodecolors+=['lightgray'];
+                        indexnodesizes+=[0];
+                        newindexeslabels+=[[maxdepth+1.05,ycoord-0.1,line.rstrip("\n")]];
+                        newindlist+=[newind];
+                        newind+=1;
+                        ycoord-=1;
+    indexestolabels=dict(indexestolabels);
+    indexestocoords=dict(indexestocoords);
+
+    xmin=-1;
+    xmax=maxdepth+1;
+    ymin=1-4*sum([len(x[1])==maxdepth for x in expandedleavesitems]);
+    ymax=0;
+
+    fig=plt.figure(figsize=(xmax,-ymin));
+    plt.axis("off");
+    X=nx.MultiDiGraph();
+    X.add_edges_from(expandedleavespathrules);
+    nx.draw_networkx_nodes(X,indexestocoords,node_color=indexnodecolors,node_size=indexnodesizes,node_shape='s');
+    nx.draw_networkx_edges(X,indexestocoords);
+    nx.draw_networkx_labels(X,indexestocoords,labels=indexestolabels);
+    for x in newindexeslabels:
+        plt.text(*x,bbox=dict(facecolor='lightgray',alpha=1),horizontalalignment='left');
+    plt.xlim(xmin,xmax);
+    plt.ylim(ymin,ymax);
+    pdf_pages=PdfPages(primerpath+"/"+modname+"_"+primername+"_"+pdffile+".pdf");
+    pdf_pages.savefig(fig,bbox_inches="tight");
+    pdf_pages.close();
 
 def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
     maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
@@ -470,7 +565,21 @@ def writejobfile(modname,jobname,jobstepnames,primerpath,primername,writemode,pa
     #jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
+    jobstring+="    skipped=false\n";
     jobstring+="    if test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+    jobstring+="    then\n";
+    jobstring+="        while read line\n";
+    jobstring+="        do\n";
+    jobstring+="            if [[ ! \"$line\" =~ ^Output:\ .* && ! \"$line\" =~ ^\.\.\.\.\.\.\.\..* ]]\n";
+    jobstring+="            then\n";
+    jobstring+="                skipped=true\n";
+    jobstring+="                break\n";
+    jobstring+="            fi\n";
+    jobstring+="        done < \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+    jobstring+="    else\n";
+    jobstring+="        skipped=true\n";
+    jobstring+="    fi\n";
+    jobstring+="    if ! $skipped\n";
     jobstring+="    then\n";
     jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
@@ -572,6 +681,7 @@ try:
     #dumpfile=sys.argv[13];
     dbcollection=sys.argv[18];
     newcollection,newfield=sys.argv[19].split(",");
+    pdffile=sys.argv[20];
     
     #Read seek position from file
     #with open(primerpath+"/"+seekfile,"r") as seekstream:
@@ -672,6 +782,9 @@ try:
         #Resubmit primer job
         nodemaxmemory=getnodemaxmemory(resourcesstatefile,primerpartition);
         submitprimerjob(primerpath,"primer_"+modname+"_"+primername,primerpartition,nodemaxmemory,resubmit=True);
+    else:
+        if pdffile!="":
+            plotjobgraph(modname,primerpath,primername,workpath,pdffile);
 
     #querystream.close();
     #seekstream.close();

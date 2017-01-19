@@ -92,7 +92,7 @@ outresult=Join[{NewTriangFields},InvolDoc];
 (*(ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
 (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];*)
 outputlist=Map[StringReplace[ExportString[#,"JSON","Compact"->True],{" "->""}]&,outresult];
-output=(StringJoin@@Table[outputlist[[i]]<>"\n        ",{i,Length[outputlist]-1}])<>outputlist[[-1]];
+output=(StringJoin@@Table[outputlist[[i]]<>"\n........",{i,Length[outputlist]-1}])<>outputlist[[-1]];
 
 WriteString[$Output,"Output: "<>output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
