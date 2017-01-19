@@ -149,7 +149,7 @@ def querydatabase(db,queries,chunk=100,formatresult="string"):
             return len(totalresult);
     return totalresult;
 
-def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs,readform=lambda x:eval(x),writeform=lambda x:x):
+def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=lambda x:eval(x),writeform=lambda x:x):
     #Compress docbatch to top tier that has completed
     i=len(docbatch)-1;
     while i>=0:
@@ -165,7 +165,7 @@ def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs
                         i-=1;
                     k+=1;
             docbatch[i]=dict([(x,docbatch[i][x]) for x in allcollindexes[j]]);
-            with open(filepath+"/"+filename+queries[j][0],"a") as querystatestream:
+            with open(statefilepath+"/"+statefilename+queries[j][0],"a") as querystatestream:
                 #alliostreams[j].seek(0,2);
                 querystatestream.write(str(writeform(docbatch[i])).replace(" ","")+"\n");
                 querystatestream.flush();
@@ -174,7 +174,7 @@ def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs
     minupdatetier=min([x.index(True) for x in endofdocs])+1;
     for i in range(minupdatetier,len(queries)):
         try:
-            with open(filepath+"/"+filename+queries[i][0],"r") as querystatestream, tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
+            with open(statefilepath+"/"+statefilename+queries[i][0],"r") as querystatestream, tempfile.NamedTemporaryFile(dir=statefilepath,delete=False) as tempstream:
                 for line in querystatestream:
                     linesubdoc=readform(line.rstrip("\n"));
                     #If not a subdocument of any document in the list, keep it
@@ -183,32 +183,36 @@ def updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs
                         tempstream.flush();
                 os.rename(tempstream.name,querystatestream.name);
         except IOError:
-            querystatestream=open(filepath+"/"+filename+queries[i][0],"w");
+            querystatestream=open(statefilepath+"/"+statefilename+queries[i][0],"w");
             querystatestream.close();
 
 def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
 
-def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,toplevel=True):
+def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,resetstatefile=False,toplevel=True):
     docbatch=[];
     endofdocs=[];
     if toplevel:
-        allfields=[y[0] for x in queries for y in x[2].items() if y[1]==1];
+        if resetstatefile:
+            for x in queries:
+                querystatestream=open(statefilepath+"/"+statefilename+x[0],"w");
+                querystatestream.close();
+        allprojfields=[y[0] for x in queries for y in x[2].items() if y[1]==1];
         allcollindexes=[getintersectionindexes(db,x[0]) for x in queries];
         thiscollindexes=allcollindexes[0];
     else:
         thiscollindexes=getintersectionindexes(db,queries[0][0]);
     prevfilters=[];
     try:
-        thisiostream=open(filepath+"/"+filename+queries[0][0],"r");
+        thisiostream=open(statefilepath+"/"+statefilename+queries[0][0],"r");
         for line in thisiostream:
             linedoc=readform(line.rstrip("\n"));
             if all([linedoc[x]==queries[0][1][x] for x in thiscollindexes if x in queries[0][1].keys()]):
                 linefilter={"$or":[{x:{"$ne":linedoc[x]}} for x in thiscollindexes if x not in queries[0][1].keys()]};
                 prevfilters+=[linefilter];
     except IOError:
-        thisiostream=open(filepath+"/"+filename+queries[0][0],"w");
+        thisiostream=open(statefilepath+"/"+statefilename+queries[0][0],"w");
     thisiostream.close();
     newquerydoc={"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters};
     newprojdoc=dict(queries[0][2].items()+[(x,1) for x in thiscollindexes]+[("_id",0)]);
@@ -222,7 +226,7 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
             nextqueries=[[queries[1][0],dict(queries[1][1].items()+[(x,doc[x]) for x in commonindexes]),queries[1][2]]]+queries[2:];
             newinputdoc=inputdoc.copy();
             newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-            [endofsubdocs,subdocbatch]=dbcrawl(db,nextqueries,filepath,filename=filename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,toplevel=False);
+            [endofsubdocs,subdocbatch]=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,resetstatefile=resetstatefile,toplevel=False);
         else:
             [endofsubdocs,subdocbatch]=[[[True]],[{}]];
 
@@ -231,10 +235,10 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
         if toplevel:
             endofdocs+=endofsubdocs;
             if len(docbatch)==inputdoc["nsteps"]:
-                docbatch=[dict([y for y in x.items() if y[0] in allfields]) for x in docbatch];
-                action(batchcounter,stepcounter,inputdoc,docbatch);
+                docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
+                action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
                 inputdoc.update(inputfunc());
-                updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
+                updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                 batchcounter+=1;
                 stepcounter+=len(docbatch);
                 #docbatchtier=[];
@@ -249,15 +253,15 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
                 #        docbatchtier+=[linedoctrim];
                 #        for l in range(k+1,len(endofdocs[j])):
                 #            alliostreams[l].seek(0,0);
-                #            with tempfile.NamedTemporaryFile(dir=filepath,delete=False) as tempstream:
+                #            with tempfile.NamedTemporaryFile(dir=statefilepath,delete=False) as tempstream:
                 #                for line in alliostreams[l]:
                 #                    linesubdoc=readform(line.rstrip("\n"));
                 #                    if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
                 #                        tempstream.write(line);
                 #                        tempstream.flush();
                 #                alliostreams[l].close();
-                #                os.rename(tempstream.name,filepath+"/"+filename+queries[l][0]);
-                #                alliostreams[l]=open(filepath+"/"+filename+queries[l][0],"a+");
+                #                os.rename(tempstream.name,statefilepath+"/"+statefilename+queries[l][0]);
+                #                alliostreams[l]=open(statefilepath+"/"+statefilename+queries[l][0],"a+");
                 #    stepcounter+=1;
                 #batchcounter+=1;
                 docbatch=[];
@@ -271,9 +275,9 @@ def dbcrawl(db,queries,filepath,filename="querystate",inputfunc=lambda:{"nsteps"
         i+=1;
     if toplevel:
         if len(docbatch)>0:
-            docbatch=[dict([y for y in x.items() if y[0] in allfields]) for x in docbatch];
-            action(batchcounter,stepcounter,inputdoc,docbatch);
-            updatequerystate(queries,filepath,filename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
+            docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
+            action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
+            updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
             batchcounter+=1;
             stepcounter+=len(docbatch);
         return [batchcounter,stepcounter];
