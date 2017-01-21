@@ -307,9 +307,9 @@ outresult={Join[InvolIDField,result]};
     
 (*(ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];*)
 outputlist=Map[StringReplace[ExportString[#,"JSON","Compact"->True],{" "->""}]&,outresult];
-output=(StringJoin@@Table[outputlist[[i]]<>"\n........",{i,Length[outputlist]-1}])<>outputlist[[-1]];
+output=(StringJoin@@Table[If[i>1,"\n",""]<>"Output: "<>outputlist[[i]],{i,Length[outputlist]}]);
 
-WriteString[$Output,"Output: "<>output<>"\n"];
+WriteString[$Output,output<>"\n"];
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
 MongoDirac@close[];
 Exit[];

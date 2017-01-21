@@ -52,6 +52,7 @@ scriptpath="${packagepath}/scripts"
 #Input script info
 scriptlanguage="mathematica"
 scriptmemorylimit="1000000000"
+outputlinemarkers="Output: "
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
@@ -60,4 +61,4 @@ dbcollection="INVOL"
 newcollectionfield="INVOL,H11SPLIT"
 pdffile="jobgraph"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}" "${pdffile}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${largemempartitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${outputlinemarkers}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}" "${pdffile}"

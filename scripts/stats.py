@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,signal,subprocess,re,toriccy;
+import sys,linecache,traceback,re,toriccy;#,signal,subprocess;
 
 #Misc. function definitions
 def PrintException():
@@ -14,8 +14,8 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
     print "More info: ",traceback.format_exc();
 
-def default_sigpipe():
-    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
+#def default_sigpipe():
+#    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
 def jobstepname2doc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_")[2:];
@@ -30,10 +30,18 @@ def merge_dicts(*dicts):
 try:
     mongouri=sys.argv[1];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
     modname=sys.argv[2];
-    jobstepid=sys.argv[3];
-    dbcollection=sys.argv[4];
-    workpath=sys.argv[5];
+    #jobstepid=sys.argv[3];
+    dbcollection=sys.argv[3];
+    workpath=sys.argv[4];
+    outputlinemarkers=sys.argv[5].split(",");
     jobstepname=sys.argv[6];
+    cputime=sys.argv[7];
+    maxrss=sys.argv[8];
+    maxvmsize=sys.argv[9];
+
+    #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    #if len(sacctstats)==3:
+    #    cputime,maxrss,maxvmsize=sacctstats;
 
     mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
@@ -41,18 +49,15 @@ try:
 
     dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
-    sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
-    if len(sacctstats)==3:
-        cputime,maxrss,maxvmsize=sacctstats;
-    else:
-        cputime,maxrss,maxvmsize=["N/A","N/A","N/A"];
-
     indexdoc=jobstepname2doc(jobstepname,dbindexes);
 
     bsonsize=0;
     with open(workpath+"/"+jobstepname+".log","r") as logstream:
         for line in logstream:
-            doc=eval(re.sub(":[nN]ull",":None",line.rstrip("\n").replace("Output:","").replace("........","").replace(" ","")));
+            doc=re.sub(":[nN]ull",":None",line.rstrip("\n"));
+            for x in outputlinemarkers:
+                doc=doc.replace(x,"");
+            doc=eval(doc.replace(" ",""));
             bsonsize+=toriccy.bsonsize(doc);
             fulldoc=merge_dicts(indexdoc,doc);
             newcollection=toriccy.gettierfromdoc(db,fulldoc);
@@ -61,12 +66,24 @@ try:
 
     db[dbcollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});
 
-    print "CPUTime: "+str(cputime)+" seconds";
-    print "MaxRSS: "+str(maxrss)+" bytes";
-    print "MaxVMSize: "+str(maxvmsize)+" bytes";
+    #print "CPUTime: "+str(cputime)+" seconds";
+    #print "MaxRSS: "+str(maxrss)+" bytes";
+    #print "MaxVMSize: "+str(maxvmsize)+" bytes";
+    #print "BSONSize: "+str(bsonsize)+" bytes";
+    print "CPUTime: "+cputime+" seconds";
+    print "MaxRSS: "+maxrss+" bytes";
+    print "MaxVMSize: "+maxvmsize+" bytes";
     print "BSONSize: "+str(bsonsize)+" bytes";
     sys.stdout.flush();
-
+    #else:
+    #    #print subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0];#,preexec_fn=default_sigpipe).communicate()[0];
+    #    #print jobstepid;
+    #   #print sacctstats;
+    #    #print "sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2";
+    #    print "CPUTime: N/A";
+    #    print "MaxRSS: N/A";
+    #    print "MaxVMSize: N/A";
+    #    print "BSONSize: N/A";
     mongoclient.close();
 except Exception as e:
     PrintException();
