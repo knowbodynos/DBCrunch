@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,os,tempfile,inspect;
+import sys,os,tempfile;
 from pymongo import MongoClient;
 from math import ceil;
 from . import tools;
@@ -194,8 +194,6 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     docbatch=[];
     endofdocs=[];
     if toplevel:
-        nactionargs=len(list(inspect.getargspec(action))[0]);
-        nactionvarargs=(list(inspect.getargspec(action))[1]!=None);
         if resetstatefile:
             for x in queries:
                 querystatestream=open(statefilepath+"/"+statefilename+x[0],"w");
@@ -238,12 +236,10 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             endofdocs+=endofsubdocs;
             if len(docbatch)==inputdoc["nsteps"]:
                 docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
-                if (nactionargs==4) or nactionvarargs:
+                if callable(action):
                     action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-                elif nactionargs==2:
-                    action(batchcounter,docbatchprojfields);
-                elif nactionargs==1:
-                    action(docbatchprojfields);
+                else:
+                    action+=docbatchprojfields;
                 inputdoc.update(inputfunc());
                 updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                 batchcounter+=1;
@@ -283,12 +279,10 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     if toplevel:
         if len(docbatch)>0:
             docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
-            if (nactionargs==4) or nactionvarargs:
+            if callable(action):
                 action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-            elif nactionargs==2:
-                action(batchcounter,docbatchprojfields);
-            elif nactionargs==1:
-                action(docbatchprojfields);
+            else:
+                action+=docbatchprojfields;
             updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
             batchcounter+=1;
             stepcounter+=len(docbatch);
