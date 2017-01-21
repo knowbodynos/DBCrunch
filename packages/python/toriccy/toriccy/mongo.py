@@ -236,10 +236,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             endofdocs+=endofsubdocs;
             if len(docbatch)==inputdoc["nsteps"]:
                 docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
-                if callable(action):
-                    action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-                else:
-                    action+=docbatchprojfields;
+                action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
                 inputdoc.update(inputfunc());
                 updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                 batchcounter+=1;
@@ -279,10 +276,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     if toplevel:
         if len(docbatch)>0:
             docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
-            if callable(action):
-                action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-            else:
-                action+=docbatchprojfields;
+            action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
             updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
             batchcounter+=1;
             stepcounter+=len(docbatch);
