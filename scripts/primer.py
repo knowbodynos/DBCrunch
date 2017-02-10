@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,os,re,linecache,signal,fcntl,traceback,subprocess,time,datetime,tempfile,matplotlib,toriccy;#,json;
+import sys,os,re,linecache,signal,fcntl,traceback,subprocess,time,datetime,tempfile,matplotlib,json,toriccy;#,json;
 import networkx as nx;
 matplotlib.use('Agg');
 import matplotlib.pyplot as plt;
@@ -155,104 +155,113 @@ def jobstepnamescontract(jobstepnames):
     bracketcontracted=[x.split("_") for x in jobstepnames];
     return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
 
-def formatinput(doc,scriptlanguage):
-    if scriptlanguage=="python":
-        formatteddoc=doc;
-    elif scriptlanguage=="sage":
-        formatteddoc=doc;
-    elif scriptlanguage=="mathematica":
-        formatteddoc=toriccy.pythondictionary2mathematicarules(doc);
-    return str(formatteddoc).replace(" ","");
+def formatinput(doc):#,scriptlanguage):
+    #if scriptlanguage=="python":
+    #    formatteddoc=doc;
+    #elif scriptlanguage=="sage":
+    #    formatteddoc=doc;
+    #elif scriptlanguage=="mathematica":
+    #    formatteddoc=toriccy.pythondictionary2mathematicarules(doc);
+    #return str(formatteddoc).replace(" ","");
+    return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
 
 def plotjobgraph(modname,primerpath,primername,workpath,pdffile):
     joblist=[];
     jobsteplist=[];
-    with open(primerpath+"/primer_"+modname+"_"+primername+".out","r") as outstream:
-        for line in outstream:
-            if "batch job" in line:
-                if len(jobsteplist)>0:
-                    joblist+=[jobsteplist];
-                jobsteplist=[];
-            if "job step" in line:
-                jobsteplist+=[re.sub("^.* "+modname+"_.*?_(.*?) .*$\n",r"\1",line).split("_")];
-        if len(jobsteplist)>0:
-            joblist+=[jobsteplist];
+    try:
+        with open(primerpath+"/primer_"+modname+"_"+primername+".out","r") as outstream:
+            for line in outstream:
+                if "batch job" in line:
+                    if len(jobsteplist)>0:
+                        joblist+=[jobsteplist];
+                    jobsteplist=[];
+                if "job step" in line:
+                    jobsteplist+=[re.sub("^.* "+modname+"_.*?_(.*?) .*$\n",r"\1",line).split("_")];
+            if len(jobsteplist)>0:
+                joblist+=[jobsteplist];
 
-    maxdepth=len(joblist[0][0]);
-    expandedleaves=[];
-    for leavesbatch in joblist:
-        ileaf=0;
-        expandedfirst=[leavesbatch[ileaf][:i+1] for i in range(len(leavesbatch[ileaf])-1)];
-        while ileaf<len(leavesbatch)-1:
-            leavespair=leavesbatch[ileaf:ileaf+2];
-            if all([len(x)>1 for x in leavespair]):
-                expandedpairfirst=list(reversed([leavespair[0][:i+1] for i in range(len(leavespair[0])-1)]));
-                expandedpairlast=[leavespair[1][:i+1] for i in range(len(leavespair[1])-1)];
-                while (len(expandedpairfirst)>0) and (len(expandedpairlast)>0) and (expandedpairfirst[-1]==expandedpairlast[0]):
-                    expandedpairfirst=expandedpairfirst[:-1];
-                    expandedpairlast=expandedpairlast[1:];
-                recombineleavespair=[leavespair[0]]+expandedpairfirst+expandedpairlast+[leavespair[1]];
-            else:
-                recombineleavespair=leavespair;
-            leavesbatch=leavesbatch[:ileaf]+recombineleavespair+leavesbatch[ileaf+2:];
-            ileaf+=len(recombineleavespair)-1;
-        expandedlast=list(reversed([leavespair[1][:i+1] for i in range(len(leavespair[1])-1)]));
-        expandedleaves+=[expandedfirst+leavesbatch+expandedlast];
+        maxdepth=len(joblist[0][0]);
+        expandedleaves=[];
+        for leavesbatch in joblist:
+            ileaf=0;
+            expandedfirst=[leavesbatch[ileaf][:i+1] for i in range(len(leavesbatch[ileaf])-1)];
+            while ileaf<len(leavesbatch)-1:
+                leavespair=leavesbatch[ileaf:ileaf+2];
+                if all([len(x)>1 for x in leavespair]):
+                    expandedpairfirst=list(reversed([leavespair[0][:i+1] for i in range(len(leavespair[0])-1)]));
+                    expandedpairlast=[leavespair[1][:i+1] for i in range(len(leavespair[1])-1)];
+                    while (len(expandedpairfirst)>0) and (len(expandedpairlast)>0) and (expandedpairfirst[-1]==expandedpairlast[0]):
+                        expandedpairfirst=expandedpairfirst[:-1];
+                        expandedpairlast=expandedpairlast[1:];
+                    recombineleavespair=[leavespair[0]]+expandedpairfirst+expandedpairlast+[leavespair[1]];
+                else:
+                    recombineleavespair=leavespair;
+                leavesbatch=leavesbatch[:ileaf]+recombineleavespair+leavesbatch[ileaf+2:];
+                ileaf+=len(recombineleavespair)-1;
+            expandedlast=list(reversed([leavespair[1][:i+1] for i in range(len(leavespair[1])-1)]));
+            expandedleaves+=[expandedfirst+leavesbatch+expandedlast];
 
-    orderedexpandedleaves=toriccy.deldup([y for x in expandedleaves for y in x]);
-    expandedleavesindexes=[[orderedexpandedleaves.index(y) for y in x] for x in expandedleaves];
-    expandedleavessplitindexes=[];
-    for i in range(len(expandedleaves)):
-        expandedleavessplitindexbatch=[z+max([0]+[y for x in expandedleavessplitindexes for y in x if len(x)>0])-expandedleavesindexes[i][0]+1 for z in expandedleavesindexes[i]];
-        expandedleavessplitindexes+=[expandedleavessplitindexbatch];
-    expandedleavesitems=toriccy.deldup([(expandedleavessplitindexes[i][j],expandedleaves[i][j]) for i in range(len(expandedleaves)) for j in range(len(expandedleaves[i]))]);
+        orderedexpandedleaves=toriccy.deldup([y for x in expandedleaves for y in x]);
+        expandedleavesindexes=[[orderedexpandedleaves.index(y) for y in x] for x in expandedleaves];
+        expandedleavessplitindexes=[];
+        for i in range(len(expandedleaves)):
+            expandedleavessplitindexbatch=[z+max([0]+[y for x in expandedleavessplitindexes for y in x if len(x)>0])-expandedleavesindexes[i][0]+1 for z in expandedleavesindexes[i]];
+            expandedleavessplitindexes+=[expandedleavessplitindexbatch];
+        expandedleavesitems=toriccy.deldup([(expandedleavessplitindexes[i][j],expandedleaves[i][j]) for i in range(len(expandedleaves)) for j in range(len(expandedleaves[i]))]);
 
-    expandedleavespathrules=[(x[i],x[i+1]) for x in expandedleavessplitindexes for i in range(len(x)-1)];
-    indexestolabels=[(x[0],x[1][-1]) for x in expandedleavesitems];
-    indexestocoords=[(expandedleavesitems[i][0],((len(expandedleavesitems[i][1])-1),-1.5-4*sum([len(x[1])==maxdepth for x in expandedleavesitems[:i]]))) for i in range(len(expandedleavesitems))];
-    indexnodecolors=['lightgray' for x in expandedleavesitems];
-    indexnodesizes=[500 for x in expandedleavesitems];
-    newindexeslabels=[];
-    newindlist=[];
-    newind=max([x[0] for x in expandedleavesitems])+1;
-    ycoord=0;
-    for x in expandedleavesitems:
-        if len(x[1])==maxdepth:
-            logfilename=modname+"_"+primername+"_"+"_".join(x[1])+".log";
-            with open(workpath+"/"+logfilename,"r") as logstream:
-                for line in logstream:
-                    if any([y in line for y in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
-                        expandedleavespathrules+=[(x[0],newind)];
-                        #indexestolabels+=[(newind,line.rstrip("\n"))];
-                        indexestocoords+=[(newind,(maxdepth+1,ycoord))];
-                        indexnodecolors+=['lightgray'];
-                        indexnodesizes+=[0];
-                        newindexeslabels+=[[maxdepth+1.05,ycoord-0.1,line.rstrip("\n")]];
-                        newindlist+=[newind];
-                        newind+=1;
-                        ycoord-=1;
-    indexestolabels=dict(indexestolabels);
-    indexestocoords=dict(indexestocoords);
+        expandedleavespathrules=[(x[i],x[i+1]) for x in expandedleavessplitindexes for i in range(len(x)-1)];
+        indexestolabels=[(x[0],x[1][-1]) for x in expandedleavesitems];
+        indexestocoords=[(expandedleavesitems[i][0],((len(expandedleavesitems[i][1])-1),-1.5-4*sum([len(x[1])==maxdepth for x in expandedleavesitems[:i]]))) for i in range(len(expandedleavesitems))];
+        indexnodecolors=['lightgray' for x in expandedleavesitems];
+        indexnodesizes=[500 for x in expandedleavesitems];
+        newindexeslabels=[];
+        newindlist=[];
+        newind=max([x[0] for x in expandedleavesitems])+1;
+        ycoord=0;
+        for x in expandedleavesitems:
+            if len(x[1])==maxdepth:
+                logfilename=modname+"_"+primername+"_"+"_".join(x[1])+".log";
+                try:
+                    with open(workpath+"/"+logfilename,"r") as logstream:
+                        for line in logstream:
+                            if any([y in line for y in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
+                                expandedleavespathrules+=[(x[0],newind)];
+                                #indexestolabels+=[(newind,line.rstrip("\n"))];
+                                indexestocoords+=[(newind,(maxdepth+1,ycoord))];
+                                indexnodecolors+=['lightgray'];
+                                indexnodesizes+=[0];
+                                newindexeslabels+=[[maxdepth+1.05,ycoord-0.1,line.rstrip("\n")]];
+                                newindlist+=[newind];
+                                newind+=1;
+                                ycoord-=1;
+                except IOError:
+                    print "File path \""+pworkpath+"/"+logfilename+"\" does not exist.";
+                    sys.stdout.flush();
+        indexestolabels=dict(indexestolabels);
+        indexestocoords=dict(indexestocoords);
 
-    xmin=-1;
-    xmax=maxdepth+1;
-    ymin=1-4*sum([len(x[1])==maxdepth for x in expandedleavesitems]);
-    ymax=0;
+        xmin=-1;
+        xmax=maxdepth+1;
+        ymin=1-4*sum([len(x[1])==maxdepth for x in expandedleavesitems]);
+        ymax=0;
 
-    fig=plt.figure(figsize=(xmax,-ymin));
-    plt.axis("off");
-    X=nx.MultiDiGraph();
-    X.add_edges_from(expandedleavespathrules);
-    nx.draw_networkx_nodes(X,indexestocoords,node_color=indexnodecolors,node_size=indexnodesizes,node_shape='s');
-    nx.draw_networkx_edges(X,indexestocoords);
-    nx.draw_networkx_labels(X,indexestocoords,labels=indexestolabels);
-    for x in newindexeslabels:
-        plt.text(*x,bbox=dict(facecolor='lightgray',alpha=1),horizontalalignment='left');
-    plt.xlim(xmin,xmax);
-    plt.ylim(ymin,ymax);
-    pdf_pages=PdfPages(primerpath+"/"+modname+"_"+primername+"_"+pdffile+".pdf");
-    pdf_pages.savefig(fig,bbox_inches="tight");
-    pdf_pages.close();
+        fig=plt.figure(figsize=(xmax,-ymin));
+        plt.axis("off");
+        X=nx.MultiDiGraph();
+        X.add_edges_from(expandedleavespathrules);
+        nx.draw_networkx_nodes(X,indexestocoords,node_color=indexnodecolors,node_size=indexnodesizes,node_shape='s');
+        nx.draw_networkx_edges(X,indexestocoords);
+        nx.draw_networkx_labels(X,indexestocoords,labels=indexestolabels);
+        for x in newindexeslabels:
+            plt.text(*x,bbox=dict(facecolor='lightgray',alpha=1),horizontalalignment='left');
+        plt.xlim(xmin,xmax);
+        plt.ylim(ymin,ymax);
+        pdf_pages=PdfPages(primerpath+"/"+modname+"_"+primername+"_"+pdffile+".pdf");
+        pdf_pages.savefig(fig,bbox_inches="tight");
+        pdf_pages.close();
+    except IOError:
+        print "File path \""+primerpath+"/primer_"+modname+"_"+primername+".out\" does not exist.";
+        sys.stdout.flush();
 
 def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
     maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
@@ -261,17 +270,17 @@ def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
     #print "";
     #sys.stdout.flush();
     if SLURMtimelimit in ["","infinite"]:
-        timelimit=maxtimelimit;
+        partitiontimelimit=maxtimelimit;
     else:
         if maxtimelimit=="infinite":
-            timelimit=SLURMtimelimit;
+            partitiontimelimit=SLURMtimelimit;
         else:
-            timelimit=min(maxtimelimit,SLURMtimelimit,key=timestamp2unit);
-    if timelimit=="infinite":
-        buffertimelimit=timelimit;
+            partitiontimelimit=min(maxtimelimit,SLURMtimelimit,key=timestamp2unit);
+    if partitiontimelimit=="infinite":
+        buffertimelimit=partitiontimelimit;
     else:
-        buffertimelimit=timestamp2unit(timelimit)-timestamp2unit(buffertime);
-    return [timelimit,buffertimelimit];
+        buffertimelimit=seconds2timestamp(timestamp2unit(partitiontimelimit)-timestamp2unit(buffertime));
+    return [partitiontimelimit,buffertimelimit];
 
 def timeleftq(starttime,buffertimelimit):
     "Determine if runtime limit has been reached."
@@ -387,44 +396,52 @@ def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
 #        return skippedjobs;
 
 def reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollection):
-    skippedjobs=[];
-    with open(primerpath+"/skippedstate","r") as skippedstream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
-        skippedheader=skippedstream.readline();
-        tempstream.write(skippedheader);
-        tempstream.flush();
-        for line in skippedstream:
-            [skippedjob,exitcode]=line.rstrip("\n").split(",");
-            if exitcode=="0:0":
-                skippedjobsplit=skippedjob.split("_");
-                if skippedjobsplit[:2]==[modname,primername]:
-                    skippedjobs+=[skippedjob];
+    try:
+        skippedjobs=[];
+        with open(primerpath+"/skippedstate","r") as skippedstream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+            skippedheader=skippedstream.readline();
+            tempstream.write(skippedheader);
+            tempstream.flush();
+            for line in skippedstream:
+                [skippedjob,exitcode]=line.rstrip("\n").split(",");
+                if exitcode=="0:0":
+                    skippedjobsplit=skippedjob.split("_");
+                    if skippedjobsplit[:2]==[modname,primername]:
+                        skippedjobs+=[skippedjob];
+                    else:
+                        tempstream.write(line);
+                        tempstream.flush();
                 else:
                     tempstream.write(line);
                     tempstream.flush();
-            else:
-                tempstream.write(line);
-                tempstream.flush();
-        os.rename(tempstream.name,skippedstream.name);
-    if len(skippedjobs)>0:
-        querystatetierfilenames=subprocess.Popen("find "+primerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
-        for querystatetierfilename in querystatetierfilenames:
-            #if querystatetierfilename==querystatefilename+dbcollection:
-            #    with open(primerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
-            #        for i in range(len(skippedjobs)):
-            #            line=skippedjobs[i];
-            #            if i<len(skippedjobs)-1:
-            #                line+="\n";
-            #            querystatefilestream.write(line);
-            #            querystatefilestream.flush();
-            #else:
-            if querystatetierfilename!=querystatefilename+dbcollection:
-                with open(primerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
-                    for line in querystatefilestream:
-                        linestrip=line.rstrip("\n");
-                        if not any([linestrip+"_" in x for x in skippedjobs]):
-                            tempstream.write(line);
-                            tempstream.flush();
-                    os.rename(tempstream.name,querystatefilestream.name);
+            os.rename(tempstream.name,skippedstream.name);
+        if len(skippedjobs)>0:
+            querystatetierfilenames=subprocess.Popen("find "+primerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+            for querystatetierfilename in querystatetierfilenames:
+                #if querystatetierfilename==querystatefilename+dbcollection:
+                #    with open(primerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
+                #        for i in range(len(skippedjobs)):
+                #            line=skippedjobs[i];
+                #            if i<len(skippedjobs)-1:
+                #                line+="\n";
+                #            querystatefilestream.write(line);
+                #            querystatefilestream.flush();
+                #else:
+                if querystatetierfilename!=querystatefilename+dbcollection:
+                    try:
+                        with open(primerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+                            for line in querystatefilestream:
+                                linestrip=line.rstrip("\n");
+                                if not any([linestrip+"_" in x for x in skippedjobs]):
+                                    tempstream.write(line);
+                                    tempstream.flush();
+                            os.rename(tempstream.name,querystatefilestream.name);
+                    except IOError:
+                        print "File path \""+primerpath+"/"+querystatetierfilename+"\" does not exist.";
+                        sys.stdout.flush();
+    except IOError:
+        print "File path \""+primerpath+"/skippedstate\" does not exist.";
+        sys.stdout.flush();
 
 def releaseheldjobs(username,modname,primername):
     subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+primername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
@@ -435,13 +452,13 @@ def releaseheldjobs(username,modname,primername):
 
 def orderpartitions(partitions):
     greppartitions="|".join(partitions);
-    partitionsidle=subprocess.Popen("for rawpart in $(sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'idle' | cut -d' ' -f2,3,4 | sed 's/\*//g' | sed 's/\s/,/g'); do echo $(echo $rawpart | cut -d',' -f1,2 | sed 's/,/*/g' | bc),$(echo $rawpart | cut -d',' -f3); done | tr ' ' '\n' | sort -t',' -k1 -n | cut -d',' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
+    partitionsidle=subprocess.Popen("sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'idle' | awk '$0=$1\" \"$2*$3\" \"$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
     #partsmix=subprocess.Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'mix' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
     #partsalloc=subprocess.Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'alloc' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
     #partslist=','.join(partsidle+[x for x in partsmix if x not in partsidle]+[x for x in partsalloc if x not in partsidle+partsmix]);
-    partitionscomp=subprocess.Popen("squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'COMPLETING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
-    partitionsrun=subprocess.Popen("squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'RUNNING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
-    partitionspend=subprocess.Popen("squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'PENDING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
+    partitionscomp=subprocess.Popen("sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'comp' | awk '$0=$1\" \"$2*$3\" \"$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
+    partitionsrun=subprocess.Popen("squeue -h -o '%L %T %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'RUNNING' | sed 's/^\([0-9][0-9]:[0-9][0-9]\s\)/00:\1/g' | sed 's/^\([0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0\1/g' | sed 's/^\([0-9][0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0-\1/g' | sort -k1,1 | cut -d' ' -f3 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
+    partitionspend=subprocess.Popen("sinfo -h -o '%t %c %P' --partition=$(squeue -h -o '%T %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'PENDING' | sort -k2,2 -u | cut -d' ' -f2 | tr '\n' ',' | head -c -1) | grep 'alloc' | sort -k2,2n | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
     #print "orderpartitions";
     #print "for rawpart in $(sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'idle' | cut -d' ' -f2,3,4 | sed 's/\*//g' | sed 's/\s/,/g'); do echo $(echo $rawpart | cut -d',' -f1,2 | sed 's/,/*/g' | bc),$(echo $rawpart | cut -d',' -f3); done | tr ' ' '\n' | sort -t',' -k1 -n | cut -d',' -f2 | tr '\n' ',' | head -c -1";
     #print "squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'COMPLETING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1";
@@ -449,21 +466,27 @@ def orderpartitions(partitions):
     #print "squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'PENDING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1";
     #print "";
     #sys.stdout.flush();
-    orderedpartitions=[x for x in toriccy.deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend) if x!=""];
+    orderedpartitions=[x for x in toriccy.deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend+partitions) if x!=""];
     return orderedpartitions;
 
 def getnodemaxmemory(resourcesstatefile,partition):
     nodemaxmemory=0;
-    with open(resourcesstatefile,"r") as resourcesstream:
-        resourcesheader=resourcesstream.readline();
-        for resourcesstring in resourcesstream:
-            resources=resourcesstring.rstrip("\n").split(",");
-            if resources[0]==partition:
-                nodemaxmemory=eval(resources[1]);
-                break;
+    try:
+        with open(resourcesstatefile,"r") as resourcesstream:
+            resourcesheader=resourcesstream.readline();
+            for resourcesstring in resourcesstream:
+                resources=resourcesstring.rstrip("\n").split(",");
+                if resources[0]==partition:
+                    nodemaxmemory=eval(resources[1]);
+                    break;
+    except IOError:
+        print "File path \""+resourcesstatefile+"\" does not exist.";
+        sys.stdout.flush();
     return nodemaxmemory;
 
 def distributeovernodes(resourcesstatefile,partitions,scriptmemorylimit,maxsteps):
+    #print partitions;
+    sys.stdout.flush();
     partition=partitions[0];
     ncoresperpartition=eval(subprocess.Popen("sinfo -h -p '"+partition+"' -o '%c' | head -n1 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
     maxnnodes=eval(subprocess.Popen("scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].rstrip("\n"));
@@ -497,6 +520,7 @@ def distributeovernodes(resourcesstatefile,partitions,scriptmemorylimit,maxsteps
 def writejobfile(outputlinemarkers,modname,jobname,jobstepnames,primerpath,primername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,dbcollection,dbindexes,docbatch):
     ndocs=len(docbatch);
     outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
+    #outputlinemarkertest="[[ "+" || ".join(["\"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+x+".*" for x in outputlinemarkers])+" ]]";
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
@@ -536,7 +560,7 @@ def writejobfile(outputlinemarkers,modname,jobname,jobstepnames,primerpath,prime
     jobstring+="#Database info\n";
     jobstring+="mongouri=\""+mongouri+"\"\n";
     jobstring+="dbcollection=\""+dbcollection+"\"\n";
-    jobstring+="newollection=\""+newcollection+"\"\n";
+    #jobstring+="newcollection=\""+newcollection+"\"\n";
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
@@ -552,13 +576,16 @@ def writejobfile(outputlinemarkers,modname,jobname,jobstepnames,primerpath,prime
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
         #jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
-        jobstring+="docs["+str(i)+"]=\""+formatinput(docbatch[i],scriptlanguage)+"\"\n";
+        jobstring+="docs["+str(i)+"]=\""+formatinput(docbatch[i])+"\"\n";#,scriptlanguage)+"\"\n";
         jobstring+="\n";
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
     #jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" "+scripttype+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${mongouri}\" \"${scripttimelimit}\" \"${scriptmemorylimit}\" \"${skippedfile}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
-    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" --time=\""+seconds2timestamp(buffertimelimit)+"\" "+scriptcommand+" "+scriptflags+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
-    jobstring+="    wait\n";
+    jobstring+="    srun -N 1 -n 1 --exclusive -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" ";
+    if buffertimelimit!="infinite":
+        jobstring+="--time=\""+buffertimelimit+"\" ";
+    jobstring+=scriptcommand+" "+scriptflags+" \"${scriptpath}/"+modname+scriptext+"\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
+    jobstring+="    sleep 0.1\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -570,13 +597,14 @@ def writejobfile(outputlinemarkers,modname,jobname,jobstepnames,primerpath,prime
     #jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    exitcode=$(sacct -n -j \"${SLURM_JOBID}.${i}\" -o 'ExitCode' | sed 's/\s*//g')\n";
+    jobstring+="    sleep 0.1\n";
     jobstring+="    jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))\n";
     jobstring+="    exitcode=${jobstepstats[0]}\n";
     jobstring+="    cputime=${jobstepstats[1]}\n";
     jobstring+="    maxrss=${jobstepstats[2]}\n";
     jobstring+="    maxvmsize=${jobstepstats[3]}\n";
     jobstring+="    skipped=false\n";
-    jobstring+="    if [ \"$exitcode\" == \"0:0\" ] && test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+    jobstring+="    if [ \"${exitcode}\" == \"0:0\" ] && test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
     jobstring+="    then\n";
     jobstring+="        while read line\n";
     jobstring+="        do\n";
@@ -590,14 +618,15 @@ def writejobfile(outputlinemarkers,modname,jobname,jobstepnames,primerpath,prime
     jobstring+="        skipped=true\n";
     jobstring+="    fi\n";
     jobstring+="    \n";
-    jobstring+="    if ! $skipped\n";
+    jobstring+="    if ! ${skipped}\n";
     jobstring+="    then\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${dbcollection}\" \"${workpath}\" \"${outputlinemarkers}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${dbcollection}\" \"${workpath}\" \"${outputlinemarkers}\" \"${jobstepnames[${i}]}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
+    #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${primerpath}/hi\"\n";
     jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${primerpath}/skippedstate\"\n";
     jobstring+="    fi\n";
-    jobstring+="    wait\n";
+    jobstring+="    sleep 0.1\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
@@ -610,10 +639,12 @@ def writejobfile(outputlinemarkers,modname,jobname,jobstepnames,primerpath,prime
     jobstream.flush();
     jobstream.close();
 
-def doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream):
+def doinput(maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream):
     needslicense=(licensestream!=None);
     while not clusterjobslotsleft(maxjobcount,scriptpath,scriptlanguage,needslicense=needslicense):
         time.sleep(sleeptime);
+        #print needslicense;
+        #sys.stdout.flush();
     if needslicense:
         fcntl.flock(licensestream,fcntl.LOCK_EX);
         nlicensesleft=licensecount(scriptpath,scriptlanguage);
@@ -622,9 +653,10 @@ def doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scr
         maxsteps=min(maxstepcount,nlicensesleft);
     else:
         maxsteps=maxstepcount;
-    orderedpartitions=orderpartitions(largemempartitions);
+    #orderedpartitions=orderpartitions(largemempartitions);
     #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
-    orderedpartitions=orderpartitions(partitions)+orderedpartitions;
+    #orderedpartitions=orderpartitions(partitions)+orderedpartitions;
+    orderedpartitions=orderpartitions(partitions);
     nodedistribution=distributeovernodes(resourcesstatefile,orderedpartitions,scriptmemorylimit,maxsteps);
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
@@ -669,32 +701,32 @@ try:
     primername=sys.argv[3];
     primerpartition=sys.argv[4];
     partitions=sys.argv[5].split(",");
-    largemempartitions=sys.argv[6].split(",");
-    writemode=sys.argv[7];
-    SLURMtimelimit=sys.argv[8];
-    buffertime=sys.argv[9];
-    sleeptime=timestamp2unit(sys.argv[10]);
+    #largemempartitions=sys.argv[6].split(",");
+    writemode=sys.argv[6];
+    SLURMtimelimit=sys.argv[7];
+    buffertime=sys.argv[8];
+    sleeptime=timestamp2unit(sys.argv[9]);
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[11];
-    packagepath=sys.argv[12];
-    scriptpath=sys.argv[13];
+    mainpath=sys.argv[10];
+    packagepath=sys.argv[11];
+    scriptpath=sys.argv[12];
 
     #Input script info
-    scriptlanguage=sys.argv[14];
+    scriptlanguage=sys.argv[13];
     #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[15];
-    outputlinemarkers=sys.argv[16].split(",");
+    scriptmemorylimit=sys.argv[14];
+    outputlinemarkers=sys.argv[15].split(",");
 
     #Input database info
-    mongouri=sys.argv[17];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[18]);
+    mongouri=sys.argv[16];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[17]);
     #dumpfile=sys.argv[13];
-    dbcollection=sys.argv[19];
-    newcollection,newfield=sys.argv[20].split(",");
-    pdffile=sys.argv[21];
+    dbcollection=sys.argv[18];
+    newcollection,newfield=sys.argv[19].split(",");
+    pdffile=sys.argv[20];
     
     #Read seek position from file
     #with open(primerpath+"/"+seekfile,"r") as seekstream:
@@ -728,34 +760,51 @@ try:
     dbindexes=toriccy.getintersectionindexes(db,dbcollection);
 
     allindexes=toriccy.getunionindexes(db);
+    try:
+        with open(softwarestatefile,"r") as softwarestream:
+            softwareheader=softwarestream.readline();
+            for softwareline in softwarestream:
+                softwarelinesplit=softwareline.rstrip("\n").split(",");
+                if softwarelinesplit[0]==scriptlanguage:
+                    needslicense=eval(softwarelinesplit[1]);
+                    scriptext,scriptcommand,scriptflags=softwarelinesplit[2:];
+                    if needslicense:
+                        licensestatefile=modulesdirpath+"/"+scriptlanguage+"licenses";
+                        licensestream=open(licensestatefile,"w");
+                    else:
+                        licensestream=None;
+                    break;
+        #print licensestream;
+        #sys.stdout.flush();
+    except IOError:
+        print "File path \""+softwarestatefile+"\" does not exist.";
+        sys.stdout.flush();
+        raise;
+    
+    try:
+        with open(modulesstatefile,"r") as modstream:
+            modulesheader=modstream.readline();
+            modlist=[x.rstrip('\n') for x in modstream.readlines()];
+    except IOError:
+        print "File path \""+modulesstatefile+"\" does not exist.";
+        sys.stdout.flush();
+        raise;
 
-    with open(softwarestatefile,"r") as softwarestream:
-        softwareheader=softwarestream.readline();
-        for softwareline in softwarestream:
-            softwarelinesplit=softwareline.rstrip("\n").split(",");
-            if softwarelinesplit[0]==scriptlanguage:
-                needslicense=eval(softwarelinesplit[1]);
-                scriptext,scriptcommand,scriptflags=softwarelinesplit[2:];
-                if needslicense:
-                    licensestatefile=modulesdirpath+"/"+scriptlanguage+"licenses";
-                    licensestream=open(licensestatefile,"w");
-                else:
-                    licensestream=None;
-                break;
-
-    with open(modulesstatefile,"r") as modstream:
-        modulesheader=modstream.readline();
-        modlist=[x.rstrip('\n') for x in modstream.readlines()];
     prevmodlist=modlist[:modlist.index(modname)];
     
     firstlastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
     if firstlastrun and needslicense:
-           fcntl.flock(licensestream,fcntl.LOCK_UN);
+       fcntl.flock(licensestream,fcntl.LOCK_UN);
     #firstrun=True;
-    with open(counterstatefile,"r") as counterstream:
-        counterheader=counterstream.readline();
-        counterline=counterstream.readline();
-        [batchcounter,stepcounter]=[int(x) for x in counterline.rstrip("\n").split(",")];
+    try:
+        with open(counterstatefile,"r") as counterstream:
+            counterheader=counterstream.readline();
+            counterline=counterstream.readline();
+            [batchcounter,stepcounter]=[int(x) for x in counterline.rstrip("\n").split(",")];
+    except IOError:
+        print "File path \""+counterstatefile+"\" does not exist.";
+        sys.stdout.flush();
+        raise;
     #batchcounter=1;
     #stepcounter=1;
     while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or firstlastrun) and timeleftq(starttime,primerbuffertimelimit):
@@ -772,8 +821,9 @@ try:
         #print "Next Run";
         #print "";
         #sys.stdout.flush();
-        reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollection);
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,primerpath,statefilename=querystatefilename,inputfunc=lambda:doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput(maxjobcount,maxstepcount,sleeptime,partitions,largemempartitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,outputlinemarkers,username,modname,primername,SLURMtimelimit,buffertime,writemode,mongouri,dbcollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
+
+        #reloadskippedjobs(modname,primername,primerpath,querystatefilename,dbcollection);
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,primerpath,statefilename=querystatefilename,inputfunc=lambda:doinput(maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput(maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,outputlinemarkers,username,modname,primername,SLURMtimelimit,buffertime,writemode,mongouri,dbcollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(counterstatefile,"w") as counterstream:
             counterstream.write(counterheader);

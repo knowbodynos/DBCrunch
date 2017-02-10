@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,toriccy;#,signal,subprocess;
+import sys,linecache,traceback,re,json,toriccy;#,signal,subprocess;
 
 #Misc. function definitions
 def PrintException():
@@ -52,28 +52,35 @@ try:
     indexdoc=jobstepname2doc(jobstepname,dbindexes);
 
     bsonsize=0;
-    with open(workpath+"/"+jobstepname+".log","r") as logstream:
-        for line in logstream:
-            doc=re.sub(":[nN]ull",":None",line.rstrip("\n"));
-            for x in outputlinemarkers:
-                doc=doc.replace(x,"");
-            doc=eval(doc.replace(" ",""));
-            bsonsize+=toriccy.bsonsize(doc);
-            fulldoc=merge_dicts(indexdoc,doc);
-            newcollection=toriccy.gettierfromdoc(db,fulldoc);
-            newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
-            db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
+    try:
+        with open(workpath+"/"+jobstepname+".log","r") as logstream:
+            for line in logstream:
+                linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
+                for x in outputlinemarkers:
+                    linedoc=linedoc.replace(x,"");
+                #print doc;#.replace(" ","");
+                #sys.stdout.flush();
+                doc=json.loads(linedoc);#.replace(" ",""));
+                bsonsize+=toriccy.bsonsize(doc);
+                fulldoc=merge_dicts(indexdoc,doc);
+                newcollection=toriccy.gettierfromdoc(db,fulldoc);
+                newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
+                db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
+                #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
+                #sys.stdout.flush();
 
-    db[dbcollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});
+        db[dbcollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});
 
-    #print "CPUTime: "+str(cputime)+" seconds";
-    #print "MaxRSS: "+str(maxrss)+" bytes";
-    #print "MaxVMSize: "+str(maxvmsize)+" bytes";
-    #print "BSONSize: "+str(bsonsize)+" bytes";
-    print "CPUTime: "+cputime+" seconds";
-    print "MaxRSS: "+maxrss+" bytes";
-    print "MaxVMSize: "+maxvmsize+" bytes";
-    print "BSONSize: "+str(bsonsize)+" bytes";
+        #print "CPUTime: "+str(cputime)+" seconds";
+        #print "MaxRSS: "+str(maxrss)+" bytes";
+        #print "MaxVMSize: "+str(maxvmsize)+" bytes";
+        #print "BSONSize: "+str(bsonsize)+" bytes";
+        print "CPUTime: "+cputime+" seconds";
+        print "MaxRSS: "+maxrss+" bytes";
+        print "MaxVMSize: "+maxvmsize+" bytes";
+        print "BSONSize: "+str(bsonsize)+" bytes";
+    except IOError:
+        print "File path \""+workpath+"/"+jobstepname+".log\" does not exist.";
     sys.stdout.flush();
     #else:
     #    #print subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0];#,preexec_fn=default_sigpipe).communicate()[0];

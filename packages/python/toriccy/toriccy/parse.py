@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import re,copy,bson;
+import re,copy,bson,json;
 from . import tools;
 
 def bsonsize(doc):
@@ -15,7 +15,7 @@ def mathematicalist2pythonlist(lst):
     return eval(str(lst).replace(" ","").replace("{","[").replace("}","]"));
 
 def pythondictionary2mathematicarules(dic):
-    return str(dic).replace("u'","'").replace(" ","").replace("'","\\\"").replace(":","->");
+    return str(dic).replace("u'","'").replace(" ","").replace("[","{").replace("]","}").replace("'","\\\"").replace(":","->");
 
 def finddicts(nested,dictkeys=[],nondictkeys=[],orig=True):
     "Get all positions of sub-dictionaries within the nested dictionary nested."

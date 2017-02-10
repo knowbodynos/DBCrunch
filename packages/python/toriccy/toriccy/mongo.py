@@ -15,7 +15,7 @@ def collectionfind(db,collection,query,projection,formatresult="string"):
         if formatresult=="string":
             result=stringresult;
         elif formatresult=="expression":
-            result=string2expression(stringresult);
+            result=parse.string2expression(stringresult);
         else:
             result=None;
     #return [dict(zip(y.keys(),[mat2py(y[x]) for x in y.keys()])) for y in result];

@@ -6,6 +6,7 @@ WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine
 IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[6]]);
 
 Get["cohomCalgKoszulExtensionSilent`"];
+Get["ToricCYParse`"];
 (*Get["ToricCY`"];*)
 
 
@@ -35,7 +36,8 @@ ToricCYDirac=MongoDirac@getDB["ToricCY"];*)
 (*TimeLimit=ToExpression[$CommandLine[[8]]];
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
-Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];
+(*Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];*)
+Geometry=JSONtoExpressionRules[$CommandLine[[7]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;
@@ -91,7 +93,7 @@ outresult=Join[{NewTriangFields},InvolDoc];
     
 (*(ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
 (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];*)
-outputlist=Map[StringReplace[ExportString[#,"JSON","Compact"->True],{" "->""}]&,outresult];
+outputlist=Map[StringRulestoJSON[#]&,outresult];
 output=(StringJoin@@Table[If[i>1,"\n",""]<>"Output: "<>outputlist[[i]],{i,Length[outputlist]}]);
 
 WriteString[$Output,output<>"\n"];
