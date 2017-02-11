@@ -2,8 +2,8 @@
 
 $HistoryLength=0;
 
-WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine[[5]]);
-IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[6]]);
+WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine[[6]]);
+IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[7]]);
 
 Get["cohomCalgKoszulExtensionSilent`"];
 Get["ToricCYParse`"];
@@ -37,7 +37,7 @@ ToricCYDirac=MongoDirac@getDB["ToricCY"];*)
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
 (*Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];*)
-Geometry=JSONtoExpressionRules[$CommandLine[[7]]];
+Geometry=JSONtoExpressionRules[$CommandLine[[8]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;
@@ -87,16 +87,20 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
 result=Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True];
 TriangIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN"}->{H11,PolyID,GeomN,TriangN}];
 NewTriangFields={"DIVCOHOM"->("DIVCOHOM"/.result),"NINVOLS"->Length["INVOLLIST"/.result]};
-InvolDoc=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
-If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->Null,"INVOL"->Null}]}];
-outresult=Join[{NewTriangFields},InvolDoc];
+InvolDocs=Map[Join[TriangIDField,#]&,"INVOLLIST"/.result];
+(*If[Length[InvolDoc]==0,InvolDoc={Join[TriangIDField,{"INVOLN"->Null,"INVOL"->Null}]}];*)
+(*outresult=Join[{NewTriangFields},InvolDoc];*)
     
 (*(ToricCYDirac@getCollection["TRIANG"])@update[StringRulestoJSONJava@TriangIDField,StringRulestoJSONJava@{"$set"->NewTriangFields}];
 (ToricCYDirac@getCollection["INVOL"])@insert[StringRulestoJSONJava@InvolDoc];*)
-outputlist=Map[StringRulestoJSON[#]&,outresult];
-output=(StringJoin@@Table[If[i>1,"\n",""]<>"Output: "<>outputlist[[i]],{i,Length[outputlist]}]);
-
-WriteString[$Output,output<>"\n"];
+outNewTriangFields=StringRulestoJSON[NewTriangFields];
+outInvolDocs=Map[StringRulestoJSON[#]&,InvolDocs];
+WriteString[$Output,"+TRIANG.{\"POLYID\":"<>ToString[PolyID]<>",\"GEOMN\":"<>ToString[GeomN]<>",\"TRIANGN\":"<>ToString[TriangN]<>"}>"<>outNewTriangFields];
+Do[
+    WriteString[$Output,"\n+INVOL.{\"POLYID\":"<>ToString[PolyID]<>",\"GEOMN\":"<>ToString[GeomN]<>",\"TRIANGN\":"<>ToString[TriangN]<>",\"INVOLN\":"<>ToString["INVOLN"/.InvolDocs[[i]]]<>"}>"<>outInvolDocs[[i]]];
+,{i,Length[outInvolDocs]}];
+WriteString[$Output,"\n"];
+(*WriteString[$Output,output<>"\n"];*)
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
 MongoDirac@close[];
 Exit[];

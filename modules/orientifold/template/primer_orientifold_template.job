@@ -50,15 +50,18 @@ packagepath="${mainpath}/ToricCY"
 scriptpath="${packagepath}/scripts"
 
 #Input script info
-scriptlanguage="mathematica"
+scriptlanguage="sage"
 scriptmemorylimit="1000000000"
-outputlinemarkers="Output: "
+#outputlinemarkers="Output: "
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
-queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1}],['GEOM',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1}],['TRIANG',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'INVOL':{'\$ne':None}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'INVOLN':1,'INVOL':1}]]"
-dbcollection="INVOL"
-newcollectionfield="INVOL,H11SPLIT"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1,'BASIS':1}],['TRIANG',{'H11':${h11}},{'GEOMN':1,'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'INVOL':{'\$exists':True,'\$ne':None}},{'INVOLN':1,'INVOL':1}]]"
+basecollection="INVOL"
+nthreads=""
+
+#Options
+dbpushq="True"
 pdffile="jobgraph"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${outputlinemarkers}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}" "${pdffile}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${basecollection}" "${nthreads}" "${dbpushq}" "${pdffile}"

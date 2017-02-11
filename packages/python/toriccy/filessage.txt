@@ -1,0 +1,17 @@
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/EGG-INFO/not-zip-safe
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/EGG-INFO/SOURCES.txt
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/EGG-INFO/top_level.txt
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/EGG-INFO/dependency_links.txt
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/EGG-INFO/PKG-INFO
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/mongo.py
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/mongo(1:12:17, 9:09 AM).py
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/mongo.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/mongo(1:11:17, 8:52 AM).py
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/parse.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/tools.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/mongo(1:12:17, 9:09 AM).pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/__init__.py
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/__init__.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/tools.py
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/mongo(1:11:17, 8:52 AM).pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/toriccy-1.0-py2.7.egg/toriccy/parse.py

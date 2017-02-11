@@ -13,4 +13,3 @@ echo "jobstep,exitcode" > ${herepath}/skippedstate 2>/dev/null
 echo -e "batchcounter,stepcounter\n1,1" > ${herepath}/counterstate
 /usr/bin/yes | pip uninstall toriccy
 pip install --user ${toriccypath}
-python -c "from pymongo import MongoClient;MongoClient('mongodb://manager:toric@129.10.135.170:27017/ToricCY?authMechanism=SCRAM-SHA-1')['ToricCY']['INVOL'].drop();"

@@ -7,7 +7,8 @@
 from sage.all_cmdline import *;
 
 import sys,os,fcntl,errno,linecache,traceback,time,re,itertools,json;
-import toriccy.parse as parse;
+from toriccy.parse import pythonlist2mathematicalist as py2mat;
+from toriccy.parse import mathematicalist2pythonlist as mat2py;
 import toriccy.tools as tools;
 
 #################################################################################
@@ -61,7 +62,7 @@ def LP2CWS(verts):
     ker=matrix(verts).left_kernel();
     ker_mat=ker.matrix().rows();
     cws=min_nonneg_basis(ker_mat);
-    return cws;
+    return tools.transpose_list(cws);
 
 def hodge_CY(lp_pts,dlp_pts,face_cones,face_cones_d):
     "Computes the Hodge numbers of a Calabi-Yau threefold corresponding to a reflexive 4-dimensional polytope using Batyrev's method (http://arxiv.org/abs/alg-geom/9310003)."
@@ -115,30 +116,21 @@ def favorable(ndivsJ,h11):
 #################################################################################
 #Fine, star, regular triangulation (FSRT)-specific function definitions
 
-def bndry_pts(lp,lp_pts=[],max_cones=[]):
+def bndry_pts(lp,lp_pts,max_cones):
     #Input: A Polyhedron object describing a reflexive lattice polytope.
     #Output: Vertices of the input polytope after resolving up to terminal singularities on the associated toric variety (i.e. all points on the convex hull not in the interior of the facets).
     #Options: 1) A list of all points (lp_pts) on the input lattice polytope can be provided to speed up computation time, if already known.
     #         2) A list of the maximal cones (max_cones) can be provided to speed up computation time, if already known.
-    
-    if len(lp_pts)==0:
-        lp_pts=copy(lp.integral_points(threshold=1e10));
-    if len(max_cones)==0:
-        max_cones=[Cone([x.vector() for x in list(lp.Hrepresentation(i).incident())]) for i in range(lp.n_Hrepresentation())];
     pts_dup_sep=[[list(lp_pts[i]) for i in range(len(lp_pts)) if (y.contains(lp_pts[i]) and not y.interior_contains(lp_pts[i]) and not lp.interior_contains(lp_pts[i]))] for y in max_cones];
     pts_dup=[x for y in pts_dup_sep for x in y];
     pts=[vector(x) for x in tools.deldup(pts_dup)];
     return pts;
 
-def FSRT_from_resolved_verts(resverts,max_cones=[],all=False):
+def FSRT_from_resolved_verts(resverts,max_cones,all=False):
     #Input: Vertices of a reflexive polytope after resolving up to terminal singularities on the associated toric variety (i.e. all points on the convex hull not in the interior of the facets).
     #Output: Lists of indices representing the combinations of input vertices, which form the intersection of the triangulated simplexes and the convex hull.
     #Options: 1) A list of the maximal cones (max_cones) can be provided to speed up computation time, if already known.
     #         2) The boolean option all specifies whether to compute one FSRT (fine, star, regular triangulation) or all of them.
-    
-    if len(max_cones)==0:
-        lp=Polyhedron(vertices=[vector(x) for x in resverts]);
-        max_cones=[Cone([x.vector() for x in list(lp.Hrepresentation(i).incident())]) for i in range(lp.n_Hrepresentation())];
     facets=[Set([resverts.index(y) for y in resverts if x.contains(vector(y))]) for x in max_cones];
     pc=PointConfiguration(resverts);
     if all:
@@ -177,12 +169,16 @@ def FSRT_from_polar_verts(verts,all=False):
     sorted_dverts=sorted([vector([y/gcd(x) for y in x]) for x in lp.polar().vertices()]);
     return FSRT_from_verts(sorted_dverts,all=all);
 
+#################################################################################
 #Main body
 try:
     #IO Definitions
-    polydoc=json.loads(sys.argv[1]);
+    polydoc=json.loads(sys.argv[4]);
     #Read in pertinent fields from JSON
-    nverts=polydoc['NVERTS'];
+    polyid=polydoc['POLYID'];
+    nverts=mat2py(polydoc['NVERTS']);
+    h11=polydoc['H11'];
+    h21=polydoc['H21'];
     #Compute initial information corresponding to polytope
     lp=Polyhedron(vertices=nverts);
     sorted_dverts=[vector(x) for x in sorted([vector([y/gcd(x) for y in x]) for x in lp.polar().vertices()])];
@@ -193,18 +189,17 @@ try:
     max_dcones=[Cone([x.vector() for x in list(dlp.Hrepresentation(i).incident())]) for i in range(dlp.n_Hrepresentation())];
     lp_pts=copy(lp.integral_points(threshold=1e10));
     dlp_pts=copy(dlp.integral_points(threshold=1e10));
-    h11,h21=hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones);
-    if (h11!=polydoc['H11'] or h21!=polydoc['H21']):
-        raise ValueError('Computed Hodge pair ('+str(h11)+','+str(h21)+') does not match KS database ('+str(polydoc['H11'])+','+str(polydoc['H21'])+').');
-    unsorted_dresverts=bndry_pts(dlp,max_cones=max_dcones);
+    batyh11,batyh21=hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones);
+    if (batyh11!=h11 or batyh21!=h21):
+        raise ValueError('Computed Hodge pair ('+str(batyh11)+','+str(batyh21)+') does not match KS database ('+str(h11)+','+str(h21)+').');
+    unsorted_dresverts=bndry_pts(dlp,dlp_pts,max_dcones);
     extra_dresverts=sorted([x for x in unsorted_dresverts if x not in sorted_dverts]);
     dresverts=[list(x) for x in sorted_dverts+extra_dresverts];
-    triangs=FSRT_from_resolved_verts(dresverts,max_cones=max_dcones,all=all);
+    triangs=FSRT_from_resolved_verts(dresverts,max_dcones,all=True);
     fgp,basisinds=dcbase(dresverts);
     #Compute the resolved weight matrix and set the number of basis divisors
     rescws=LP2CWS(dresverts);
     rescws_mat=matrix(rescws);
-    rescws_cols=rescws_mat.columns();
     ndivsJ=rescws_mat.rank();
     #Check if the polytope is favorable
     fav=favorable(ndivsJ,h11);
@@ -217,9 +212,9 @@ try:
     #Determine the number of triangulations corresponding to the polytope
     nalltriangs=len(triangs);
     #Add new properties to the base tier of the JSON
-    print "+POLY>"+parse.pythondictionary2mathematicarules({'DVERTS':dverts,'DRESVERTS':dresverts,'CWS':cws,'RESCWS':rescws,'FAV':fav,'DTOJ':DtoJmat,'FUNDGP':fgp,'NALLTRIANGS':nalltriangs});
-    for i in range(nalltriangs)
-        print "+TRIANG>"+parse.pythondictionary2mathematicarules({'POLYID':polydoc['POLYID'],'ALLTRIANGN':i+1,'TRIANG':triangs[i]});
+    print "+POLY1.{\"POLYID\":"+str(polyid)+"}>"+json.dumps({'DVERTS':py2mat(dverts),'DRESVERTS':py2mat(dresverts),'CWS':py2mat(cws),'RESCWS':py2mat(rescws),'FAV':fav,'DTOJ':py2mat(DtoJmat),'FUNDGP':fgp,'NALLTRIANGS':nalltriangs},separators=(',',':'));
+    for i in range(nalltriangs):
+        print "+TRIANG1.{\"POLYID\":"+str(polyid)+",\"GEOMN\":"+str(i+1)+",\"TRIANGN\":"+str(1)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1,'H11':h11,'TRIANG':py2mat(triangs[i])},separators=(',',':'));
     sys.stdout.flush();
 except Exception as e:
     PrintException();

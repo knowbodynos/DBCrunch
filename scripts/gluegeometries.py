@@ -7,12 +7,15 @@
 from sage.all_cmdline import *;
 
 import sys,os,fcntl,errno,linecache,traceback,time,json,toriccy;
+from toriccy.parse import pythonlist2mathematicalist as py2mat;
+from toriccy.parse import mathematicalist2pythonlist as mat2py;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
 size=comm.Get_size();
 rank=comm.Get_rank();
 
+#################################################################################
 #Misc. function definitions
 def PrintException():
     "If an exception is raised, print traceback of it to output log."
@@ -41,6 +44,7 @@ def distribcores(lst,size):
             j+=increm;
     return split;
 
+#################################################################################
 #Module-specific function definitions
 def mori(dresverts,triang):
     "Compute the Mori cone of the phase corresponding to triang."
@@ -72,17 +76,17 @@ def simpvol(verts):
     "Compute the volume of a simplex specified by a set of vertices."
     return abs(matrix(verts).det());
 
-def chowAmb(C,DD,JJ,dresverts,triang,chowid):
+def chowAmb(C,DD,JJ,dresverts,triang,Ichow):
     "Compute the intersection numbers and Chern classes on the ambient space."
     ndivsD=len(DD);
     triangind=0;
     norm=0;
     while (triangind<len(triang)) and (norm==0):
         vol=simpvol([dresverts[i] for i in triang[triangind]]);
-        norm=vol*prod([DD[i] for i in triang[triangind]]).reduce(chowid);
+        norm=vol*prod([DD[i] for i in triang[triangind]]).reduce(Ichow);
         triangind+=1;
     imonomsAD=(sum(DD)**4).monomials();
-    inumsAD=[x.reduce(chowid)/norm for x in imonomsAD];
+    inumsAD=[x.reduce(Ichow)/norm for x in imonomsAD];
     ipolyAD=sum([inumsAD[i]*imonomsAD[i] for i in range(len(imonomsAD))]);
     imonomADexps=[x.exponents()[0][1:ndivsD+1] for x in imonomsAD];
     imonomADinds=[[i for i in range(len(x)) for j in range(x[i])] for x in imonomADexps];
@@ -124,13 +128,13 @@ def chowAmb(C,DD,JJ,dresverts,triang,chowid):
     inumsXD=[itensXD[x[0]][x[1]][x[2]] for x in imonomsXDinds];
     ipolyXD=sum([inumsXD[i]*imonomsXD[i] for i in range(len(imonomsXD))]);
     hysurf=sum(DD);
-    hyideal=chowid.quotient(C.ideal(hysurf));
+    hyideal=Ichow.quotient(C.ideal(hysurf));
     Dinbasis=[x.reduce(hyideal) for x in DD];
     JtoDmat=[[y.coefficient(x) for x in JJ] for y in Dinbasis];
     invbasis=[[Dinbasis[i],DD[i]] for i in range(ndivsD)];
     cAD=prod([(1+C.gen(0)*d) for d in DD]);
     cnAD=[cAD.coefficient({C.gen(0):i}) for i in range(cAD.degree(C.gen(0))+1)];
-    cAJ=cAD.reduce(chowid);
+    cAJ=cAD.reduce(Ichow);
     cnAJ=[cAJ.coefficient({C.gen(0):i}) for i in range(cAJ.degree(C.gen(0))+1)];
     return [ipolyAD,itensAD,ipolyXD,itensXD,invbasis,JtoDmat,cnAD,cnAJ];
 
@@ -204,23 +208,25 @@ def glue_mori(DtoJmat,mori_rows_group):
     g_kahler_rows=toriccy.transpose_list(g_kahler_cols);
     return [g_mori_rows,g_kahler_rows];
 
+#################################################################################
 #Main body
 if rank==0:
     try:
         #IO Definitions
         mongouri=sys.argv[1];
-        workpath=sys.argv[2];
-        jobstepname=sys.argv[3];
         polydoc=json.loads(sys.argv[4]);
         #Read in pertinent fields from JSON
         polyid=polydoc['POLYID'];
         h11=polydoc['H11'];
         dresverts=toriccy.mathematicalist2pythonlist(polydoc['DRESVERTS']);
         rescws=toriccy.mathematicalist2pythonlist(polydoc['RESCWS']);
-        fav=polydoc['FAV'];
         DtoJmat=toriccy.mathematicalist2pythonlist(polydoc['DTOJ']);
-        fgp=polydoc['FUNDGP'];
-        triangs=toriccy.collectionfind(db,'TRIANG',{'POLYID':polyid},{'ALLTRIANGN':1,'TRIANG':1},formatresult='expression');
+
+        mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+        dbname=mongouri.split("/")[-1];
+        db=mongoclient[dbname];
+        triangs=toriccy.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
+        mongoclient.close();
         #Set the number of basis divisors
         ndivsJ=matrix(rescws).rank();
         #Create the pseudo-Chow polynomial ring
@@ -232,33 +238,33 @@ if rank==0:
         #Define the linear and basis change parts of the Chow ideal
         Ilin=[sum([dresverts[i][j]*DD[i] for i in range(len(dresverts))]) for j in range(len(dresverts[0]))];
         Ibasechange=[x[0]-x[1] for x in basis];
-        prechowid=C.ideal(Ilin+Ibasechange);
+        Iprechow=C.ideal(Ilin+Ibasechange);
         ######################## Begin parallel MPI scatter/gather of geometrical information ###############################
-        scatt=[[C,DD,JJ,dresverts,DtoJmat,prechowid,x] for x in distribcores(triangs,size)];
+        scatt=[[C,DD,JJ,dresverts,DtoJmat,Iprechow,x] for x in distribcores(triangs,size)];
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];
         #Scatter and define rank-independent input variables
         prechow=comm.scatter(scatt,root=0);
-        C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,DtoJmat_chunk,prechowid_chunk,triangs_chunk=prechow;
+        C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,DtoJmat_chunk,Iprechow_chunk,triangs_chunk=prechow;
         #For each chunk of information assigned to this rank, do the following
         gath=[];
         for t in triangs_chunk:
             #Obtain Mori and Kahler matrices
-            mori_rows=mori(dresverts_chunk,t);
+            mori_rows=mori(dresverts_chunk,t['TRIANG']);
             mori_cols=toriccy.transpose_list(mori_rows);
             kahler_cols=[sum([DtoJmat_chunk[k][j]*vector(mori_cols[j]) for j in range(len(mori_cols))]) for k in range(len(DtoJmat_chunk))];
             kahler_rows=toriccy.transpose_list(kahler_cols);
             #Obtain Stanley-Reisner ideal and Chow ideal
-            SR=SR_ideal(dresverts_chunk,t);
-            ISR=[prod([DD_chunk[j] for j in x]) for x in SR];
-            SRid=C_chunk.ideal(ISR);
-            chowid=prechowid_chunk+SRid;
+            SR=SR_ideal(dresverts_chunk,t['TRIANG']);
+            SRid=[prod([DD_chunk[j] for j in x]) for x in SR];
+            ISR=C_chunk.ideal(SRid);
+            Ichow=Iprechow_chunk+ISR;
             #Obtain information about the Chow ring
-            ipolyAD,itensAD,ipolyXD,itensXD,invbasis,JtoDmat,cnAD,cnAJ=chowAmb(C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,t,chowid);
+            ipolyAD,itensAD,ipolyXD,itensXD,invbasis,JtoDmat,cnAD,cnAJ=chowAmb(C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,t['TRIANG'],Ichow);
             ipolyAJ,itensAJ,ipolyXJ,itensXJ,c2XD,c3XD,c2XJ,c3XJ,c2Xnums,eX=chowHysurf(C_chunk,DD_chunk,JJ_chunk,DtoJmat_chunk,itensAD,itensXD,cnAD,cnAJ);
             #Gather information into a list and pass it back to main rank
-            gath+=[{'SRIDEAL':ISR,'JTOD':JtoDmat,'INVBASIS':invbasis,'IPOLYAD':ipolyAD,'ITENSAD':itensAD,'IPOLYXD':ipolyXD,'ITENSXD':itensXD,'IPOLYAJ':ipolyAJ,'ITENSAJ':itensAJ,'IPOLYXJ':ipolyXJ,'ITENSXJ':itensXJ,'CHERNAD':cnAD,'CHERNAJ':cnAJ,'CHERN2XD':c2XD,'CHERN2XJ':c2XJ,'CHERN3XD':c3XD,'CHERN3XJ':c3XJ,'CHERN2XNUMS':c2Xnums,'EULERX':eX,'MORIMATP':mori_rows,'KAHLERMATP':kahler_rows}];
+            gath+=[{'SRIDEAL':SRid,'JTOD':JtoDmat,'INVBASIS':invbasis,'IPOLYAD':ipolyAD,'ITENSAD':itensAD,'IPOLYXD':ipolyXD,'ITENSXD':itensXD,'IPOLYAJ':ipolyAJ,'ITENSAJ':itensAJ,'IPOLYXJ':ipolyXJ,'ITENSXJ':itensXJ,'CHERNAD':cnAD,'CHERNAJ':cnAJ,'CHERN2XD':c2XD,'CHERN2XJ':c2XJ,'CHERN3XD':c3XD,'CHERN3XJ':c3XJ,'CHERN2XNUMS':c2Xnums,'EULERX':eX,'MORIMATP':mori_rows,'KAHLERMATP':kahler_rows}];
         postchow_group=comm.gather(gath,root=0);
         #Signal ranks to exit current process (if there are no other processes, then exit other ranks)
         scatt=[-1 for j in range(size)];
@@ -282,7 +288,8 @@ if rank==0:
         JtoDmat=postchow[0]['JTOD'];
         invbasis=postchow[0]['INVBASIS'];
         #Add new properties to base tier of JSON
-        polydoc.update({'BASIS':py2mat(basis),'EULER':int(eX_L[0]),'NGEOMS':len(to_glue_L),'JTOD':py2mat(JtoDmat),'INVBASIS':py2mat(invbasis),'GEOMDATA':[]});
+        print "+POLY1.{\"POLYID\":"+str(polyid)+"}>"+json.dumps({'BASIS':py2mat(basis),'EULER':int(eX_L[0]),'NGEOMS':len(to_glue_L),'JTOD':py2mat(JtoDmat),'INVBASIS':py2mat(invbasis)},separators=(',',':'));
+        sys.stdout.flush();
         #Glue triangulations into their compositie geometries
         g_mori_rows_L=[];
         g_kahler_rows_L=[];
@@ -294,26 +301,14 @@ if rank==0:
             g_kahler_rows_L+=[g_kahler_rows];
             #Add new properties to GEOMDATA tier of JSON
             j=to_glue_L[i][0];
-            polydoc['GEOMDATA']+=[{'GEOMN':i+1,'NTRIANGS':len(to_glue_L[i]),'CHERN2XJ':py2mat(postchow[j]['CHERN2XJ']),'CHERN2XNUMS':py2mat(postchow[j]['CHERN2XNUMS']),'IPOLYXJ':py2mat(postchow[j]['IPOLYXJ']),'ITENSXJ':py2mat(postchow[j]['ITENSXJ']),'MORIMAT':py2mat(g_mori_rows),'KAHLERMAT':py2mat(g_kahler_rows),'TRIANGDATA':[]}];
+            print "+GEOM1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(i+1)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'H11':h11,'NTRIANGS':len(to_glue_L[i]),'CHERN2XJ':py2mat(postchow[j]['CHERN2XJ']),'CHERN2XNUMS':py2mat(postchow[j]['CHERN2XNUMS']),'IPOLYXJ':py2mat(postchow[j]['IPOLYXJ']),'ITENSXJ':py2mat(postchow[j]['ITENSXJ']),'MORIMAT':py2mat(g_mori_rows),'KAHLERMAT':py2mat(g_kahler_rows)},separators=(',',':'));
+            sys.stdout.flush();
             #Add new properties to TRIANGDATA tier of JSON
             m=0;
             for k in to_glue_L[i]:
-                polydoc['GEOMDATA'][i]['TRIANGDATA']+=[{'ALLTRIANGN':k+1,'TRIANGN':m+1,'TRIANG':py2mat(triangs[k]),'SRIDEAL':py2mat(postchow[k]['SRIDEAL']),'CHERN2XD':py2mat(postchow[k]['CHERN2XD']),'IPOLYAD':py2mat(postchow[k]['IPOLYAD']),'ITENSAD':py2mat(postchow[k]['ITENSAD']),'IPOLYXD':py2mat(postchow[k]['IPOLYXD']),'ITENSXD':py2mat(postchow[k]['ITENSXD']),'IPOLYAJ':py2mat(postchow[k]['IPOLYAJ']),'ITENSAJ':py2mat(postchow[k]['ITENSAJ']),'CHERNAD':py2mat(postchow[k]['CHERNAD']),'CHERNAJ':py2mat(postchow[k]['CHERNAJ']),'CHERN3XD':py2mat(postchow[k]['CHERN3XD']),'CHERN3XJ':py2mat(postchow[k]['CHERN3XJ']),'MORIMATP':py2mat(postchow[k]['MORIMATP']),'KAHLERMATP':py2mat(postchow[k]['KAHLERMATP'])}];
+                print "+TRIANG1.{\"POLYID\":"+str(polyid)+",\"GEOMN\":"+str(triangs[k]['GEOMN'])+",\"TRIANGN\":"+str(1)+"}>"+json.dumps({'GEOMN':i+1,'TRIANGN':m+1,'ALLTRIANGN':triangs[k]['GEOMN'],'SRIDEAL':py2mat(postchow[k]['SRIDEAL']),'CHERN2XD':py2mat(postchow[k]['CHERN2XD']),'IPOLYAD':py2mat(postchow[k]['IPOLYAD']),'ITENSAD':py2mat(postchow[k]['ITENSAD']),'IPOLYXD':py2mat(postchow[k]['IPOLYXD']),'ITENSXD':py2mat(postchow[k]['ITENSXD']),'IPOLYAJ':py2mat(postchow[k]['IPOLYAJ']),'ITENSAJ':py2mat(postchow[k]['ITENSAJ']),'CHERNAD':py2mat(postchow[k]['CHERNAD']),'CHERNAJ':py2mat(postchow[k]['CHERNAJ']),'CHERN3XD':py2mat(postchow[k]['CHERN3XD']),'CHERN3XJ':py2mat(postchow[k]['CHERN3XJ']),'MORIMATP':py2mat(postchow[k]['MORIMATP']),'KAHLERMATP':py2mat(postchow[k]['KAHLERMATP'])},separators=(',',':'));
+                sys.stdout.flush();
                 m+=1;
-        #Format JSON for output to file
-        strpolydoc=json.dumps(polydoc).replace(" ","")+"\n";
-        #Wait until output file not in use. Then lock file, output JSON, and unlock file
-        with open(outfile,"a") as outstream:
-            fcntl.flock(outstream,fcntl.LOCK_EX);
-            outstream.seek(0,2);
-            outstream.write(strpolydoc);
-            outstream.flush();
-            fcntl.flock(outstream,fcntl.LOCK_UN);
-        #Output Group #, Bytes written, and Total time to output log
-        time1=time.time();
-        print "Group #: "+outbatchn;
-        print "Bytes written: "+str(sys.getsizeof(strpolydoc));
-        print "Total time: "+str(time1-time0);
     except Exception as e:
         PrintException();
 else:
@@ -329,25 +324,25 @@ else:
                 #Rank is extraneous and no information is being passed
                 gath=[];
             else:
-                C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,DtoJmat_chunk,prechowid_chunk,triangs_chunk=prechow;
+                C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,DtoJmat_chunk,Iprechow_chunk,triangs_chunk=prechow;
                 #For each chunk of information assigned to this rank, do the following
                 gath=[];
                 for t in triangs_chunk:
                     #Obtain Mori and Kahler matrices
-                    mori_rows=mori(dresverts_chunk,t);
-                    mori_cols=transpose_list(mori_rows);
+                    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+                    mori_cols=toriccy.transpose_list(mori_rows);
                     kahler_cols=[sum([DtoJmat_chunk[k][j]*vector(mori_cols[j]) for j in range(len(mori_cols))]) for k in range(len(DtoJmat_chunk))];
-                    kahler_rows=transpose_list(kahler_cols);
+                    kahler_rows=toriccy.transpose_list(kahler_cols);
                     #Obtain Stanley-Reisner ideal and Chow ideal
-                    SR=SR_ideal(dresverts_chunk,t);
-                    ISR=[prod([DD_chunk[j] for j in x]) for x in SR];
-                    SRid=C_chunk.ideal(ISR);
-                    chowid=prechowid_chunk+SRid;
+                    SR=SR_ideal(dresverts_chunk,t['TRIANG']);
+                    SRid=[prod([DD_chunk[j] for j in x]) for x in SR];
+                    ISR=C_chunk.ideal(SRid);
+                    Ichow=Iprechow_chunk+ISR;
                     #Obtain information about the Chow ring
-                    ipolyAD,itensAD,ipolyXD,itensXD,invbasis,JtoDmat,cnAD,cnAJ=chowAmb(C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,t,chowid);
+                    ipolyAD,itensAD,ipolyXD,itensXD,invbasis,JtoDmat,cnAD,cnAJ=chowAmb(C_chunk,DD_chunk,JJ_chunk,dresverts_chunk,t['TRIANG'],Ichow);
                     ipolyAJ,itensAJ,ipolyXJ,itensXJ,c2XD,c3XD,c2XJ,c3XJ,c2Xnums,eX=chowHysurf(C_chunk,DD_chunk,JJ_chunk,DtoJmat_chunk,itensAD,itensXD,cnAD,cnAJ);
                     #Gather information into a list and pass it back to main rank
-                    gath+=[{'SRIDEAL':ISR,'JTOD':JtoDmat,'INVBASIS':invbasis,'IPOLYAD':ipolyAD,'ITENSAD':itensAD,'IPOLYXD':ipolyXD,'ITENSXD':itensXD,'IPOLYAJ':ipolyAJ,'ITENSAJ':itensAJ,'IPOLYXJ':ipolyXJ,'ITENSXJ':itensXJ,'CHERNAD':cnAD,'CHERNAJ':cnAJ,'CHERN2XD':c2XD,'CHERN2XJ':c2XJ,'CHERN3XD':c3XD,'CHERN3XJ':c3XJ,'CHERN2XNUMS':c2Xnums,'EULERX':eX,'MORIMATP':mori_rows,'KAHLERMATP':kahler_rows}];       
+                    gath+=[{'SRIDEAL':SRid,'JTOD':JtoDmat,'INVBASIS':invbasis,'IPOLYAD':ipolyAD,'ITENSAD':itensAD,'IPOLYXD':ipolyXD,'ITENSXD':itensXD,'IPOLYAJ':ipolyAJ,'ITENSAJ':itensAJ,'IPOLYXJ':ipolyXJ,'ITENSXJ':itensXJ,'CHERNAD':cnAD,'CHERNAJ':cnAJ,'CHERN2XD':c2XD,'CHERN2XJ':c2XJ,'CHERN3XD':c3XD,'CHERN3XJ':c3XJ,'CHERN2XNUMS':c2Xnums,'EULERX':eX,'MORIMATP':mori_rows,'KAHLERMATP':kahler_rows}];       
                 postchow_group=comm.gather(gath,root=0);
     except Exception as e:
         PrintException();

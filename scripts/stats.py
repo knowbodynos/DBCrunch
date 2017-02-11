@@ -31,10 +31,10 @@ try:
     mongouri=sys.argv[1];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
     modname=sys.argv[2];
     #jobstepid=sys.argv[3];
-    dbcollection=sys.argv[3];
+    basecollection=sys.argv[3];
     workpath=sys.argv[4];
-    outputlinemarkers=sys.argv[5].split(",");
-    jobstepname=sys.argv[6];
+    jobstepname=sys.argv[5];
+    dbpushq=eval(sys.argv[6]);
     cputime=sys.argv[7];
     maxrss=sys.argv[8];
     maxvmsize=sys.argv[9];
@@ -47,7 +47,7 @@ try:
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    dbindexes=toriccy.getintersectionindexes(db,dbcollection);
+    dbindexes=toriccy.getintersectionindexes(db,basecollection);
 
     indexdoc=jobstepname2doc(jobstepname,dbindexes);
 
@@ -55,21 +55,36 @@ try:
     try:
         with open(workpath+"/"+jobstepname+".log","r") as logstream:
             for line in logstream:
-                linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
-                for x in outputlinemarkers:
-                    linedoc=linedoc.replace(x,"");
-                #print doc;#.replace(" ","");
-                #sys.stdout.flush();
-                doc=json.loads(linedoc);#.replace(" ",""));
-                bsonsize+=toriccy.bsonsize(doc);
-                fulldoc=merge_dicts(indexdoc,doc);
-                newcollection=toriccy.gettierfromdoc(db,fulldoc);
-                newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
-                db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
-                #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
-                #sys.stdout.flush();
+                #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
+                linehead=re.sub("^([-+].*?>|None).*",r"\1",line).rstrip("\n");
+                if linehead[0] in ["-","+"]:
+                    linemarker=linehead[0];
+                    newcollection,strindexdoc=linehead[1:-1].split(".");
+                    #print strindexdoc;
+                    #sys.stdout.flush();
+                    newindexdoc=json.loads(strindexdoc);
+                    linedoc=re.sub("^[-+].*?>","",line).rstrip("\n");
+                    #for x in outputlinemarkers:
+                    #    linedoc=linedoc.replace(x,"");
+                    #print doc;#.replace(" ","");
+                    #print linedoc;
+                    #sys.stdout.flush();
+                    doc=json.loads(linedoc);#.replace(" ",""));
+                    bsonsize+=toriccy.bsonsize(doc);
+                    #fulldoc=merge_dicts(indexdoc,doc);
+                    #newcollection=toriccy.gettierfromdoc(db,fulldoc);
+                    #newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
+                    #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
+                    if dbpushq:
+                        if linemarker=="+":
+                            db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
+                        elif linemarker=="-":
+                            db[newcollection].update(newindexdoc,{"$unset":doc});
+                    #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
+                    #sys.stdout.flush();
 
-        db[dbcollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});
+        if dbpushq:
+            db[basecollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize),"BSONSIZE":bsonsize}}});
 
         #print "CPUTime: "+str(cputime)+" seconds";
         #print "MaxRSS: "+str(maxrss)+" bytes";

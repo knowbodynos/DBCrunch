@@ -52,13 +52,16 @@ scriptpath="${packagepath}/scripts"
 #Input script info
 scriptlanguage="mathematica"
 scriptmemorylimit="10000000000"
-outputlinemarkers="Output: "
+#outputlinemarkers="Output: "
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
-queries="[['POLY',{'H11':${h11},'FAV':True},{'_id':0,'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1}],['TRIANG',{'H11':${h11}},{'_id':0,'H11':1,'POLYID':1,'GEOMN':1,'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1}]]"
-dbcollection="TRIANG"
-newcollectionfield="INVOL,INVOLN"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['TRIANG',{'H11':${h11}},{'GEOMN':1,'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1}]]"
+basecollection="TRIANG"
+nthreads=""
+
+#Options
+dbpushq="True"
 pdffile="jobgraph"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${outputlinemarkers}" "${mongouri}" "${queries}" "${dbcollection}" "${newcollectionfield}" "${pdffile}"
+python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${basecollection}" "${nthreads}" "${dbpushq}" "${pdffile}"

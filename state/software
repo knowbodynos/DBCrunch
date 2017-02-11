@@ -1,4 +1,4 @@
 Script Language,License Required,Extension,Command,Flags
 python,False,.py,python,
-sage,False,.sage,sage,
+sage,False,.py,sage,
 mathematica,True,.m,math,-noprompt -script

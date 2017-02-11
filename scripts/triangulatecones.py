@@ -7,12 +7,16 @@
 from sage.all_cmdline import *;
 
 import sys,os,fcntl,errno,linecache,traceback,time,re,itertools,json;
+from toriccy.parse import pythonlist2mathematicalist as py2mat;
+from toriccy.parse import mathematicalist2pythonlist as mat2py;
+import toriccy.tools as tools;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
 size=comm.Get_size();
 rank=comm.Get_rank();
 
+#################################################################################
 #Misc. function definitions
 def PrintException():
     "If an exception is raised, print traceback of it to output log."
@@ -24,14 +28,6 @@ def PrintException():
     line=linecache.getline(filename, lineno, f.f_globals);
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename,lineno,line.strip(),exc_obj);
     print "More info: ",traceback.format_exc();
-
-def py2mat(lst):
-    "Converts a Python list to a string depicting a list in Mathematica format."
-    return str(lst).replace(" ","").replace("[","{").replace("]","}");
-
-def mat2py(lst):
-    "Converts a string depicting a list in Mathematica format to a Python list."
-    return eval(str(lst).replace(" ","").replace("{","[").replace("}","]"));
 
 def distribcores(lst,size):
     "Distribute information in lst into chunks of size size in order to scatter to various cores."
@@ -100,13 +96,13 @@ def LP2CWS(verts):
     ker=matrix(verts).left_kernel();
     ker_mat=ker.matrix().rows();
     cws=min_nonneg_basis(ker_mat);
-    return cws;
+    return tools.transpose_list(cws);
 
-def hodge_CY(lp_pts,dlp_pts,face_cones,face_cones_d):
+def hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones):
     "Computes the Hodge numbers of a Calabi-Yau threefold corresponding to a reflexive 4-dimensional polytope using Batyrev's method (http://arxiv.org/abs/alg-geom/9310003)."
     #Get fans
-    fan=Fan(face_cones).cones()[1:];
-    dfan=Fan(face_cones_d).cones()[1:];
+    fan=Fan(max_cones).cones()[1:];
+    dfan=Fan(max_dcones).cones()[1:];
     #Get number of interior points in fans
     lp_ninter=[[sum([1 for i in range(len(lp_pts)) if y.relative_interior_contains(copy(lp_pts[i]))]) for y in x] for x in fan];
     dlp_ninter=[[sum([1 for i in range(len(dlp_pts)) if y.relative_interior_contains(copy(dlp_pts[i]))]) for y in x] for x in dfan];
@@ -147,31 +143,13 @@ def dcbase(dresverts):
                             basisinds=[m for m in range(len(dresverts)) if m not in [i,j,k,l]];
                             return [fgp,basisinds];
 
-'''
-def bndry_pts(lp,lp_pts,face_cones):
-    "Compute the points that lie on the boundary of the polytope."
-    pts_dup_sep=[[list(lp_pts[i]) for i in range(len(lp_pts)) if (y.contains(lp_pts[i]) and not y.interior_contains(lp_pts[i]) and not lp.interior_contains(lp_pts[i]))] for y in face_cones];
-    pts_dup=[x for y in pts_dup_sep for x in y];
-    pts=[vector(x) for x in deldup(pts_dup)];
-    
-    return pts;
-
-
-def triangulate(dresverts):
-    "Triangulate the full polytope."
-    pc=PointConfiguration(dresverts);
-    triang=Set([Set([Set(y) for y in x.boundary()]) for x in pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).restrict_to_star_triangulations(vector((0,0,0,0))).triangulations_list()]);
-    
-    return [list([list(y) for y in x]) for x in triang];
-'''
-
-def bndry_pts_cones(lp,lp_pts,face_cones):
+def bndry_pts_cones(lp,lp_pts,max_cones):
     "Compute the points that lie on the boundary of the specified cone."
-    pts_dup_sep=[[list(lp_pts[i]) for i in range(len(lp_pts)) if (y.contains(lp_pts[i]) and not y.interior_contains(lp_pts[i]) and not lp.interior_contains(lp_pts[i]))] for y in face_cones];
+    pts_dup_sep=[[list(lp_pts[i]) for i in range(len(lp_pts)) if (y.contains(lp_pts[i]) and not y.interior_contains(lp_pts[i]) and not lp.interior_contains(lp_pts[i]))] for y in max_cones];
     pts_sep=[[vector(y) for y in deldup(x)]+[vector([0,0,0,0])] for x in pts_dup_sep];
     return pts_sep;
 
-def triangulate_cone(verts):
+def FSRT_cone_from_resolved_verts(verts):
     "Triangulate the specified cone."
     pc=PointConfiguration(verts);
     triang=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).restrict_to_star_triangulations(vector((0,0,0,0))).triangulations_list();
@@ -244,42 +222,32 @@ def favorable(ndivsJ,h11):
     "Check if the polytope is favorable."
     return (h11==ndivsJ);
 
+#################################################################################
 #Main body
 if rank==0:
     try:
-        time0=time.time();
         #IO Definitions
-        infile=sys.argv[1];
-        inpos=eval(sys.argv[2]);
-        outfile=sys.argv[3];
-        outbatchn=sys.argv[4];
-        #Check if input/output files exist
-        if not os.path.exists(infile):
-            raise ValueError('Argument infile ('+infile+') must be an existing file.');
-        if not os.path.exists(outfile):
-            raise ValueError('Argument outfile ('+outfile+') must be an existing file.');
-        #Lock input file, read JSON from input position, and unlock
-        with open(infile,"r") as instream:
-            fcntl.flock(instream,fcntl.LOCK_EX);
-            instream.seek(inpos);
-            tempdict=json.loads(instream.readline().replace("\n",""));
-            fcntl.flock(instream,fcntl.LOCK_UN);
+        polydoc=json.loads(sys.argv[4]);
         #Read in pertinent fields from JSON
-        nverts=mat2py(tempdict['NVERTS']);
+        polyid=polydoc['POLYID'];
+        nverts=mat2py(polydoc['NVERTS']);
+        h11=polydoc['H11'];
+        h21=polydoc['H21'];
         #Compute initial information corresponding to polytope
         lp=Polyhedron(vertices=nverts);
-        sorted_dverts=sorted([vector([y/gcd(x) for y in x]) for x in lp.polar().vertices()]);
+        sorted_dverts=[vector(x) for x in sorted([vector([y/gcd(x) for y in x]) for x in lp.polar().vertices()])];
         dlp=Polyhedron(vertices=sorted_dverts);
-        dverts=[list(x) for x in dlp.vertices()];
+        dverts=[list(x) for x in sorted_dverts];
         cws=LP2CWS(sorted_dverts);
-        face_cones=[Cone([x.vector() for x in list(lp.Hrepresentation(i).incident())]) for i in range(lp.n_Hrepresentation())];
-        face_cones_d=[Cone([x.vector() for x in list(dlp.Hrepresentation(i).incident())]) for i in range(dlp.n_Hrepresentation())];
+        max_cones=[Cone([x.vector() for x in list(lp.Hrepresentation(i).incident())]) for i in range(lp.n_Hrepresentation())];
+        max_dcones=[Cone([x.vector() for x in list(dlp.Hrepresentation(i).incident())]) for i in range(dlp.n_Hrepresentation())];
         lp_pts=copy(lp.integral_points(threshold=1e10));
         dlp_pts=copy(dlp.integral_points(threshold=1e10));
-        h11,h21=hodge_CY(lp_pts,dlp_pts,face_cones,face_cones_d);
-        if (h11!=tempdict['H11'] or h21!=tempdict['H21']):
-            raise ValueError('Computed Hodge pair ('+str(h11)+','+str(h21)+') does not match KS database ('+str(tempdict['H11'])+','+str(tempdict['H21'])+').');
-        conepts=bndry_pts_cones(dlp,dlp_pts,face_cones_d);
+        h11,h21=hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones);
+        batyh11,batyh21=hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones);
+        if (batyh11!=h11 or batyh21!=h21):
+            raise ValueError('Computed Hodge pair ('+str(batyh11)+','+str(batyh21)+') does not match KS database ('+str(h11)+','+str(h21)+').');
+        conepts=bndry_pts_cones(dlp,dlp_pts,max_dcones);
         origin=vector([0,0,0,0]);
         unsorted_dresverts=deldup([x for y in conepts for x in y if x!=origin]);
         extra_dresverts=sorted([x for x in unsorted_dresverts if x not in sorted_dverts]);
@@ -298,7 +266,7 @@ if rank==0:
         gath=[];
         for c in cones[1:]:
             #Triangulate cone c and relabel vertices according to full polytope
-            newconetriang0=triangulate_cone(c);
+            newconetriang0=FSRT_cone_from_resolved_verts(c);
             newconetriang=[[[cones[0].index(c[z]) for z in y] for y in x] for x in newconetriang0];
             #Gather information into a list and pass it back to main rank
             gath+=[newconetriang];
@@ -319,7 +287,7 @@ if rank==0:
             if len(knitted)>0:
                 unsorted_triangs+=[sorted([[y for y in x if y!=originind] for x in knitted])];
         #Sort triangulations
-        triangs=sorted(deldup(unsorted_triangs));
+        triangs=sorted(tools.deldup(unsorted_triangs));
         #Compute the resolved weight matrix and set the number of basis divisors
         rescws=LP2CWS(dresverts);
         rescws_mat=matrix(rescws);
@@ -336,22 +304,10 @@ if rank==0:
         #Determine the number of triangulations corresponding to the polytope
         nalltriangs=len(triangs);
         #Add new properties to the base tier of the JSON
-        geomdata=[{'GEOMN':i+1,'NTRIANGS':1,'TRIANGDATA':[{'TRIANGN':1,'ALLTRIANGN':i+1,'TRIANG':py2mat(triangs[i])}]} for i in range(len(triangs))];
-        tempdict.update({'DVERTS':py2mat(dverts),'DRESVERTS':py2mat(dresverts),'CWS':py2mat(cws),'RESCWS':py2mat(rescws),'FAV':fav,'DTOJ':py2mat(DtoJmat),'FUNDGP':int(fgp),'NALLTRIANGS':nalltriangs,'GEOMDATA':geomdata});
-        #Format JSON for output to file
-        strtempdict=json.dumps(tempdict).replace(" ","")+"\n";
-        #Wait until output file not in use. Then lock file, output JSON, and unlock file
-        with open(outfile,"a") as outstream:
-            fcntl.flock(outstream,fcntl.LOCK_EX);
-            outstream.seek(0,2);
-            outstream.write(strtempdict);
-            outstream.flush();
-            fcntl.flock(outstream,fcntl.LOCK_UN);
-        #Output Group #, Bytes written, and Total time to output log
-        time1=time.time();
-        print "Group #: "+outbatchn;
-        print "Bytes written: "+str(sys.getsizeof(strtempdict));
-        print "Total time: "+str(time1-time0);
+        print "+POLY1.{\"POLYID\":"+str(polyid)+"}>"+json.dumps({'DVERTS':py2mat(dverts),'DRESVERTS':py2mat(dresverts),'CWS':py2mat(cws),'RESCWS':py2mat(rescws),'FAV':fav,'DTOJ':py2mat(DtoJmat),'FUNDGP':fgp,'NALLTRIANGS':nalltriangs},separators=(',',':'));
+        for i in range(nalltriangs):
+            print "+TRIANG1.{\"POLYID\":"+str(polyid)+",\"GEOMN\":"+str(i+1)+",\"TRIANGN\":"+str(1)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1,'H11':h11,'TRIANG':py2mat(triangs[i])},separators=(',',':'));
+        sys.stdout.flush();
     except Exception as e:
         PrintException();
 else:
@@ -370,7 +326,7 @@ else:
                 gath=[];
                 for c in cones[1:]:
                     #Triangulate cone c and relabel vertices according to full polytope
-                    newconetriang0=triangulate_cone(c);
+                    newconetriang0=FSRT_cone_from_resolved_verts(c);
                     newconetriang=[[[cones[0].index(c[z]) for z in y] for y in x] for x in newconetriang0];
                     #Gather information into a list and pass it back to main rank
                     gath+=[newconetriang];

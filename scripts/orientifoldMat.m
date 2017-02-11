@@ -2,10 +2,10 @@
 
 $HistoryLength=0;
 
-WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine[[5]]);
-IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[6]]);
+(*WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine[[6]]);
+IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[7]])*);
 
-Get["cohomCalgKoszulExtensionSilent`"];
+(*Get["cohomCalgKoszulExtensionSilent`"];*)
 Get["ToricCYParse`"];
 (*Get["ToricCY`"];*)
 
@@ -149,27 +149,29 @@ FixedLoci[ResCWS_,Invol_,SRIdeal_,FormatString_:True]:=Module[{TDivs,OrientPolys
 
     (*TorusFixedLoci=Select[Map[Function[u,(Or@@(ASymNewTDivs/.u))&&Select[Complement[NewTDivs,ASymNewTDivs],#/.u&]][#]&,ASymCoords],#=!=False&];*)
     AllFixedLoci=GetAllMaxFixedLoci[NewResCWSSplit,NewTDivsSplit];
-
-    SRSectors=Union[Map[Map[#-1&,Union[#]]&,Tuples[SRIdeal/.Times->List]]];
+    (*Print[AllFixedLoci/.TDivRepl];*)
+    (*Print[SRIdeal];*)
+    SRSectors=DeleteDuplicates[Union[Map[Map[#-1&,Union[#]]&,Tuples[SRIdeal/.Times->List]]],Sort[#1]==Sort[Intersection[#1,#2]]&];
+    (*Print[SRSectors];*)
     (*CompIntersection=Join[{Plus@@SymMonomsP},PolynomsQ];*)
     CompIntersection={Plus@@SymMonomsP};
     AllSRTransversalFixedLoci=DeleteCases[DeleteDuplicates[Table[
-        TotalGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLoci[[i]],SRSectors[[1]]]/.TDivRepl,TDivs];
-        (*TotalGroebner={TotalGroebnerSRSector};
+       (* TotalGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLoci[[i]],SRSectors[[1]]]/.TDivRepl,TDivs];
+        TotalGroebner={TotalGroebnerSRSector};
         j=2;
-        While[(j<=Length[SRSectors])&&(TotalGroebnerSRSector=={1}),
+        While[(j<=Length[SRSectors])(*&&(TotalGroebnerSRSector=={1})*),
             TotalGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLoci[[i]],SRSectors[[j]]]/.TDivRepl,TDivs];
             TotalGroebner=Join[TotalGroebner,{TotalGroebnerSRSector}];
             j++;
         ];*)
         TotalGroebner=Map[GroebnerBasis[Join[CompIntersection,AllFixedLoci[[i]],#]/.TDivRepl,TDivs]&,SRSectors];
-        If[(*TotalGroebnerSRSector=={1}*)And@@Map[#=={1}&,TotalGroebner],
+        (*Print[TotalGroebner];*)
+        If[And@@Map[#=={1}&,TotalGroebner],
             {}
         ,
             AllFixedLociSubsets=Subsets[AllFixedLoci[[i]]][[2;;]];
             FlagSubset=False;
-            j=1;
-            While[(j<=Length[AllFixedLociSubsets])&&(!FlagSubset),
+            For[j=1,(j<=Length[AllFixedLociSubsets])&&(!FlagSubset),j++,
                 AllFixedLociSubset=AllFixedLociSubsets[[j]];
                 PartialGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLociSubset,SRSectors[[1]]]/.TDivRepl,TDivs];
                 k=2;
@@ -178,23 +180,22 @@ FixedLoci[ResCWS_,Invol_,SRIdeal_,FormatString_:True]:=Module[{TDivs,OrientPolys
                     k++;
                 ];
                 If[Length[PartialGroebnerSRSector]==Length[TotalGroebner[[k-1]]],
-                    (*TotalGroebnerSRSector=TotalGroebner[[k-1]];
-                    While[(k<=Length[SRSectors])&&(Length[PartialGroebnerSRSector]==Length[TotalGroebnerSRSector]),
-                        TotalGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLoci[[i]],SRSectors[[k]]]/.TDivRepl,TDivs];
-                        PartialGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLociSubset,SRSectors[[k]]]/.TDivRepl,TDivs];
-                        k++;
-                    ];
-                    If[Length[PartialGroebnerSRSector]==Length[TotalGroebnerSRSector],
-                        FlagSubset=True;
-                    ];*)
+                    (* TotalGroebnerSRSector=TotalGroebner[[k-1]];
+                     While[(k<=Length[SRSectors])&&(Length[PartialGroebnerSRSector]==Length[TotalGroebnerSRSector]),
+                         TotalGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLoci[[i]],SRSectors[[k]]]/.TDivRepl,TDivs];
+                         PartialGroebnerSRSector=GroebnerBasis[Join[CompIntersection,AllFixedLociSubset,SRSectors[[k]]]/.TDivRepl,TDivs];
+                         k++;
+                     ];
+                     If[Length[PartialGroebnerSRSector]==Length[TotalGroebnerSRSector],
+                         FlagSubset=True;
+                     ];*)
                     FlagSubset=True;
                 ];
-                j++;
             ];
             If[FlagSubset,
                 AllFixedLociSubset
             ,
-                (*{}*)AllFixedLoci[[i]]
+                {}
             ]
         ]
     ,{i,Length[AllFixedLoci]}]],{}];
@@ -254,7 +255,7 @@ ToricCYDirac=MongoDirac@getDB["ToricCY"];*)
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
 (*Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];*)
-Geometry=JSONtoExpressionRules[$CommandLine[[7]]];
+Geometry=JSONtoExpressionRules[$CommandLine[[8]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;
@@ -305,15 +306,18 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
 ];*)
 
 result=Join[FixedLoci[ResCWS,Invol,SRIdeal,True],AllBasesHodgeSplit[H11,H21,Invol,DResVerts,ResCWS,True]];
-InvolIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN","INVOLN"}->{H11,PolyID,GeomN,TriangN,InvolN}];
-NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];
-outresult={Join[InvolIDField,result]};
+(*InvolIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN","INVOLN"}->{H11,PolyID,GeomN,TriangN,InvolN}];*)
+(*NewInvolFields=Select[result,#[[1]]!="ALLBASES"&];*)
+NewInvolFields=result;
+(*outresult={Join[InvolIDField,result]};*)
     
 (*(ToricCYDirac@getCollection["INVOL"])@update[StringRulestoJSONJava@InvolIDField,StringRulestoJSONJava@{"$set"->NewInvolFields}];*)
-outputlist=Map[StringRulestoJSON[#]&,outresult];
-output=(StringJoin@@Table[If[i>1,"\n",""]<>"Output: "<>outputlist[[i]],{i,Length[outputlist]}]);
-
-WriteString[$Output,output<>"\n"];
+(*outputlist=Map[StringRulestoJSON[#]&,outresult];*)
+outNewInvolFields=StringRulestoJSON[NewInvolFields];
+(*output=(StringJoin@@Table[If[i>1,"\n",""]<>"Output: "<>outputlist[[i]],{i,Length[outputlist]}]);*)
+WriteString[$Output,"+INVOL.{\"POLYID\":"<>ToString[PolyID]<>",\"GEOMN\":"<>ToString[GeomN]<>",\"TRIANGN\":"<>ToString[TriangN]<>",\"INVOLN\":"<>ToString[InvolN]<>"}>"<>outNewInvolFields];
+WriteString[$Output,"\n"];
+(*WriteString[$Output,output<>"\n"];*)
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
 MongoDirac@close[];
 Exit[];

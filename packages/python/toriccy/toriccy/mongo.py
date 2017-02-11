@@ -190,7 +190,7 @@ def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
 
-def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,resetstatefile=False,toplevel=True):
+def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,resetstatefile=False,toplevel=True):
     docbatch=[];
     endofdocs=[];
     if toplevel:
@@ -237,7 +237,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             if len(docbatch)==inputdoc["nsteps"]:
                 docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
                 action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-                inputdoc.update(inputfunc());
+                inputdoc.update(inputfunc(docbatchprojfields));
                 updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                 batchcounter+=1;
                 stepcounter+=len(docbatch);
