@@ -9,6 +9,7 @@ from sage.all_cmdline import *;
 import sys,os,fcntl,errno,linecache,traceback,time,json,toriccy;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
+from toriccy.tools import distribcores;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -27,22 +28,6 @@ def PrintException():
     line=linecache.getline(filename,lineno,f.f_globals);
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename,lineno,line.strip(),exc_obj);
     print "More info: ",traceback.format_exc();
-
-def distribcores(lst,size):
-    "Distribute information in lst into chunks of size size in order to scatter to various cores."
-    L=len(lst);
-    mod=L%size;
-    split=[];
-    j=0;
-    for i in range(size):
-        increm=((L-mod)/size);
-        if i<mod:
-            split+=[lst[j:j+increm+1]];
-            j+=increm+1;
-        else:
-            split+=[lst[j:j+increm]];
-            j+=increm;
-    return split;
 
 #################################################################################
 #Module-specific function definitions

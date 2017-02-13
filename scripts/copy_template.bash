@@ -1,15 +1,15 @@
 #!/bin/bash
 
 templatepath=$1
-primerpath=$2
-primername=$3
+controllerpath=$2
+controllername=$3
 
-cp -r "${templatepath}" "${primerpath}"
+cp -r "${templatepath}" "${controllerpath}"
 
-files=$(find "${primerpath}/" -mindepth 1 -type f)
+files=$(find "${controllerpath}/" -mindepth 1 -type f)
 for file in ${files}
     do
-    	sed -i "s/template/${primername}/g" ${file}
-    	newfile=$(echo "${file}" | sed "s/template/${primername}/g")
+    	sed -i "s/template/${controllername}/g" ${file}
+    	newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
     	mv ${file} ${newfile} 2>/dev/null
     done

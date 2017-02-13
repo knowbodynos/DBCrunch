@@ -19,3 +19,19 @@ def nestind(nested,indlist,subf=None):
             return nested[indlist[0]];
     if len(indlist)>1:
         return nestind(nested[indlist[0]],indlist[1:],subf);
+
+def distribcores(lst,size):
+    "Distribute information in lst into chunks of size size in order to scatter to various cores."
+    L=len(lst);
+    mod=L%size;
+    split=[];
+    j=0;
+    for i in range(size):
+        increm=((L-mod)/size);
+        if i<mod:
+            split+=[lst[j:j+increm+1]];
+            j+=increm+1;
+        else:
+            split+=[lst[j:j+increm]];
+            j+=increm;
+    return split;

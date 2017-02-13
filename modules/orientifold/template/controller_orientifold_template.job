@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "primer_triangulatecones_template"
+#SBATCH -J "controller_orientifold_template"
 #################
 #Working directory
-#SBATCH -D "/gss_gpfs_scratch/altman.ro/modules/triangulatecones/template"
+#SBATCH -D "/gss_gpfs_scratch/altman.ro/modules/orientifold/template"
 #################
 #Job output file
-#SBATCH -o "primer_triangulatecones_template.out"
+#SBATCH -o "controller_orientifold_template.out"
 #################
 #Job error file
-#SBATCH -e "primer_triangulatecones_template.err"
+#SBATCH -e "controller_orientifold_template.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -30,13 +30,10 @@
 
 h11="template"
 
-#Cluster info
-username="altman.ro"
-
-#Input primer info
-modname="triangulatecones"
-primername="${h11}"
-primerpartition="ser-par-10g"
+#Input controller info
+modname="orientifold"
+controllername="${h11}"
+controllerpartition="ser-par-10g"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 #largemempartitions="largemem-10g"
 writemode="truncate"
@@ -45,7 +42,7 @@ buffertime="00:10:00"
 sleeptime="00:00:30"
 
 #Input path info
-mainpath="/gss_gpfs_scratch/${username}"
+mainpath="/gss_gpfs_scratch/$USER"
 packagepath="${mainpath}/ToricCY"
 scriptpath="${packagepath}/scripts"
 
@@ -56,12 +53,12 @@ scriptmemorylimit="1000000000"
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
-queries="[['POLY1',{'H11':${h11}},{'POLYID':1,'H11':1,'H21':1,'NVERTS':1,'NNVERTS':1}]]"
-basecollection="POLY1"
-nthreads="NNVERTS"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1,'BASIS':1}],['TRIANG',{'H11':${h11}},{'GEOMN':1,'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'INVOL':{'\$exists':True,'\$ne':None}},{'INVOLN':1,'INVOL':1}]]"
+basecollection="INVOL"
+nthreads=""
 
 #Options
 dbpushq="True"
 pdffile="jobgraph"
 
-python ${scriptpath}/primer.py "${username}" "${modname}" "${primername}" "${primerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${basecollection}" "${nthreads}" "${dbpushq}" "${pdffile}"
+python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${basecollection}" "${nthreads}" "${dbpushq}" "${pdffile}"

@@ -1,7 +1,5 @@
 setup.py
 toriccy/__init__.py
-toriccy/mongo(1:11:17, 8:52 AM).py
-toriccy/mongo(1:12:17, 9:09 AM).py
 toriccy/mongo.py
 toriccy/parse.py
 toriccy/tools.py

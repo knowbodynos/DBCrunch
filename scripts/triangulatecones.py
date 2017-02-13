@@ -10,6 +10,7 @@ import sys,os,fcntl,errno,linecache,traceback,time,re,itertools,json;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
 import toriccy.tools as tools;
+from toriccy.tools import distribcores;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -28,36 +29,6 @@ def PrintException():
     line=linecache.getline(filename, lineno, f.f_globals);
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename,lineno,line.strip(),exc_obj);
     print "More info: ",traceback.format_exc();
-
-def distribcores(lst,size):
-    "Distribute information in lst into chunks of size size in order to scatter to various cores."
-    L=len(lst);
-    mod=L%size;
-    split=[];
-    j=0;
-    for i in range(size):
-        increm=((L-mod)/size);
-        if i<mod:
-            split+=[lst[j:j+increm+1]];
-            j+=increm+1;
-        else:
-            split+=[lst[j:j+increm]];
-            j+=increm;
-    return split;
-
-def deldup(lst):
-    "Delete duplicate elements in lst."
-    return [lst[i] for i in range(len(lst)) if lst[i] not in lst[i+1:]];
-
-def nestind(nested,indlist):
-    "Get element with indices given in indlist from list nested with an arbitrary number of tiers."
-    if len(indlist)>1:
-        return nestind(nested[indlist[0]],indlist[1:]);
-    return nested[indlist[0]];
-
-def transpose_list(lst):
-    "Get the transpose of a list of lists."
-    return [[lst[i][j] for i in range(len(lst))] for j in range(len(lst[0]))];
 
 #Module-specific function definitions
 def indep_rows(mat,vect=[]):

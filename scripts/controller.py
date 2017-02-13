@@ -151,7 +151,7 @@ def jobnameexpand(jobname):
     return [bracketexpanded[0]+x for x in bracketexpanded[1].split(",")];
 
 def jobstepnamescontract(jobstepnames):
-    "3 because modname,primername are first two."
+    "3 because modname,controllername are first two."
     bracketcontracted=[x.split("_") for x in jobstepnames];
     return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
 
@@ -165,11 +165,11 @@ def formatinput(doc):#,scriptlanguage):
     #return str(formatteddoc).replace(" ","");
     return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
 
-def plotjobgraph(modname,primerpath,primername,workpath,pdffile):
+def plotjobgraph(modname,controllerpath,controllername,workpath,pdffile):
     joblist=[];
     jobsteplist=[];
     try:
-        with open(primerpath+"/primer_"+modname+"_"+primername+".out","r") as outstream:
+        with open(controllerpath+"/controller_"+modname+"_"+controllername+".out","r") as outstream:
             for line in outstream:
                 if "batch job" in line:
                     if len(jobsteplist)>0:
@@ -220,7 +220,7 @@ def plotjobgraph(modname,primerpath,primername,workpath,pdffile):
         ycoord=0;
         for x in expandedleavesitems:
             if len(x[1])==maxdepth:
-                logfilename=modname+"_"+primername+"_"+"_".join(x[1])+".log";
+                logfilename=modname+"_"+controllername+"_"+"_".join(x[1])+".log";
                 try:
                     with open(workpath+"/"+logfilename,"r") as logstream:
                         for line in logstream:
@@ -256,11 +256,11 @@ def plotjobgraph(modname,primerpath,primername,workpath,pdffile):
             plt.text(*x,bbox=dict(facecolor='lightgray',alpha=1),horizontalalignment='left');
         plt.xlim(xmin,xmax);
         plt.ylim(ymin,ymax);
-        pdf_pages=PdfPages(primerpath+"/"+modname+"_"+primername+"_"+pdffile+".pdf");
+        pdf_pages=PdfPages(controllerpath+"/"+modname+"_"+controllername+"_"+pdffile+".pdf");
         pdf_pages.savefig(fig,bbox_inches="tight");
         pdf_pages.close();
     except IOError:
-        print "File path \""+primerpath+"/primer_"+modname+"_"+primername+".out\" does not exist.";
+        print "File path \""+controllerpath+"/controller_"+modname+"_"+controllername+".out\" does not exist.";
         sys.stdout.flush();
 
 def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
@@ -317,30 +317,30 @@ def clusterjobslotsleft(maxjobcount,requiredthreads,scriptpath,scriptlanguage,ne
             jobsleft=(jobsleft and (nsublicensesleft>=requiredthreads));
     return jobsleft;
 
-def userjobsrunningq(username,modname,primername):
-    njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+def userjobsrunningq(username,modname,controllername):
+    njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
     #print "userjobsrunningq";
-    #print "squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | wc -l | head -c -1";
+    #print "squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | wc -l | head -c -1";
     #print "";
     #sys.stdout.flush();
     return njobsrunning>0;
 
-def prevprimersrunningq(username,modlist,primername):
+def prevcontrollersrunningq(username,modlist,controllername):
     if len(modlist)==0:
         njobsrunning=0;
     else:
-        grepstr="\|".join(["^primer_"+x+"_"+primername for x in modlist]);
+        grepstr="\|".join(["^controller_"+x+"_"+controllername for x in modlist]);
         njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '"+grepstr+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-        #print "prevprimersrunningq";
+        #print "prevcontrollersrunningq";
         #print "squeue -h -u "+username+" -o '%j' | grep '"+grepstr+"' | wc -l | head -c -1";
         #print "";
         #sys.stdout.flush();
     return njobsrunning>0;
 
-def userjobsrunninglist(username,modname,primername):
-    jobsrunningstring=subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+def userjobsrunninglist(username,modname,controllername):
+    jobsrunningstring=subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
     #print "userjobsrunninglist";
-    #print "squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+primername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1";
+    #print "squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1";
     #print "";
     #sys.stdout.flush();
     if jobsrunningstring=='':
@@ -352,7 +352,7 @@ def userjobsrunninglist(username,modname,primername):
 def submitjob(jobpath,jobname,jobstepnames,partition,memoryperstep,nodemaxmemory,resubmit=False):
     submit=subprocess.Popen("sbatch "+jobpath+"/"+jobname+".job",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe);
     submitcomm=submit.communicate()[0].rstrip("\n");
-    #Print information about primer job submission
+    #Print information about controller job submission
     if resubmit:
         #jobid=submitcomm.split(' ')[-1];
         #maketop=subprocess.Popen("scontrol top "+jobid,shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe);
@@ -372,10 +372,10 @@ def submitjob(jobpath,jobname,jobstepnames,partition,memoryperstep,nodemaxmemory
         print "\n";
     sys.stdout.flush();
 
-def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
+def submitcontrollerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
     submit=subprocess.Popen("sbatch "+jobpath+"/"+jobname+".job",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe);
     submitcomm=submit.communicate()[0].rstrip("\n");
-    #Print information about primer job submission
+    #Print information about controller job submission
     if resubmit:
         #jobid=submitcomm.split(' ')[-1];
         #maketop=subprocess.Popen("scontrol top "+jobid,shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe);
@@ -389,20 +389,20 @@ def submitprimerjob(jobpath,jobname,partition,nodemaxmemory,resubmit=False):
         print "\n";
     sys.stdout.flush();
 
-#def skippedjobslist(username,modname,primername,workpath):
-#    jobsrunning=userjobsrunninglist(username,modname,primername);
+#def skippedjobslist(username,modname,controllername,workpath):
+#    jobsrunning=userjobsrunninglist(username,modname,controllername);
 #    blankfilesstring=subprocess.Popen("find '"+workpath+"' -maxdepth 1 -type f -name '*.out' -empty | rev | cut -d'/' -f1 | rev | cut -d'.' -f1 | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
 #    if blankfilesstring=='':
 #        return [];
 #    else:
 #        blankfiles=blankfilesstring.split(",");
-#        skippedjobs=[modname+"_"+primername+"_"+x for x in blankfiles if x not in jobsrunning];
+#        skippedjobs=[modname+"_"+controllername+"_"+x for x in blankfiles if x not in jobsrunning];
 #        return skippedjobs;
 
-def reloadskippedjobs(modname,primername,primerpath,querystatefilename,basecollection):
+def reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection):
     try:
         skippedjobs=[];
-        with open(primerpath+"/skippedstate","r") as skippedstream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+        with open(controllerpath+"/skippedstate","r") as skippedstream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream:
             skippedheader=skippedstream.readline();
             tempstream.write(skippedheader);
             tempstream.flush();
@@ -410,7 +410,7 @@ def reloadskippedjobs(modname,primername,primerpath,querystatefilename,basecolle
                 [skippedjob,exitcode,resubmitq]=line.rstrip("\n").split(",");
                 if eval(resubmitq):
                     skippedjobsplit=skippedjob.split("_");
-                    if skippedjobsplit[:2]==[modname,primername]:
+                    if skippedjobsplit[:2]==[modname,controllername]:
                         skippedjobs+=[skippedjob];
                     else:
                         tempstream.write(line);
@@ -420,10 +420,10 @@ def reloadskippedjobs(modname,primername,primerpath,querystatefilename,basecolle
                     tempstream.flush();
             os.rename(tempstream.name,skippedstream.name);
         if len(skippedjobs)>0:
-            querystatetierfilenames=subprocess.Popen("find "+primerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+            querystatetierfilenames=subprocess.Popen("find "+controllerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
             for querystatetierfilename in querystatetierfilenames:
                 #if querystatetierfilename==querystatefilename+basecollection:
-                #    with open(primerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
+                #    with open(controllerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
                 #        for i in range(len(skippedjobs)):
                 #            line=skippedjobs[i];
                 #            if i<len(skippedjobs)-1:
@@ -433,7 +433,7 @@ def reloadskippedjobs(modname,primername,primerpath,querystatefilename,basecolle
                 #else:
                 if querystatetierfilename!=querystatefilename+basecollection:
                     try:
-                        with open(primerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=primerpath,delete=False) as tempstream:
+                        with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream:
                             for line in querystatefilestream:
                                 linestrip=line.rstrip("\n");
                                 if not any([linestrip+"_" in x for x in skippedjobs]):
@@ -441,16 +441,16 @@ def reloadskippedjobs(modname,primername,primerpath,querystatefilename,basecolle
                                     tempstream.flush();
                             os.rename(tempstream.name,querystatefilestream.name);
                     except IOError:
-                        print "File path \""+primerpath+"/"+querystatetierfilename+"\" does not exist.";
+                        print "File path \""+controllerpath+"/"+querystatetierfilename+"\" does not exist.";
                         sys.stdout.flush();
     except IOError:
-        print "File path \""+primerpath+"/skippedstate\" does not exist.";
+        print "File path \""+controllerpath+"/skippedstate\" does not exist.";
         sys.stdout.flush();
 
-def releaseheldjobs(username,modname,primername):
-    subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+primername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
+def releaseheldjobs(username,modname,controllername):
+    subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
     #print "releaseheldjobs";
-    #print "for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+primername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done";
+    #print "for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done";
     #print "";
     #sys.stdout.flush();
 
@@ -521,7 +521,7 @@ def distributeovernodes(resourcesstatefile,partitions,scriptmemorylimit,maxsteps
     memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory];
 
-def writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreads,docbatch):
+def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreads,docbatch):
     ndocs=len(docbatch);
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" || ".join(["\"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
@@ -534,7 +534,7 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writ
     jobstring+="#SBATCH -J \""+jobname+"\"\n";
     jobstring+="#################\n";
     jobstring+="#Working directory\n";
-    jobstring+="#SBATCH -D \""+primerpath+"/jobs\"\n";
+    jobstring+="#SBATCH -D \""+controllerpath+"/jobs\"\n";
     jobstring+="#################\n";
     jobstring+="#Job output file\n";
     jobstring+="#SBATCH -o \""+jobname+".out\"\n";
@@ -568,8 +568,8 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writ
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
-    jobstring+="primerpath=\""+primerpath+"\"\n";
-    jobstring+="workpath=\"${primerpath}/jobs\"\n";
+    jobstring+="controllerpath=\""+controllerpath+"\"\n";
+    jobstring+="workpath=\"${controllerpath}/jobs\"\n";
     jobstring+="\n";
     jobstring+="#Job info\n";
     jobstring+="modname=\""+modname+"\"\n";
@@ -577,7 +577,7 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writ
     #jobstring+="outputlinemarkers=\""+",".join(outputlinemarkers)+"\"\n";
     #jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     #jobstring+="scriptmemorylimit=\""+str(memoryperstep)+"\"\n";
-    #jobstring+="skippedfile=\"${primerpath}/skippedstate\"\n";
+    #jobstring+="skippedfile=\"${controllerpath}/skippedstate\"\n";
     for i in range(ndocs):
         jobstring+="jobstepnames["+str(i)+"]=\""+jobstepnames[i]+"\"\n";
         #jobstring+="newindexes["+str(i)+"]=\""+str(dict([(x,docs[i][x]) for x in dbindexes]))+"\"\n";
@@ -632,8 +632,8 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writ
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${basecollection}\" \"${workpath}\" \"${outputlinemarkers}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpushq}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     jobstring+="    else\n";
-    #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${primerpath}/hi\"\n";
-    jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" >> \"${primerpath}/skippedstate\"\n";
+    #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${controllerpath}/hi\"\n";
+    jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" >> \"${controllerpath}/skippedstate\"\n";
     jobstring+="    fi\n";
     jobstring+="    sleep 0.1\n";
     jobstring+="    pids[${i}]=$!\n";
@@ -643,7 +643,7 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writ
     jobstring+="do\n";
     jobstring+="    wait ${pids[${i}]}\n";
     jobstring+="done";
-    jobstream=open(primerpath+"/jobs/"+jobname+".job","w");
+    jobstream=open(controllerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
     jobstream.close();
@@ -685,30 +685,30 @@ def doinput(docbatch,nthreads,maxjobcount,maxstepcount,sleeptime,partitions,scri
     else:
         maxsteps=maxstepcount;
     #orderedpartitions=orderpartitions(largemempartitions);
-    #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,primername,primerpath):
+    #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,controllername,controllerpath):
     #orderedpartitions=orderpartitions(partitions)+orderedpartitions;
     orderedpartitions=orderpartitions(partitions);
     nodedistribution=distributeovernodes(resourcesstatefile,orderedpartitions,scriptmemorylimit,maxsteps);
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
-def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,primername,SLURMtimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreads):
+def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,controllername,SLURMtimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreads):
     #while not clusterjobslotsleft(maxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
     #    time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
-    jobstepnames=[modname+"_"+primername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
+    jobstepnames=[modname+"_"+controllername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
     #jobstepnamescontract=jobstepnamescontract(jobstepnames);
-    jobname=modname+"_"+primername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
+    jobname=modname+"_"+controllername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(modname,dbpushq,jobname,jobstepnames,primerpath,primername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreads,docbatch);
+    writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreads,docbatch);
     #Submit job file
     submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],inputdoc["nodemaxmemory"],resubmit=False);
     needslicense=(licensestream!=None);
     if needslicense:
         fcntl.flock(licensestream,fcntl.LOCK_UN);
-    releaseheldjobs(username,modname,primername);
+    releaseheldjobs(username,modname,controllername);
     #seekstream.write(querystream.tell());
     #seekstream.flush();
     #seekstream.seek(0);
@@ -725,48 +725,48 @@ try:
     #sys.stdout.flush();
 
     #Cluster info
-    username=sys.argv[1];
+    username=subprocess.Popen("echo $USER | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
 
-    #Input primer info
-    modname=sys.argv[2];
-    primername=sys.argv[3];
-    primerpartition=sys.argv[4];
-    partitions=sys.argv[5].split(",");
+    #Input controller info
+    modname=sys.argv[1];
+    controllername=sys.argv[2];
+    controllerpartition=sys.argv[3];
+    partitions=sys.argv[4].split(",");
     #largemempartitions=sys.argv[6].split(",");
-    writemode=sys.argv[6];
-    SLURMtimelimit=sys.argv[7];
-    buffertime=sys.argv[8];
-    sleeptime=timestamp2unit(sys.argv[9]);
+    writemode=sys.argv[5];
+    SLURMtimelimit=sys.argv[6];
+    buffertime=sys.argv[7];
+    sleeptime=timestamp2unit(sys.argv[8]);
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[10];
-    packagepath=sys.argv[11];
-    scriptpath=sys.argv[12];
+    mainpath=sys.argv[9];
+    packagepath=sys.argv[10];
+    scriptpath=sys.argv[11];
 
     #Input script info
-    scriptlanguage=sys.argv[13];
+    scriptlanguage=sys.argv[12];
     #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[14];
+    scriptmemorylimit=sys.argv[13];
     #outputlinemarkers=sys.argv[15].split(",");
 
     #Input database info
-    mongouri=sys.argv[15];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[16]);
+    mongouri=sys.argv[14];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[15]);
     #dumpfile=sys.argv[13];
-    basecollection=sys.argv[17];
-    nthreads=sys.argv[18];
+    basecollection=sys.argv[16];
+    nthreads=sys.argv[17];
     #newcollection,newfield=sys.argv[18].split(",");
-    dbpushq=sys.argv[19];
-    pdffile=sys.argv[20];
+    dbpushq=sys.argv[18];
+    pdffile=sys.argv[19];
     
     #Read seek position from file
-    #with open(primerpath+"/"+seekfile,"r") as seekstream:
+    #with open(controllerpath+"/"+seekfile,"r") as seekstream:
     #    seekpos=eval(seekstream.read());
 
     #Open seek file stream
-    #seekstream=open(primerpath+"/"+seekfile,"w");
+    #seekstream=open(controllerpath+"/"+seekfile,"w");
 
     #If first submission, read from database
     #if seekpos==-1:
@@ -775,22 +775,27 @@ try:
     statepath=packagepath+"/state";
     modulesdirpath=mainpath+"/modules";
     modulepath=modulesdirpath+"/"+modname;
-    primerpath=modulepath+"/"+primername;
-    workpath=primerpath+"/jobs";  
+    controllerpath=modulepath+"/"+controllername;
+    workpath=controllerpath+"/jobs";  
     resourcesstatefile=statepath+"/resources";
     modulesstatefile=statepath+"/modules";
     softwarestatefile=statepath+"/software";
-    counterstatefile=primerpath+"/counterstate";
+    counterstatefile=controllerpath+"/counterstate";
     querystatefilename="querystate";
-    #querystatefile=primerpath+"/querystate";
+    #querystatefile=controllerpath+"/querystate";
 
-    primerpartitiontimelimit,primerbuffertimelimit=getpartitiontimelimit(primerpartition,"",buffertime);
+    if buffertime=="":
+        buffertime="00:00:00";
+
+    controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,"",buffertime);
     
     mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
     dbindexes=toriccy.getintersectionindexes(db,basecollection);
+    print dbindexes;
+    sys.stdout.flush();
 
     allindexes=toriccy.getunionindexes(db);
     try:
@@ -826,7 +831,7 @@ try:
 
     prevmodlist=modlist[:modlist.index(modname)];
     
-    firstlastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername)));
+    firstlastrun=(not (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername)));
     if firstlastrun and needslicense:
        fcntl.flock(licensestream,fcntl.LOCK_UN);
     #firstrun=True;
@@ -841,13 +846,13 @@ try:
         raise;
     #batchcounter=1;
     #stepcounter=1;
-    while (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or firstlastrun) and timeleftq(starttime,primerbuffertimelimit):
+    while (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and timeleftq(starttime,controllerbuffertimelimit):
         #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         #if len(oldqueryresultinds)==0:
         #    oldqueryresult=[];
         #else:
         #    oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
-        #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,primername) for y in contractededjobname2jobdocs(x,dbindexes) if len(x)>0];
+        #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,controllername) for y in contractededjobname2jobdocs(x,dbindexes) if len(x)>0];
         #with open(querystatefile,"a") as iostream:
         #    for line in oldqueryresult+oldqueryresultrunning:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
@@ -856,32 +861,32 @@ try:
         #print "";
         #sys.stdout.flush();
 
-        reloadskippedjobs(modname,primername,primerpath,querystatefilename,basecollection);
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,primerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreads,maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreads,maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,primername,SLURMtimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,primerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreads),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+primername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,primerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
+        reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreads,maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreads,maxjobcount,maxstepcount,sleeptime,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,controllername,SLURMtimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreads),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,controllerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(counterstatefile,"w") as counterstream:
             counterstream.write(counterheader);
             counterstream.write(str(batchcounter)+","+str(stepcounter));
             counterstream.flush();
-        if timeleftq(starttime,primerbuffertimelimit):
-            firstlastrun=(not (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or firstlastrun));
-            releaseheldjobs(username,modname,primername);
+        if timeleftq(starttime,controllerbuffertimelimit):
+            firstlastrun=(not (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun));
+            releaseheldjobs(username,modname,controllername);
 
-    #while userjobsrunningq(username,modname,primername) and timeleftq(starttime,primerbuffertimelimit):
-    #    releaseheldjobs(username,modname,primername);
-    #    skippedjobs=skippedjobslist(username,modname,primername,workpath);
+    #while userjobsrunningq(username,modname,controllername) and timeleftq(starttime,controllerbuffertimelimit):
+    #    releaseheldjobs(username,modname,controllername);
+    #    skippedjobs=skippedjobslist(username,modname,controllername,workpath);
     #    for x in skippedjobs:
-    #        nodemaxmemory=getnodemaxmemory(resourcesstatefile,primerpartition);
-    #        submitjob(workpath,x,primerpartition,nodemaxmemory,nodemaxmemory,resubmit=True);
+    #        nodemaxmemory=getnodemaxmemory(resourcesstatefile,controllerpartition);
+    #        submitjob(workpath,x,controllerpartition,nodemaxmemory,nodemaxmemory,resubmit=True);
     #    time.sleep(sleeptime);
 
-    if (prevprimersrunningq(username,prevmodlist,primername) or userjobsrunningq(username,modname,primername) or firstlastrun) and not timeleftq(starttime,primerbuffertimelimit):
-        #Resubmit primer job
-        nodemaxmemory=getnodemaxmemory(resourcesstatefile,primerpartition);
-        submitprimerjob(primerpath,"primer_"+modname+"_"+primername,primerpartition,nodemaxmemory,resubmit=True);
+    if (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and not timeleftq(starttime,controllerbuffertimelimit):
+        #Resubmit controller job
+        nodemaxmemory=getnodemaxmemory(resourcesstatefile,controllerpartition);
+        submitcontrollerjob(controllerpath,"controller_"+modname+"_"+controllername,controllerpartition,nodemaxmemory,resubmit=True);
     else:
         if pdffile!="":
-            plotjobgraph(modname,primerpath,primername,workpath,pdffile);
+            plotjobgraph(modname,controllerpath,controllername,workpath,pdffile);
 
     #querystream.close();
     #seekstream.close();
