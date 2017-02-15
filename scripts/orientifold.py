@@ -23,16 +23,16 @@ from toriccy.parse import pythonlist2mathematicalist as py2mat
 import sys
 import re
     
-def inv(sigma, poly, pr):
-    """Returns the polynomial after being acted on by sigma"""
-    k = len(sigma)
+def inv(invol, poly, pr):
+    """Returns the polynomial after being acted on by invol"""
+    k = len(invol)
     d = poly.dict()
     d2 = {}
           
     for key in d.keys():
         nkey = list(key)
         for i in range(k):
-            swap = sigma[i]
+            swap = invol[i]
             nkey[swap[0]] = key[swap[1]]
             nkey[swap[1]] = key[swap[0]]
         nkey = tuple(nkey)
@@ -97,7 +97,7 @@ def symm_poly(poly, ai, pr):
     return symm_poly
 
 
-def symm_poly_swap(poly, sigma, pr):
+def symm_poly_swap(poly, invol, pr):
     """Determines the terms of the CY which are symmetric under the involution."""
     pStr = str(poly)
     pTerms = pStr.split('+')
@@ -111,8 +111,8 @@ def symm_poly_swap(poly, sigma, pr):
     symm = []
     for i in range(n):
         term = pTerms[i]
-        sigmaTerm = pr(inv(sigma, term, pr))
-        if sigmaTerm in pTerms:
+        involTerm = pr(inv(invol, term, pr))
+        if involTerm in pTerms:
             symm.append(term)
 
     symmPoly = pr(0)
@@ -177,23 +177,23 @@ def cy_polys(symm_terms, pr):
     return polys
 
 
-def symm(sigma, poly, pr):
-    """Returns the part of the polynomial poly symmetric under the involution sigma"""
-    spoly = inv(sigma, poly, pr)
+def symm(invol, poly, pr):
+    """Returns the part of the polynomial poly symmetric under the involution invol"""
+    spoly = inv(invol, poly, pr)
     symm = (pr(poly) + pr(spoly)) / 2
     return symm
 
 
-def asymm(sigma, poly, pr):
-    """Returns the part of the polynomial poly antisymmetric under the involution sigma"""
-    spoly = inv(sigma, poly, pr)
+def asymm(invol, poly, pr):
+    """Returns the part of the polynomial poly antisymmetric under the involution invol"""
+    spoly = inv(invol, poly, pr)
     asymm = (pr(poly) - pr(spoly)) / 2
     return asymm
 
 
-def cs_moduli_tuned(sigma, poly, pr):
+def cs_moduli_tuned(invol, poly, pr):
     """Returns the number of complex structure moduli that must be tuned to zero"""
-    a = asymm(sigma, poly, pr)
+    a = asymm(invol, poly, pr)
     return len(a.dict())
 
 
@@ -333,10 +333,10 @@ def smith_solve(A, b):
 
 
 
-def invariant_monomials(rwmat, sigma):
-    """Computes the invariant monomials of the involution sigma with n factors to a term."""
+def invariant_monomials(rwmat, invol):
+    """Computes the invariant monomials of the involution invol with n factors to a term."""
     (m, n) = rwmat.shape
-    k = len(sigma)
+    k = len(invol)
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names("x+",n))
     x = pr.gens()
 
@@ -344,14 +344,14 @@ def invariant_monomials(rwmat, sigma):
 
     # Find the difference between charge columns of the divisors that are swapped
     ccols = []
-    for swap in sigma:
+    for swap in invol:
         a = rwmat[:,swap[0]]
         b = rwmat[:,swap[1]]
         ccols.append([j - i for i, j in zip(a,b)])
 
 
     # Create the trivial invariant polynomials
-    for swap in sigma:
+    for swap in invol:
         poly = x[swap[0]]*x[swap[1]]
         invars.append(poly)
 
@@ -391,7 +391,7 @@ def invariant_monomials(rwmat, sigma):
                     term1 = pr(1)
                     term2 = pr(1)
                     for i in range(j):
-                        swap = sigma[comb[i]]
+                        swap = invol[comb[i]]
                         if gen[i] >=0:
                             i1 = swap[0]
                             i2 = swap[1]
@@ -410,14 +410,14 @@ def invariant_monomials(rwmat, sigma):
     return invars
 
 
-def new_rwmat(rwmat, sigma, polys=None):
+def new_rwmat(rwmat, invol, polys=None):
     """Finds the new reduced weight matrix after the Segre map."""
     (m, n) = rwmat.shape
     if polys == None:
-        polys = invariant_monomials(rwmat, sigma)
+        polys = invariant_monomials(rwmat, invol)
     
-    sigma_inds = sorted(list(itertools.chain.from_iterable(sigma)))
-    keep_inds = list(set(range(n)) - set(sigma_inds))
+    invol_inds = sorted(list(itertools.chain.from_iterable(invol)))
+    keep_inds = list(set(range(n)) - set(invol_inds))
     new_cols = []
     
     for poly in polys:
@@ -431,7 +431,7 @@ def new_rwmat(rwmat, sigma, polys=None):
 
     q = 0
     qp = len(polys)
-    k = len(sigma)
+    k = len(invol)
     lst = []
     new_n = n + qp - k
     ni = []
@@ -478,17 +478,17 @@ def names_list(rwn, ni):
 
 
 
-def defining_expression(rwmat, sigma, ni, polys=None):
+def defining_expression(rwmat, invol, ni, polys=None):
     """Finds the defining equation among the list of new projective coordinates."""
     (m, n) = rwmat.shape
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names("x+",n))
     x = pr.gens()
     
     def_exp = 0
-    k1 = len(sigma)
+    k1 = len(invol)
     
     if polys == None:
-        polys = invariant_monomials(rwmat, sigma)
+        polys = invariant_monomials(rwmat, invol)
     s = len(polys)
     k = int((s + 2) / 3)
     z = []
@@ -517,15 +517,15 @@ def defining_expression(rwmat, sigma, ni, polys=None):
     return def_exp
     
         
-def anti_invariant_monomials(rwmat, sigma, polys, ni):
-    """Returns the indices of the anti-invariant monomials corresponding to rwn and sigma."""
+def anti_invariant_monomials(rwmat, invol, polys, ni):
+    """Returns the indices of the anti-invariant monomials corresponding to rwn and invol."""
     (m, n) = rwmat.shape
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names('x+', n))
 
     anti_inds = []
     for i in range(len(polys)):
         p = polys[i]
-        if asymm(sigma, p, pr) == p:
+        if asymm(invol, p, pr) == p:
             anti_inds.append(ni[i])
 
     return anti_inds
@@ -642,16 +642,16 @@ def fixed_flip_old(rwmat, ni, ai, polys, sr, rwn):
     return fsets, fsetsx
 
 
-def fixed_swap(rwmat, sigma, ni, polys, sr):
+def fixed_swap(rwmat, invol, ni, polys, sr):
     (m, n) = rwmat.shape
-    k = len(sigma)
+    k = len(invol)
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names("x+",n))
     x = pr.gens()
 
     fixed_sets = []
     
     for i in range(k):
-        swap = sigma[i]
+        swap = invol[i]
         #fs_gens.append(x[swap[0]]**g - x[swap[1]]**g)
         fs = [swap[0], swap[1]]
         if fs not in sr:
@@ -993,10 +993,10 @@ def sectors(sr, pr):
     return gensets
 
 
-def new_sr_ideal(rwmat, sigma, polys, sr, ni):
+def new_sr_ideal(rwmat, invol, polys, sr, ni):
     """Returns the new SR ideal after the coordinate change"""
     (m, n) = rwmat.shape
-    k = len(sigma)
+    k = len(invol)
     q = len(sr)
     r = len(polys)
 
@@ -1529,60 +1529,60 @@ def nonzero_elements(t):
 
 
 
-def sigma_basis_charges(rwmat, sigma, bi):
+def invol_basis_charges(rwmat, invol, bi):
     """Computes the action of the involution on the cohomology basis charge vectors."""
     (m, n) = rwmat.shape
-    si = [w for b in sigma for w in b]
+    si = [w for b in invol for w in b]
     rwmat = np.array(rwmat) # Typecasting if necessary
 
     # Find the images of the basis divisors under the involution
-    bi_sigma = []
+    bi_invol = []
     for i in bi:
         if i not in si:
-            bi_sigma.append(i)
+            bi_invol.append(i)
         else:
-            for swap in sigma:
+            for swap in invol:
                 if i in swap:
                     if i == swap[0]:
-                        bi_sigma.append(swap[1])
+                        bi_invol.append(swap[1])
                     else:
-                        bi_sigma.append(swap[0])
+                        bi_invol.append(swap[0])
                     break
 
     # Find the charge vectors for the transformed basis divisors
     charges = [rwmat[:,j].tolist() for j in range(n)]
-    charges = [charges[i] for i in bi_sigma]
+    charges = [charges[i] for i in bi_invol]
 
     return charges
 
 
-def sigma_basis(rwmat, sigma, bi, bs_charges=None):
+def invol_basis(rwmat, invol, bi, bs_charges=None):
     """Computes the action of the involution on the cohomology basis."""
     if bs_charges == None:
-        bs_charges = sigma_basis_charges(rwmat, sigma, bi)
+        bs_charges = invol_basis_charges(rwmat, invol, bi)
 
     # Find the basis decompositions of the transformed charge vectors
     bds = [basis_decomposition(rwmat, bi, bs_charges[i]) for i in range(len(bs_charges))]
     return bds
 
 
-def tadpole_cancellation_basis(rwmat, sigma, bi, sigma_charges=None):
+def tadpole_cancellation_basis(rwmat, invol, bi, invol_charges=None):
     (m, n) = rwmat.shape
-    si = [w for b in sigma for w in b]
-    if sigma_charges == None:
-        sigma_charges = sigma_basis_charges(rwmat, sigma, bi)
+    si = [w for b in invol for w in b]
+    if invol_charges == None:
+        invol_charges = invol_basis_charges(rwmat, invol, bi)
 
     # Find the charge vectors for the basis divisors
     charges = [rwmat[:,j].tolist() for j in range(n)]
     charges = [charges[i] for i in bi]
 
     # The basis decompositions for the transformed charge vectors
-    bds = sigma_basis(rwmat, sigma, bi)
+    bds = invol_basis(rwmat, invol, bi)
 
     tcb = []
     for i in range(len(charges)):
         if bi[i] in si:
-            vec = [(charges[i][j] + sigma_charges[i][j]) for j in range(m)]
+            vec = [(charges[i][j] + invol_charges[i][j]) for j in range(m)]
         else:
             vec = charges[i]
         tcb.append(vec)
@@ -1715,7 +1715,7 @@ def fixed_flip(rwold, ni, ai, polys, sr, rwmat):
     return fsets, fsetsx
 
 
-def gauge_groups_Ys(rwmat, rwnFull, sigma, polys, o7Charges, fsets, prx, pry, ai, bi, ni):
+def gauge_groups_Ys(rwmat, rwnFull, invol, polys, o7Charges, fsets, prx, pry, ai, bi, ni):
     """Computes the gauge groups."""
     ddCharges = [4*w for w in o7Charges]
     divPoly = general_poly(rwnFull, ddCharges, pr=pry)
@@ -1725,7 +1725,7 @@ def gauge_groups_Ys(rwmat, rwnFull, sigma, polys, o7Charges, fsets, prx, pry, ai
 
     # Classify the monomials by which case they fall under
     facs = [factor(p) for p in monomials]
-    cases = [divisor_case_Ys(p, rwmat, rwnFull, sigma, fsets, bi, pry)-1 for p in monomials]
+    cases = [divisor_case_Ys(p, rwmat, rwnFull, invol, fsets, bi, pry)-1 for p in monomials]
     #print(monomials)
 
     # The possible gauge groups
@@ -1744,7 +1744,7 @@ def gauge_groups_Ys(rwmat, rwnFull, sigma, polys, o7Charges, fsets, prx, pry, ai
 
 
 
-def divisor_case_Ys(p, rwmat, rwnFull, sigma, fsets, bi, pry):
+def divisor_case_Ys(p, rwmat, rwnFull, invol, fsets, bi, pry):
     """Returns which of the three cases the D7-brane falls into. See arXiv 0811.2936v3, Section 2.1."""
     # Check whether the divisor lies in an O7 plane - i.e. is it pointwise fixed
     f = factor(p)
@@ -1758,31 +1758,31 @@ def divisor_case_Ys(p, rwmat, rwnFull, sigma, fsets, bi, pry):
         return 3
 
 
-    # If not, determine whether or not its charge vector is sigma-invariant
+    # If not, determine whether or not its charge vector is invol-invariant
     v = charge_vector(p, rwnFull, pr=pry)
     bd = basis_decomposition(rwmat, bi, v)
-    sigmaBasis = sigma_basis_charges(rwmat, sigma, bi)
+    involBasis = invol_basis_charges(rwmat, invol, bi)
 
-    vSigma = []
-    for i in range(len(sigmaBasis[0])):
+    vinvol = []
+    for i in range(len(involBasis[0])):
         vs = 0
-        for j in range(len(sigmaBasis)):
-            vs += bd[j]*sigmaBasis[j][i]
-        vSigma.append(vs)
+        for j in range(len(involBasis)):
+            vs += bd[j]*involBasis[j][i]
+        vinvol.append(vs)
 
-    if v != vSigma:
+    if v != vinvol:
         return 1
     else:
         return 2
 
 
-def o7_cancellation_vector(rwmat, sigma, bi, a):
+def o7_cancellation_vector(rwmat, invol, bi, a):
     """a is the basis decomposition of the DD charge vector."""
-    bds = sigma_basis(rwmat, sigma, bi)
+    bds = invol_basis(rwmat, invol, bi)
     Z = IntegerRing()
 
-    # sMatrix represents sigma as a linear transformation on the basis charge vectors
-    # Use this instead of sigma_basis_charges for factorization purposes
+    # sMatrix represents invol as a linear transformation on the basis charge vectors
+    # Use this instead of invol_basis_charges for factorization purposes
     sMatrix = matrix(Z, bds).T
     k = sMatrix.nrows()
     ident = identity_matrix(ZZ, k)
@@ -1804,14 +1804,14 @@ def o7_cancellation_configurations(rwmat, bi, a):
     return smith_solve(B, a)
 
 
-def gauge_groups_Xs(rwmat, sigma, o7Charges, fsets, pr, ai, bi, ni):
+def gauge_groups_Xs(rwmat, invol, o7Charges, fsets, pr, ai, bi, ni):
     """Computes the gauge groups."""
 
     ddCharges = [8*w for w in o7Charges]
     a = basis_decomposition(rwmat, bi, ddCharges)
 
     # Classify the monomials by which case they fall under
-    v = o7_cancellation_vector(rwmat, sigma, bi, a)
+    v = o7_cancellation_vector(rwmat, invol, bi, a)
     configs = o7_cancellation_configurations(rwmat, bi, v)
     nums = [1,2,2]
 
@@ -1827,7 +1827,7 @@ def gauge_groups_Xs(rwmat, sigma, o7Charges, fsets, pr, ai, bi, ni):
         for par in partitions:
             cases = []
             for i in range(len(par)):
-                cases.append(divisor_case_Xs(rwmat, sigma, bi, par[i], o7Charges, fsets)-1)
+                cases.append(divisor_case_Xs(rwmat, invol, bi, par[i], o7Charges, fsets)-1)
 
 
 
@@ -1896,7 +1896,7 @@ def partition_set(a):
 
 
 
-def divisor_case_Xs(rwmat, sigma, bi, c, o7Charges, fsets):
+def divisor_case_Xs(rwmat, invol, bi, c, o7Charges, fsets):
     """Returns which of the three cases the D7-brane falls into. See arXiv 0811.2936v3, Section 2.1."""
     # Check whether the divisor lies in an O7 plane - i.e. is it pointwise fixed
     c = list(c)
@@ -1914,8 +1914,8 @@ def divisor_case_Xs(rwmat, sigma, bi, c, o7Charges, fsets):
     if onO7:
         return 3
 
-    # If not, check whether the divisor's charge vector is sigma-invariant
-    # Since x + sigma(x) = ddCharges, the two terms are equal if x = ddCharges/2
+    # If not, check whether the divisor's charge vector is invol-invariant
+    # Since x + invol(x) = ddCharges, the two terms are equal if x = ddCharges/2
     (m, n) = rwmat.shape
     testVector = [4*w for w in o7Charges]
     chargeVector = []
@@ -1940,43 +1940,37 @@ def read_JSON(string):
     return json.loads(string)
 
 #Hodge splitting
-def hodgesplit(h11,h21,sigma,basis,dresverts):
-    print h11;
-    print h21;
-    print sigma;
-    print basis;
-    print dresverts;
-    sys.stdout.flush();
-    R=PolynomialRing(QQ,['t'+str(i+1) for i in range(len(basis))]+['D'+str(i+1) for i in range(len(dresverts))]+['Ep'+str(i+1) for i in range(len(sigma))]+['Em'+str(i+1) for i in range(len(sigma))]+['J'+str(i+1) for i in range(len(basis))]);
+def hodgesplit(h11,h21,invol,basisinds,dresverts):
+    R=PolynomialRing(QQ,['t'+str(i+1) for i in range(len(basisinds))]+['D'+str(i+1) for i in range(len(dresverts))]+['Ep'+str(i+1) for i in range(len(invol))]+['Em'+str(i+1) for i in range(len(invol))]+['J'+str(i+1) for i in range(len(basisinds))]);
     vars=R.gens_dict();
     Ilin=R.ideal([sum([dresverts[i][j]*vars['D'+str(i+1)] for i in range(len(dresverts))]) for j in range(len(dresverts[0]))]);
-    Isplit=R.ideal([z for y in [[vars['D'+str(sigma[i][0]+1)]-(1/2)*(vars['Ep'+str(i+1)]+vars['Em'+str(i+1)]),vars['D'+str(sigma[i][1]+1)]-(1/2)*(vars['Ep'+str(i+1)]-vars['Em'+str(i+1)])] for i in range(len(sigma))] for z in y]);
-    Ibasis=R.ideal([vars['D'+str(basis[i]+1)]-vars['J'+str(i+1)] for i in range(len(basis))]);
+    Isplit=R.ideal([z for y in [[2*vars['D'+str(invol[i][0]+1)]-(vars['Ep'+str(i+1)]+vars['Em'+str(i+1)]),2*vars['D'+str(invol[i][1]+1)]-(vars['Ep'+str(i+1)]-vars['Em'+str(i+1)])] for i in range(len(invol))] for z in y]);
+    Ibasisinds=R.ideal([vars['D'+str(basisinds[i]+1)]-vars['J'+str(i+1)] for i in range(len(basisinds))]);
     hysurf=sum([vars['D'+str(i+1)] for i in range(len(dresverts))]);
-    hyideal=(Ilin+Ibasis).quotient(R.ideal(hysurf));
-    J=sum([vars['t'+str(i+1)]*vars['D'+str(basis[i]+1)] for i in range(len(basis))]);
+    hyideal=(Ilin+Ibasisinds).quotient(R.ideal(hysurf));
+    J=sum([vars['t'+str(i+1)]*vars['D'+str(basisinds[i]+1)] for i in range(len(basisinds))]);
     Jreduced=J.reduce(Ilin+Isplit);
-    Isym=R.ideal([y for y in [Jreduced.coefficient(vars['Em'+str(i+1)]) for i in range(len(sigma))] if y!=0]);
+    Isym=R.ideal([y for y in [Jreduced.coefficient(vars['Em'+str(i+1)]) for i in range(len(invol))] if y!=0]);
     symJ=Jreduced.reduce(Isym);
-    symJcoefficients=tools.transpose_list([y for y in [[symJ.coefficient(vars['Ep'+str(i+1)]),(vars['D'+str(sigma[i][0]+1)]+vars['D'+str(sigma[i][1]+1)]).reduce(hyideal)] for i in range(len(sigma))]+[[symJ.coefficient(vars['D'+str(i+1)]),vars['D'+str(i+1)].reduce(hyideal)] for i in range(len(dresverts))] if y[0]!=0]);
-    Iasym=R.ideal([y for y in [Jreduced.coefficient(vars['Ep'+str(i+1)]) for i in range(len(sigma))] if y!=0]);
+    symJcoefficients=tools.transpose_list([y for y in [[symJ.coefficient(vars['Ep'+str(i+1)]),(vars['D'+str(invol[i][0]+1)]+vars['D'+str(invol[i][1]+1)]).reduce(hyideal)] for i in range(len(invol))]+[[symJ.coefficient(vars['D'+str(i+1)]),vars['D'+str(i+1)].reduce(hyideal)] for i in range(len(dresverts))] if y[0]!=0]);
+    Iasym=R.ideal([y for y in [Jreduced.coefficient(vars['Ep'+str(i+1)]) for i in range(len(invol))] if y!=0]);
     asymJ=Jreduced.reduce(Iasym);
-    asymJcoefficients=tools.transpose_list([y for y in [[asymJ.coefficient(vars['Em'+str(i+1)]),(vars['D'+str(sigma[i][0]+1)]-vars['D'+str(sigma[i][1]+1)]).reduce(hyideal)] for i in range(len(sigma))] if y[0]!=0]);
+    asymJcoefficients=tools.transpose_list([y for y in [[asymJ.coefficient(vars['Em'+str(i+1)]),(vars['D'+str(invol[i][0]+1)]-vars['D'+str(invol[i][1]+1)]).reduce(hyideal)] for i in range(len(invol))] if y[0]!=0]);
     symh11=len(symJcoefficients[0]);
     symh21=((h21-h11)/2)-symh11
     h11split=[symh11,h11-symh11];
     h21split=[symh21,h21-symh21];
     return [h11split,h21split,symJcoefficients,asymJcoefficients];
     
-def allbaseshodgesplit(h11,h21,sigma,basis,dresverts,rwmat):
+def allbaseshodgesplit(h11,h21,invol,basisinds,dresverts,rwmat):
     bases=[x for x in Combinations(range(len(dresverts)),matrix(rwmat).rank()).list() if matrix([rwmat[i] for i in x]).rank()==matrix(rwmat).rank()];
-    result0=[hodgesplit(h11,h21,sigma,x,dresverts,rwmat) for x in [basis]+bases];
+    result0=[hodgesplit(h11,h21,invol,x,dresverts,rwmat) for x in [basisinds]+bases];
     result1=[[x[0],x[1]] for x in result0];
     result=[all([x==result1[0] for x in result1])];
     result.extend([result0[0][0],result0[0][1],result0[0][2][1],result0[0][3][1]]);
     return result;
 
-def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresverts, sr, rwmat):
+def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat):
     """Runs the entire routine for a single example."""
 
     # DATA FROM POLYID, GEONUM, TRINUM
@@ -2017,13 +2011,13 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
 
     # Reindex to start at zero (since Mathematica starts at one)
     #sr = [[w-1 for w in z] for z in sr]
-    #sigma = [[w-1 for w in z] for z in sigma]
+    #invol = [[w-1 for w in z] for z in invol]
 
     rwmat = np.transpose(np.array(rwmat))
 
     (m, n) = rwmat.shape
-    k = len(sigma)
-    polys = invariant_monomials(rwmat, sigma)
+    k = len(invol)
+    polys = invariant_monomials(rwmat, invol)
     #print(polys)
 
     #o7 = []
@@ -2043,9 +2037,9 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
     # Split based on whether there are anti-invariant monomials or not
     q = len(polys)
     if q > k:
-        ci, ni, rwn, rwnFull = new_rwmat(rwmat, sigma, polys)
+        ci, ni, rwn, rwnFull = new_rwmat(rwmat, invol, polys)
         #print(rwn)
-        ai = anti_invariant_monomials(rwmat, sigma, polys, ni)
+        ai = anti_invariant_monomials(rwmat, invol, polys, ni)
         fsets, fsetsx = fixed_flip(rwmat, ni, ai, polys, sr, rwn)
         #print(fsets)
         prx = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
@@ -2059,7 +2053,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
         # cypoly = poly_ytox(cypoly, polys, prx, pry, ni)
         cypoly = general_poly(rwmat, charges, pr=prx)
         nterms1 = len(cypoly.dict().keys())
-        cypoly = symm_poly_swap(cypoly, sigma, prx)
+        cypoly = symm_poly_swap(cypoly, invol, prx)
         nterms2 = len(cypoly.dict().keys())
         pr = prx
 
@@ -2100,15 +2094,15 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
                 oplanesred[On] = [fr]
     else:
         pr = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
-        ni = [w for b in sigma for w in b]
-        fsets = fixed_swap(rwmat, sigma, polys, ni, sr)
+        ni = [w for b in invol for w in b]
+        fsets = fixed_swap(rwmat, invol, polys, ni, sr)
         charges = cy_charges(rwmat)
         rwmat = np.matrix(rwmat)
 
         # Use the most general poly for now
         cypoly = general_poly(rwmat, charges, pr=pr)
         nterms1 = len(cypoly.dict().keys())
-        cypoly = symm_poly_swap(cypoly, sigma, pr)
+        cypoly = symm_poly_swap(cypoly, invol, pr)
         nterms2 = len(cypoly.dict().keys())
         #print(cypoly1)
         #print(cypoly)
@@ -2156,18 +2150,30 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
     prn = PolynomialRing(base_ring=CC, names=newnames)
     pt = [prn(w) for w in newnames[1:]] + [0]
     #oplanes = [o1,o3,o5,o7]
-    oplanevals = oplanes.values()
-    for opl in oplanevals:
-        for i in range(len(opl)):
-            fset = opl[i]
+    for key in oplanes.keys():
+        oplaneval = oplanes[key]
+        for i in range(len(oplaneval)):
+            fset = oplaneval[i]
             for j in range(len(fset)):
                 w = prn(fset[j])
                 w = w(pt)
                 fset[j] = prn(w)
-            opl[i] = fset
+            oplaneval[i] = fset
+        oplanes.update({key:oplaneval})
 
-    #allbases,h11split,h21split,symbasis,asymbasis=allbaseshodgesplit(h11,h21,sigma,basisinds,dresverts,np.transpose(rwmat).tolist())
-    h11split,h21split,symJcoeffs,asymJcoeffs=hodgesplit(h11,h21,sigma,basisinds,dresverts)
+    for key in oplanesred.keys():
+        oplaneredval = oplanesred[key]
+        for i in range(len(oplaneredval)):
+            fset = oplaneredval[i]
+            for j in range(len(fset)):
+                w = prn(fset[j])
+                w = w(pt)
+                fset[j] = prn(w)
+            oplaneredval[i] = fset
+        oplanesred.update({key:oplaneredval})
+
+    #allbases,h11split,h21split,symbasis,asymbasis=allbaseshodgesplit(h11,h21,invol,basisinds,dresverts,np.transpose(rwmat).tolist())
+    h11split,h21split,symJcoeffs,asymJcoeffs=hodgesplit(h11,h21,invol,basisinds,dresverts)
     query = {}
     query[polykey] = polyid
     query[geokey] = geonum
@@ -2192,8 +2198,8 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
     output[origcyseckey] = nterms1
     output[symcyseckey] = nterms2
 
-    # Reindex sigma to match the database/Mathematica format
-    sigma = [[w+1 for w in f] for f in sigma]
+    # Reindex invol to match the database/Mathematica format
+    invol = [[w+1 for w in f] for f in invol]
 
     # print(o7red)
     # cgs = o7_charges(rwnFull, o7red, pry)
@@ -2232,8 +2238,8 @@ def main_all(filename, tofile):
                 continue
 
             print(i)
-            [polyid, geonum, bi, rwmat, trinum, sr, sigma] = data[i]
-            output = main_one(polyid, geonum, trinum, sigma, sr, rwmat)
+            [polyid, geonum, bi, rwmat, trinum, sr, invol] = data[i]
+            output = main_one(polyid, geonum, trinum, invol, sr, rwmat)
             output = dict(eval(output))
             if len(list(eval(output["O1"]))) > 0:
                 o1s.append(i)
@@ -2253,15 +2259,15 @@ h21 = involdoc['H21']
 invol = involdoc['INVOL']
 basis = involdoc['BASIS']
 dresverts = parse.mathematicalist2pythonlist(involdoc['DRESVERTS'])
-srideal = involdoc['SRIDEAL']
-rescws = involdoc['RESCWS']
+sr = involdoc['SRIDEAL']
+rwmat = involdoc['RESCWS']
 
-sigma = tools.deldup([sorted([y-1 for y in x]) for x in parse.mathematicalist2pythonlist(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
+invol = tools.deldup([sorted([y-1 for y in x]) for x in parse.mathematicalist2pythonlist(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
 basisinds = [x-1 for x in tools.transpose_list(parse.mathematicalist2pythonlist(re.sub("[JD]","",basis)))[1]]
-sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in srideal.lstrip("{").rstrip("}").split(",")]
-rwmat = np.transpose(np.array(parse.mathematicalist2pythonlist(rescws)))
+sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
+rwmat = np.transpose(np.array(parse.mathematicalist2pythonlist(rwmat)))
 
-output = main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresverts, sr, rwmat)
+output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
 
 print output
 sys.stdout.flush()
