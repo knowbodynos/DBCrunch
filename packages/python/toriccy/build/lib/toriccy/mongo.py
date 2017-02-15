@@ -1,5 +1,3 @@
-#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
-
 import sys,os,tempfile;
 from pymongo import MongoClient;
 from math import ceil;
@@ -34,23 +32,25 @@ def gettiers(db):
 #    result=tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",query,{"_id":0,"INDEX":1})]);
 #    return result;
 
-def getintersectionindexes(db,*collections):
-    if len(collections)==0:
-        return tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
-    else:
-        result=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[0]},{"_id":0,"INDEX":1})];
-        for i in range(1,len(collections)):
-            result=[y for y in result if y in [x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[i]},{"_id":0,"INDEX":1})]];
-        return tools.deldup(result);
-
 def getunionindexes(db,*collections):
     if len(collections)==0:
-        return tools.deldup([x["INDEX"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"INDEX":1})]);
+        tierquery={};
     else:
-        result=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[0]},{"_id":0,"INDEX":1})];
-        for i in range(1,len(collections)):
-            result+=[x["INDEX"] for x in collectionfind(db,"INDEXES",{"TIER":collections[i]},{"_id":0,"INDEX":1})];
-        return tools.deldup(result);
+        tierquery={"TIER":{"$in":collections}};
+    sortedindexdocs=sorted(collectionfind(db,"INDEXES",tierquery,{"_id":0,"TIERID":1,"TIER":1,"INDEXID":1,"INDEX":1}),key=lambda x:(x["TIERID"],x["INDEXID"]));
+    unionindexes=tools.deldup([x["INDEX"] for x in sortedindexdocs]);
+    return unionindexes;
+
+def getintersectionindexes(db,*collections):
+    if len(collections)==0:
+        tierquery={};
+    else:
+        tierquery={"TIER":{"$in":collections}};
+    sortedindexdocs=sorted(collectionfind(db,"INDEXES",tierquery,{"_id":0,"TIERID":1,"TIER":1,"INDEXID":1,"INDEX":1}),key=lambda x:(x["TIERID"],x["INDEXID"]));
+    unionindexes=tools.deldup([x["INDEX"] for x in sortedindexdocs]);
+    indexgroups=[[x for x in sortedindexdocs if x["INDEX"]==y] for y in unionindexes];
+    intersectionindexes=[x[0]["INDEX"] for x in indexgroups if all([y["TIER"] in collections for y in x]) and all([z in [y["TIER"] for y in x] for z in collections])];
+    return intersectionindexes;
 
 def getcomplementindexes(db,*collections):
     return [x for x in getunionindexes(db,*collections) if x not in getintersectionindexes(db,*collections)];
@@ -190,7 +190,7 @@ def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
 
-def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,resetstatefile=False,toplevel=True):
+def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,resetstatefile=False,toplevel=True):
     docbatch=[];
     endofdocs=[];
     if toplevel:
@@ -237,7 +237,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             if len(docbatch)==inputdoc["nsteps"]:
                 docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
                 action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-                inputdoc.update(inputfunc());
+                inputdoc.update(inputfunc(docbatchprojfields));
                 updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                 batchcounter+=1;
                 stepcounter+=len(docbatch);

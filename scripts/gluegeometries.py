@@ -9,7 +9,6 @@ from sage.all_cmdline import *;
 import sys,os,fcntl,errno,linecache,traceback,time,json,toriccy;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
-from toriccy.tools import distribcores;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -225,7 +224,7 @@ if rank==0:
         Ibasechange=[x[0]-x[1] for x in basis];
         Iprechow=C.ideal(Ilin+Ibasechange);
         ######################## Begin parallel MPI scatter/gather of geometrical information ###############################
-        scatt=[[C,DD,JJ,dresverts,DtoJmat,Iprechow,x] for x in distribcores(triangs,size)];
+        scatt=[[C,DD,JJ,dresverts,DtoJmat,Iprechow,x] for x in toriccy.distribcores(triangs,size)];
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];

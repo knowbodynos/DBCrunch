@@ -1,5 +1,3 @@
-#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
-
 import sys,os,tempfile;
 from pymongo import MongoClient;
 from math import ceil;

@@ -1,5 +1,6 @@
 #!/shared/apps/sage/sage-5.12/spkg/bin/sage -python
 
+from sage.all_cmdline import *
 from sage.schemes.toric.variety import normalize_names
 from sage.rings.polynomial.polydict import PolyDict
 from sage.libs.singular.function_factory import singular_function
@@ -18,12 +19,9 @@ import json
 from collections import defaultdict
 import toriccy.tools as tools
 import toriccy.parse as parse
+from toriccy.parse import pythonlist2mathematicalist as py2mat
 import sys
 import re
-
-pr = PolynomialRing(base_ring=ZZ, names=normalize_names("x+",8))
-x = pr.gens()
-    
     
 def inv(sigma, poly, pr):
     """Returns the polynomial after being acted on by sigma"""
@@ -1942,19 +1940,25 @@ def read_JSON(string):
     return json.loads(string)
 
 #Hodge splitting
-def hodgesplit(h11,h21,sigma,basis,dresverts,rwmat):
-    R=PolynomialRing(QQ,['t'+str(i+1) for i in range(len(basis))]+['D'+str(i+1) for i in range(len(rwmat))]+['Ep'+str(i+1) for i in range(len(sigma))]+['Em'+str(i+1) for i in range(len(sigma))]+['J'+str(i+1) for i in range(len(basis))]);
+def hodgesplit(h11,h21,sigma,basis,dresverts):
+    print h11;
+    print h21;
+    print sigma;
+    print basis;
+    print dresverts;
+    sys.stdout.flush();
+    R=PolynomialRing(QQ,['t'+str(i+1) for i in range(len(basis))]+['D'+str(i+1) for i in range(len(dresverts))]+['Ep'+str(i+1) for i in range(len(sigma))]+['Em'+str(i+1) for i in range(len(sigma))]+['J'+str(i+1) for i in range(len(basis))]);
     vars=R.gens_dict();
     Ilin=R.ideal([sum([dresverts[i][j]*vars['D'+str(i+1)] for i in range(len(dresverts))]) for j in range(len(dresverts[0]))]);
     Isplit=R.ideal([z for y in [[vars['D'+str(sigma[i][0]+1)]-(1/2)*(vars['Ep'+str(i+1)]+vars['Em'+str(i+1)]),vars['D'+str(sigma[i][1]+1)]-(1/2)*(vars['Ep'+str(i+1)]-vars['Em'+str(i+1)])] for i in range(len(sigma))] for z in y]);
     Ibasis=R.ideal([vars['D'+str(basis[i]+1)]-vars['J'+str(i+1)] for i in range(len(basis))]);
-    hysurf=sum([vars['D'+str(i+1)] for i in range(len(rwmat))]);
+    hysurf=sum([vars['D'+str(i+1)] for i in range(len(dresverts))]);
     hyideal=(Ilin+Ibasis).quotient(R.ideal(hysurf));
     J=sum([vars['t'+str(i+1)]*vars['D'+str(basis[i]+1)] for i in range(len(basis))]);
     Jreduced=J.reduce(Ilin+Isplit);
     Isym=R.ideal([y for y in [Jreduced.coefficient(vars['Em'+str(i+1)]) for i in range(len(sigma))] if y!=0]);
     symJ=Jreduced.reduce(Isym);
-    symJcoefficients=tools.transpose_list([y for y in [[symJ.coefficient(vars['Ep'+str(i+1)]),(vars['D'+str(sigma[i][0]+1)]+vars['D'+str(sigma[i][1]+1)]).reduce(hyideal)] for i in range(len(sigma))]+[[symJ.coefficient(vars['D'+str(i+1)]),vars['D'+str(i+1)].reduce(hyideal)] for i in range(len(rwmat))] if y[0]!=0]);
+    symJcoefficients=tools.transpose_list([y for y in [[symJ.coefficient(vars['Ep'+str(i+1)]),(vars['D'+str(sigma[i][0]+1)]+vars['D'+str(sigma[i][1]+1)]).reduce(hyideal)] for i in range(len(sigma))]+[[symJ.coefficient(vars['D'+str(i+1)]),vars['D'+str(i+1)].reduce(hyideal)] for i in range(len(dresverts))] if y[0]!=0]);
     Iasym=R.ideal([y for y in [Jreduced.coefficient(vars['Ep'+str(i+1)]) for i in range(len(sigma))] if y!=0]);
     asymJ=Jreduced.reduce(Iasym);
     asymJcoefficients=tools.transpose_list([y for y in [[asymJ.coefficient(vars['Em'+str(i+1)]),(vars['D'+str(sigma[i][0]+1)]-vars['D'+str(sigma[i][1]+1)]).reduce(hyideal)] for i in range(len(sigma))] if y[0]!=0]);
@@ -1965,7 +1969,7 @@ def hodgesplit(h11,h21,sigma,basis,dresverts,rwmat):
     return [h11split,h21split,symJcoefficients,asymJcoefficients];
     
 def allbaseshodgesplit(h11,h21,sigma,basis,dresverts,rwmat):
-    bases=[x for x in Combinations(range(len(rwmat)),matrix(rwmat).rank()).list() if matrix([rwmat[i] for i in x]).rank()==matrix(rwmat).rank()];
+    bases=[x for x in Combinations(range(len(dresverts)),matrix(rwmat).rank()).list() if matrix([rwmat[i] for i in x]).rank()==matrix(rwmat).rank()];
     result0=[hodgesplit(h11,h21,sigma,x,dresverts,rwmat) for x in [basis]+bases];
     result1=[[x[0],x[1]] for x in result0];
     result=[all([x==result1[0] for x in result1])];
@@ -1980,11 +1984,13 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
     trikey = "TRIANGN"
     geokey = "GEOMN"
     invkey = "INVOLN"
-    o7key = "O7"
-    o5key = "O5"
-    o3key = "O3"
-    o1key = "O1"
-    otherkey = "OTHER"
+    origcyseckey = "ORIGCYSECTIONS"
+    symcyseckey = "SYMCYSECTIONS"
+    #o7key = "O7"
+    #o5key = "O5"
+    #o3key = "O3"
+    #o1key = "O1"
+    #otherkey = "OTHER"
     allbaseskey = "ALLBASES"
     h11splitkey = "H11SPLIT"
     h21splitkey = "H21SPLIT"
@@ -2010,8 +2016,9 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
     # rwmat = rwmat.replace("}", "]")
 
     # Reindex to start at zero (since Mathematica starts at one)
-    sr = [[w-1 for w in z] for z in sr]
-    sigma = [[w-1 for w in z] for z in sigma]
+    #sr = [[w-1 for w in z] for z in sr]
+    #sigma = [[w-1 for w in z] for z in sigma]
+
     rwmat = np.transpose(np.array(rwmat))
 
     (m, n) = rwmat.shape
@@ -2019,16 +2026,19 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
     polys = invariant_monomials(rwmat, sigma)
     #print(polys)
 
-    o7 = []
-    o5 = []
-    o3 = []
-    o1 = []
-    other = []
-    o7red = []
-    o5red = []
-    o3red = []
-    o1red = []
-    otherred = []
+    #o7 = []
+    #o5 = []
+    #o3 = []
+    #o1 = []
+    #other = []
+    #o7red = []
+    #o5red = []
+    #o3red = []
+    #o1red = []
+    #otherred = []
+
+    oplanes = {};
+    oplanesred = {};
 
     # Split based on whether there are anti-invariant monomials or not
     q = len(polys)
@@ -2041,12 +2051,16 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
         prx = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
         pry = PolynomialRing(base_ring=CC, names=names_list(rwn, ni))
         charges = cy_charges(rwmat)
-        charges = [charges[i] for i in range(len(charges)) if i in ci]
+        #charges = [charges[i] for i in range(len(charges)) if i in ci]
 
         # For now, we are using the most general poly
-        cypoly = general_poly(rwn, charges, pr=pry)
-        cypoly = symm_poly(cypoly, ai, pry)
-        cypoly = poly_ytox(cypoly, polys, prx, pry, ni)
+        # cypoly = general_poly(rwn, charges, pr=pry)
+        # cypoly = symm_poly(cypoly, ai, pry)
+        # cypoly = poly_ytox(cypoly, polys, prx, pry, ni)
+        cypoly = general_poly(rwmat, charges, pr=prx)
+        nterms1 = len(cypoly.dict().keys())
+        cypoly = symm_poly_swap(cypoly, sigma, prx)
+        nterms2 = len(cypoly.dict().keys())
         pr = prx
 
         # Sort the fixed sets into O7, O5, O3, O1 by finding the codimension
@@ -2059,22 +2073,31 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
                 continue
 
             codim = len(fr)
-            if codim == 1:
-                o7.append(fsetx)
-                o7red.append(fr)
-            elif codim == 2:
-                o5.append(fsetx)
-                o5red.append(fr)
-            elif codim == 3:
-                o3.append(fsetx)
-                o3red.append(fr)
-            elif codim == 1:
-                o1.append(fsetx)
-                o1red.append(fr)
+            On = 'O'+str(9-(2*codim))
+            #if codim == 1:
+            #    o7.append(fsetx)
+            #    o7red.append(fr)
+            #elif codim == 2:
+            #    o5.append(fsetx)
+            #    o5red.append(fr)
+            #elif codim == 3:
+            #    o3.append(fsetx)
+            #    o3red.append(fr)
+            #elif codim == 4:
+            #    o1.append(fsetx)
+            #    o1red.append(fr)
+            #else:
+            #    other.append(fsetx)
+            #    otherred.append(fr)
+            if On in oplanes.keys():
+                oplanes[On].append(fsetx)
             else:
-                other.append(fsetx)
-                otherred.append(fr)
+                oplanes[On] = [fsetx]
 
+            if On in oplanesred.keys():
+                oplanesred[On].append(fr)
+            else:
+                oplanesred[On] = [fr]
     else:
         pr = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
         ni = [w for b in sigma for w in b]
@@ -2084,8 +2107,9 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
 
         # Use the most general poly for now
         cypoly = general_poly(rwmat, charges, pr=pr)
-        cypoly1 = cypoly
+        nterms1 = len(cypoly.dict().keys())
         cypoly = symm_poly_swap(cypoly, sigma, pr)
+        nterms2 = len(cypoly.dict().keys())
         #print(cypoly1)
         #print(cypoly)
         #print(cypoly1 - cypoly)
@@ -2100,33 +2124,40 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
                 continue
 
             codim = len(fr)
-            if codim == 1:
-                o7.append(fset)
-                o7red.append(fr)
-            elif codim == 2:
-                o5.append(fset)
-                o5red.append(fr)
-            elif codim == 3:
-                o3.append(fset)
-                o3red.append(fr)
-            elif codim == 1:
-                o1.append(fset)
-                o1red.append(fr)
+            On = 'O'+str(9-(2*codim))
+            #if codim == 1:
+            #    o7.append(fset)
+            #    o7red.append(fr)
+            #elif codim == 2:
+            #    o5.append(fset)
+            #    o5red.append(fr)
+            #elif codim == 3:
+            #    o3.append(fset)
+            #    o3red.append(fr)
+            #elif codim == 4:
+            #    o1.append(fset)
+            #    o1red.append(fr)
+            if On in oplanes.keys():
+                oplanes[On].append(fsetx)
+            else:
+                oplanes[On] = [fsetx]
+
+            if On in oplanesred.keys():
+                oplanesred[On].append(fr)
+            else:
+                oplanesred[On] = [fr]
 
     # secs = sectors(sr, pr)
     # for sec in secs:
     #     print(sec)
 
-    # Reindex sigma to match the database/Mathematica format
-    sigma = [[w+1 for w in f] for f in sigma]
-
-
     # Reindex the fixed sets
     newnames = ['x' + str(i) for i in range(n+1)]
     prn = PolynomialRing(base_ring=CC, names=newnames)
     pt = [prn(w) for w in newnames[1:]] + [0]
-    oplanes = [o1,o3,o5,o7]
-    for opl in oplanes:
+    #oplanes = [o1,o3,o5,o7]
+    oplanevals = oplanes.values()
+    for opl in oplanevals:
         for i in range(len(opl)):
             fset = opl[i]
             for j in range(len(fset)):
@@ -2135,28 +2166,34 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, sigma, basisinds, dresver
                 fset[j] = prn(w)
             opl[i] = fset
 
-    allbases,h11split,h21split,symbasis,asymbasis=allbaseshodgesplit(h11,h21,sigma,basisinds,dresverts,np.transpose(rwmat).tolist());
-
+    #allbases,h11split,h21split,symbasis,asymbasis=allbaseshodgesplit(h11,h21,sigma,basisinds,dresverts,np.transpose(rwmat).tolist())
+    h11split,h21split,symJcoeffs,asymJcoeffs=hodgesplit(h11,h21,sigma,basisinds,dresverts)
     query = {}
     query[polykey] = polyid
     query[geokey] = geonum
     query[trikey] = trinum
     query[invkey] = invnum
 
-    output = {}
-    if len(o7)>0:
-        output[o7key] = parse.pythonlist2mathematicalist(o7)
-    if len(o5)>0:
-        output[o5key] = parse.pythonlist2mathematicalist(o5)
-    if len(o3)>0:
-        output[o3key] = parse.pythonlist2mathematicalist(o3)
-    if len(o1)>0:
-        output[o1key] = parse.pythonlist2mathematicalist(o1)
-    if len(other)>0:
-        output[otherkey] = parse.pythonlist2mathematicalist(other)
-    output[allbaseskey] = allbases
-    output[h11splitkey] = parse.pythonlist2mathematicalist(h11split)
-    output[h21splitkey] = parse.pythonlist2mathematicalist(h21split)
+    #output = {}
+    #if len(o7)>0:
+    #    output[o7key] = py2mat(o7red)
+    #if len(o5)>0:
+    #    output[o5key] = py2mat(o5red)
+    #if len(o3)>0:
+    #    output[o3key] = py2mat(o3red)
+    #if len(o1)>0:
+    #    output[o1key] = py2mat(o1red)
+    #if len(other)>0:
+    #    output[otherkey] = py2mat(other)
+    output = dict([(x[0],py2mat(x[1])) for x in oplanesred.items()])
+    #output[allbaseskey] = allbases
+    output[h11splitkey] = py2mat(h11split)
+    output[h21splitkey] = py2mat(h21split)
+    output[origcyseckey] = nterms1
+    output[symcyseckey] = nterms2
+
+    # Reindex sigma to match the database/Mathematica format
+    sigma = [[w+1 for w in f] for f in sigma]
 
     # print(o7red)
     # cgs = o7_charges(rwnFull, o7red, pry)

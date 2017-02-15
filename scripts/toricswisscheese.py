@@ -9,7 +9,6 @@ from sage.all_cmdline import *;
 import sys,os,fcntl,errno,linecache,traceback,time,json,toriccy;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
-from toriccy.tools import distribcores as distribcores;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -174,11 +173,11 @@ def ToricSwissCheese(homogeneity_on,h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,i
             if doneflag:
                 break;                        
         if len(Tab)==0:
-            return [[],int_basis_a,int_basis_b];
+            return [NL,[],int_basis_a,int_basis_b];
         else:
-            return [Tab[ind],int_basis_a,int_basis_b];
+            return [NL,Tab[ind],int_basis_a,int_basis_b];
     else:
-        return ["unfav",0,0];
+        return [NL,"unfav",0,0];
 
 #################################################################################
 #Main body
@@ -202,90 +201,101 @@ if rank==0:
         triangdata=toriccy.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid,'GEOMN':geomn},{'_id':0,'MORIMATP':1,'ITENSXD':1},formatresult='expression');
         mongoclient.close();
         ######################## Begin parallel MPI scatter/gather of toric swiss cheese information ###############################
-        scatt=[[h11,dresverts,fgp,fav,JtoDmat,x] for x in distribcores(triangdata,size)];
+        scatt=[[h11,dresverts,fgp,fav,JtoDmat,x] for x in toriccy.distribcores(triangdata,size)];
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];
         #Scatter and define rank-independent input variables
-        pretsc=comm.scatter(scatt,root=0);
-        h11_chunk,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,tscin_chunk=pretsc;
+        pretoricswisscheese=comm.scatter(scatt,root=0);
+        h11_chunk,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,triangdata_chunk=pretoricswisscheese;
         #Loop for each number of large cycles from 1 to h11-1
         gath=[];
         for NL in range(1,h11_chunk):
-            #Loop for each triangulation for the current number of large cycles
-            tsc_L_chunk=[];
+            toricswisscheese_NL_chunk=[];
             scflag=False;
-            for x in tscin_chunk:
+            #Loop over each triangulation with the current number of large cycles
+            for x in triangdata_chunk:
                 #Get swiss cheese rotation matrices for this triangulation
-                tsc_chunk=ToricSwissCheese(True,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
+                toricswisscheese_chunk=ToricSwissCheese(True,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
                 #If both rotation matrices rotate the basis into another integer basis, use them and skip to the next triangulation. Else add them to a list 
-                if (tsc_chunk[1] and tsc_chunk[2]):
-                    gath+=[tsc_chunk];
+                int_basis_a=toricswisscheese_chunk[2];
+                int_basis_b=toricswisscheese_chunk[3];
+                if (int_basis_a and int_basis_b):
+                    gath+=[toricswisscheese_chunk];
                     scflag=True;
                     break;
-                tsc_L_chunk+=[tsc_chunk];
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one rotates into an integer basis, then use them and skip to the next NL
+                toricswisscheese_NL_chunk+=[toricswisscheese_chunk];
+            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis, then use them and skip to the next NL
             if not scflag:
-                for y in tsc_L_chunk:
-                    if y[1] or y[2]:
-                        gath+=[y];
+                for toricswisscheese_chunk in toricswisscheese_NL_chunk:
+                    int_basis_a=toricswisscheese_chunk[2];
+                    int_basis_b=toricswisscheese_chunk[3];
+                    if (int_basis_a or int_basis_b):
+                        gath+=[toricswisscheese_chunk];
                         scflag=True;
                         break;
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one exists and is favorable, then use them and skip to the next NL
+            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one of them exists and is favorable, then use them and skip to the next NL
             if not scflag:
-                for y in tsc_L_chunk:
-                    if y[0]!=[] and y[0]!="unfav":
-                        gath+=[y];
+                for toricswisscheese_chunk in toricswisscheese_NL_chunk:
+                    if len(toricswisscheese_chunk[1])>0 and toricswisscheese_chunk[1]!="unfav":
+                        gath+=[toricswisscheese_chunk];
                         scflag=True;
                         break;
             #If we still have not already chosen a swiss cheese solution for this NL, then just use the first pair of rotation matrices (even if they are empty or unfavorable) and skip to the next NL
             if not scflag:
-                gath+=[tsc_L_chunk[0]];
-        posttsc_group=comm.gather(gath,root=0);
+                toricswisscheese_chunk=toricswisscheese_NL_chunk[0];
+                gath+=[toricswisscheese_chunk];
+        posttoricswisscheese_group=comm.gather(gath,root=0);
         #Signal ranks to exit current process (if there are no other processes, then exit other ranks)
         scatt=[-1 for j in range(size)];
-        pretsc=comm.scatter(scatt,root=0);
+        pretoricswisscheese=comm.scatter(scatt,root=0);
         #Reorganize gathered information into a serial form
-        posttsc_redist=[x for y in posttsc_group for x in y];
-        posttsc=toriccy.transpose_list(posttsc_redist);
-        print posttsc;
+        posttoricswisscheese=[x for y in posttoricswisscheese_group for x in y];
+        #posttoricswisscheese=toriccy.transpose_list(posttoricswisscheese_redist);
+        #print posttoricswisscheese;
+        for toricswisscheese_NL in posttoricswisscheese:
+            if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
+                print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(toricswisscheese_NL[0])+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
+            else:
+                print "None";
+            sys.stdout.flush();
         #######################################################################################################################
-        #Recombine gathered chunks into a single list of rotation matrices for each geometry
-        #Loop over numbers of large cycles for current geometry
-        NL=1;
-        for NLx in posttsc:
-            #Loop over pairs of swiss cheese solutions taken from each chunk for the current number of large cycles
-            tsc_L=[];
-            scflag=False;
-            for y in NLx:
-                #If both rotation matrices rotate into integer bases, use them and skip to the next chunk. Else, add them to a list
-                if (y[1] and y[2]):
-                    #tscNL_L+=[y];
-                    print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(NL)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':NL,'RMAT2CYCLE':py2mat(y[0][0]),'RMAT4CYCLE':py2mat(y[0][1]),'INTBASIS2CYCLE':bool(y[1]),'INTBASIS4CYCLE':bool(y[2])},separators=(',',':'));
-                    scflag=True;
-                    break;
-                tsc_L+=[y];
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one rotates into an integer basis, then use them and skip to the next NL
-            if not scflag:
-                for z in tsc_L:
-                    if z[1] or z[2]:
-                        #tscNL_L+=[z];
-                        print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(NL)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':NL,'RMAT2CYCLE':py2mat(z[0][0]),'RMAT4CYCLE':py2mat(z[0][1]),'INTBASIS2CYCLE':bool(z[1]),'INTBASIS4CYCLE':bool(z[2])},separators=(',',':'));
-                        scflag=True;
-                        break;
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one exists and is favorable, then use them and skip to the next NL
-            if not scflag:
-                for z in tsc_L:
-                    if z[0]!=[] and z[0]!="unfav":
-                        #tscNL_L+=[z];
-                        print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(NL)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':NL,'RMAT2CYCLE':py2mat(z[0][0]),'RMAT4CYCLE':py2mat(z[0][1]),'INTBASIS2CYCLE':bool(z[1]),'INTBASIS4CYCLE':bool(z[2])},separators=(',',':'));
-                        scflag=True;
-                        break;
-            #If we still have not already chosen a swiss cheese solution for this NL, then just use the first pair of rotation matrices (even if they are empty or unfavorable) and skip to the next NL
-            #if not scflag:
-                #tscNL_L+=[[]];
-                #tscNL_L+=[{'NLARGE':NL}];
-            NL+=1;
+        ##Recombine gathered chunks into a single list of rotation matrices for each geometry
+        ##Loop over numbers of large cycles for current geometry
+        #NL=1;
+        #for NLx in posttoricswisscheese:
+        #    #Loop over pairs of swiss cheese solutions taken from each chunk for the current number of large cycles
+        #    tsc_L=[];
+        #    scflag=False;
+        #    for y in NLx:
+        #        #If both rotation matrices rotate into integer bases, use them and skip to the next chunk. Else, add them to a list
+        #        if (y[1] and y[2]):
+        #            #tscNL_L+=[y];
+        #            print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(NL)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':NL,'RMAT2CYCLE':py2mat(y[0][0]),'RMAT4CYCLE':py2mat(y[0][1]),'INTBASIS2CYCLE':bool(y[1]),'INTBASIS4CYCLE':bool(y[2])},separators=(',',':'));
+        #            scflag=True;
+        #            break;
+        #        tsc_L+=[y];
+        #    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one rotates into an integer basis, then use them and skip to the next NL
+        #    if not scflag:
+        #        for z in tsc_L:
+        #            if z[1] or z[2]:
+        #                #tscNL_L+=[z];
+        #                print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(NL)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':NL,'RMAT2CYCLE':py2mat(z[0][0]),'RMAT4CYCLE':py2mat(z[0][1]),'INTBASIS2CYCLE':bool(z[1]),'INTBASIS4CYCLE':bool(z[2])},separators=(',',':'));
+        #                scflag=True;
+        #                break;
+        #    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one exists and is favorable, then use them and skip to the next NL
+        #    if not scflag:
+        #        for z in tsc_L:
+        #            if z[0]!=[] and z[0]!="unfav":
+        #                #tscNL_L+=[z];
+        #                print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(NL)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':NL,'RMAT2CYCLE':py2mat(z[0][0]),'RMAT4CYCLE':py2mat(z[0][1]),'INTBASIS2CYCLE':bool(z[1]),'INTBASIS4CYCLE':bool(z[2])},separators=(',',':'));
+        #                scflag=True;
+        #                break;
+        #    #If we still have not already chosen a swiss cheese solution for this NL, then just use the first pair of rotation matrices (even if they are empty or unfavorable) and skip to the next NL
+        #    #if not scflag:
+        #        #tscNL_L+=[[]];
+        #        #tscNL_L+=[{'NLARGE':NL}];
+        #    NL+=1;
     except Exception as e:
         PrintException();
 else:
@@ -293,47 +303,52 @@ else:
         #While rank is not signalled to close
         while True:
             scatt=None;
-            pretsc=comm.scatter(scatt,root=0);
-            if pretsc==-1:
+            pretoricswisscheese=comm.scatter(scatt,root=0);
+            if pretoricswisscheese==-1:
                 #Rank has been signalled to close
                 break;
-            elif pretsc==-2:
+            elif pretoricswisscheese==-2:
                 #Rank is extraneous and no information is being passed
                 gath=[];
             else:
-                h11_chunk,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,tscin_chunk=pretsc;
+                h11_chunk,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,triangdata_chunk=pretoricswisscheese;
                 #Loop for each number of large cycles from 1 to h11-1
                 gath=[];
                 for NL in range(1,h11_chunk):
-                    #Loop for each triangulation for the current number of large cycles
-                    tsc_L_chunk=[];
+                    toricswisscheese_NL_chunk=[];
                     scflag=False;
-                    for x in tscin_chunk:
+                    #Loop over each triangulation with the current number of large cycles
+                    for x in triangdata_chunk:
                         #Get swiss cheese rotation matrices for this triangulation
-                        tsc_chunk=ToricSwissCheese(True,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
+                        toricswisscheese_chunk=ToricSwissCheese(True,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
                         #If both rotation matrices rotate the basis into another integer basis, use them and skip to the next triangulation. Else add them to a list 
-                        if (tsc_chunk[1] and tsc_chunk[2]):
-                            gath+=[tsc_chunk];
+                        int_basis_a=toricswisscheese_chunk[1];
+                        int_basis_b=toricswisscheese_chunk[2];
+                        if (int_basis_a and int_basis_b):
+                            gath+=[toricswisscheese_chunk];
                             scflag=True;
                             break;
-                        tsc_L_chunk+=[tsc_chunk];
-                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one rotates into an integer basis, then use them and skip to the next NL
+                        toricswisscheese_NL_chunk+=[toricswisscheese_chunk];
+                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis, then use them and skip to the next NL
                     if not scflag:
-                        for y in tsc_L_chunk:
-                            if y[1] or y[2]:
-                                gath+=[y];
+                        for toricswisscheese_chunk in toricswisscheese_NL_chunk:
+                            int_basis_a=toricswisscheese_chunk[1];
+                            int_basis_b=toricswisscheese_chunk[2];
+                            if (int_basis_a or int_basis_b):
+                                gath+=[toricswisscheese_chunk];
                                 scflag=True;
                                 break;
-                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one exists and is favorable, then use them and skip to the next NL
+                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one of them exists and is favorable, then use them and skip to the next NL
                     if not scflag:
-                        for y in tsc_L_chunk:
-                            if y[0]!=[] and y[0]!="unfav":
-                                gath+=[y];
+                        for toricswisscheese_chunk in toricswisscheese_NL_chunk:
+                            if toricswisscheese_chunk[0]!=[] and toricswisscheese_chunk[0]!="unfav":
+                                gath+=[toricswisscheese_chunk];
                                 scflag=True;
                                 break;
                     #If we still have not already chosen a swiss cheese solution for this NL, then just use the first pair of rotation matrices (even if they are empty or unfavorable) and skip to the next NL
                     if not scflag:
-                        gath+=[tsc_L_chunk[0]];
-                posttsc_group=comm.gather(gath,root=0);
+                        toricswisscheese_chunk=toricswisscheese_NL_chunk[0];
+                        gath+=[toricswisscheese_chunk];
+                posttoricswisscheese_group=comm.gather(gath,root=0);
     except Exception as e:
         PrintException();

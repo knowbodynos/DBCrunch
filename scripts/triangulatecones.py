@@ -10,7 +10,6 @@ import sys,os,fcntl,errno,linecache,traceback,time,re,itertools,json;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
 import toriccy.tools as tools;
-from toriccy.tools import distribcores;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -117,7 +116,7 @@ def dcbase(dresverts):
 def bndry_pts_cones(lp,lp_pts,max_cones):
     "Compute the points that lie on the boundary of the specified cone."
     pts_dup_sep=[[list(lp_pts[i]) for i in range(len(lp_pts)) if (y.contains(lp_pts[i]) and not y.interior_contains(lp_pts[i]) and not lp.interior_contains(lp_pts[i]))] for y in max_cones];
-    pts_sep=[[vector(y) for y in deldup(x)]+[vector([0,0,0,0])] for x in pts_dup_sep];
+    pts_sep=[[vector(y) for y in tools.deldup(x)]+[vector([0,0,0,0])] for x in pts_dup_sep];
     return pts_sep;
 
 def FSRT_cone_from_resolved_verts(verts):
@@ -180,7 +179,7 @@ def knit_cones(pts,gpts,conepts,conetriang):
             ctriang1=conetriang[i];
             ctriang2=conetriang[i+1];
             if is_aligned(pts,cpts1,cpts2,ctriang1,ctriang2) and is_regular(gpts,ctriang1,ctriang2):
-                newconepts+=[deldup(cpts1+cpts2)];
+                newconepts+=[tools.deldup(cpts1+cpts2)];
                 newconetriang+=[ctriang1+ctriang2];
             else:
                 return [];
@@ -220,14 +219,14 @@ if rank==0:
             raise ValueError('Computed Hodge pair ('+str(batyh11)+','+str(batyh21)+') does not match KS database ('+str(h11)+','+str(h21)+').');
         conepts=bndry_pts_cones(dlp,dlp_pts,max_dcones);
         origin=vector([0,0,0,0]);
-        unsorted_dresverts=deldup([x for y in conepts for x in y if x!=origin]);
+        unsorted_dresverts=tools.deldup([x for y in conepts for x in y if x!=origin]);
         extra_dresverts=sorted([x for x in unsorted_dresverts if x not in sorted_dverts]);
         dresverts=[list(x) for x in sorted_dverts+extra_dresverts];
         fgp,basisinds=dcbase(dresverts);
         dresverts_vecs=sorted_dverts+extra_dresverts+[origin];
         originind=len(dresverts_vecs)-1;
         ######################## Begin parallel MPI scatter/gather of triangulation information ###############################
-        scatt=[[dresverts_vecs]+x for x in distribcores(conepts,size)];
+        scatt=[[dresverts_vecs]+x for x in tools.distribcores(conepts,size)];
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];

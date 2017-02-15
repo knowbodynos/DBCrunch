@@ -53,7 +53,7 @@ scriptmemorylimit="1000000000"
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
-queries="[['POLY1',{'H11':${h11}},{'POLYID':1,'H11':1,'DRESVERTS':1,'FUNDGP':1,'FAV':1,'JTOD':1}],['GEOM1',{'H11':${h11}},{'GEOMN':1,'NTRIANGS':1}]]"
+queries="[['POLY1',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'DRESVERTS':1,'FUNDGP':1,'FAV':1,'JTOD':1}],['GEOM1',{'H11':${h11}},{'GEOMN':1,'NTRIANGS':1}]]"
 basecollection="GEOM1"
 nthreads="NTRIANGS"
 

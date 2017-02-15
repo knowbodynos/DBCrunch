@@ -1,5 +1,3 @@
-#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
-
 import re,copy,bson,json;
 from . import tools;
 

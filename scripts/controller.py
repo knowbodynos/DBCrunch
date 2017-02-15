@@ -794,8 +794,8 @@ try:
     db=mongoclient[dbname];
 
     dbindexes=toriccy.getintersectionindexes(db,basecollection);
-    print dbindexes;
-    sys.stdout.flush();
+    #print dbindexes;
+    #sys.stdout.flush();
 
     allindexes=toriccy.getunionindexes(db);
     try:

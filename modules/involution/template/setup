@@ -11,6 +11,8 @@ rm -r ${herepath}/jobs/* 2>/dev/null
 rm ${herepath}/querystate* 2>/dev/null
 echo "jobstep,exitcode" > ${herepath}/skippedstate 2>/dev/null
 echo -e "batchcounter,stepcounter\n1,1" > ${herepath}/counterstate
-/usr/bin/yes | pip uninstall toriccy
-pip install --user ${toriccypath}
-python -c "from pymongo import MongoClient;MongoClient('mongodb://manager:toric@129.10.135.170:27017/ToricCY?authMechanism=SCRAM-SHA-1')['ToricCY']['INVOL'].drop();"
+currdir=$(pwd)
+cd ${toriccypath}
+python setup.py install --user --record filespy.txt
+sage --python setup.py install --user --record filessage.txt
+cd ${curdir}
