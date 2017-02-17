@@ -36,10 +36,7 @@ controllername="${h11}"
 controllerpartition="ser-par-10g"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 #largemempartitions="largemem-10g"
-writemode="truncate"
-SLURMtimelimit=""
-buffertime="00:10:00"
-sleeptime="00:00:30"
+sleeptime="00:00:01"
 
 #Input path info
 mainpath="/gss_gpfs_scratch/$USER"
@@ -48,17 +45,20 @@ scriptpath="${packagepath}/scripts"
 
 #Input script info
 scriptlanguage="sage"
+writemode="truncate"
 scriptmemorylimit="1000000000"
+scripttimelimit=""
+buffertime="00:05:00"
 #outputlinemarkers="Output: "
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
 queries="[['POLY1',{'H11':${h11}},{'POLYID':1,'H11':1,'H21':1,'NVERTS':1}]]"
 basecollection="POLY1"
-nthreads=""
+nthreadsfield=""
 
 #Options
 dbpushq="True"
 pdffile="jobgraph"
 
-python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerpartition}" "${partitions}" "${writemode}" "${SLURMtimelimit}" "${buffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${scriptmemorylimit}" "${mongouri}" "${queries}" "${basecollection}" "${nthreads}" "${dbpushq}" "${pdffile}"
+python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerpartition}" "${partitions}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${buffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${dbpushq}" "${pdffile}"

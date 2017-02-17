@@ -83,7 +83,6 @@ If[!MemberQ[{"TimeSkipped","MemorySkipped"},result],
     output=result;
     WriteString[SkippedFile,ToString[Row[{PolyID,"_",GeomN,"_",TriangN," ",output,"\n"}],InputForm]];
 ];*)
-
 result=Involutions[FundGp,ResCWS,ITensXD,SRIdeal,True];
 TriangIDField=Thread[{"H11","POLYID","GEOMN","TRIANGN"}->{H11,PolyID,GeomN,TriangN}];
 NewTriangFields={"DIVCOHOM"->("DIVCOHOM"/.result),"NINVOLS"->Length["INVOLLIST"/.result]};

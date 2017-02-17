@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,json,toriccy;#,signal,subprocess;
+import sys,linecache,traceback,re,time,json,signal,subprocess,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -14,8 +14,8 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
     print "More info: ",traceback.format_exc();
 
-#def default_sigpipe():
-#    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
+def default_sigpipe():
+    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
 def jobstepname2doc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_")[2:];
@@ -33,11 +33,19 @@ try:
     #jobstepid=sys.argv[3];
     basecollection=sys.argv[3];
     workpath=sys.argv[4];
-    jobstepname=sys.argv[5];
-    dbpushq=eval(sys.argv[6]);
-    cputime=sys.argv[7];
-    maxrss=sys.argv[8];
-    maxvmsize=sys.argv[9];
+    dbpushq=eval(sys.argv[5]);
+    jobstepid=sys.argv[6];
+    jobstepname=sys.argv[7];
+    #cputime=sys.argv[7];
+    #maxrss=sys.argv[8];
+    #maxvmsize=sys.argv[9];
+    cputime="";
+    maxrss="";
+    maxvmsize="";
+    cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j \""+jobstepid+"\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    while any([x=="" for x in [cputime,maxrss,maxvmsize]]):
+        time.sleep(0.1);
+        cputime,maxrss,maxvmsize=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j \""+jobstepid+"\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
 
     #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
     #if len(sacctstats)==3:

@@ -263,19 +263,19 @@ def plotjobgraph(modname,controllerpath,controllername,workpath,pdffile):
         print "File path \""+controllerpath+"/controller_"+modname+"_"+controllername+".out\" does not exist.";
         sys.stdout.flush();
 
-def getpartitiontimelimit(partition,scripttimelimit,buffertime):
+def getpartitiontimelimit(partition,SLURMtimelimit,buffertime):
     maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
     #print "getpartitiontimelimit";
     #print "sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1";
     #print "";
     #sys.stdout.flush();
-    if scripttimelimit in ["","infinite"]:
+    if SLURMtimelimit in ["","infinite"]:
         partitiontimelimit=maxtimelimit;
     else:
         if maxtimelimit=="infinite":
-            partitiontimelimit=scripttimelimit;
+            partitiontimelimit=SLURMtimelimit;
         else:
-            partitiontimelimit=min(maxtimelimit,scripttimelimit,key=timestamp2unit);
+            partitiontimelimit=min(maxtimelimit,SLURMtimelimit,key=timestamp2unit);
     if partitiontimelimit=="infinite":
         buffertimelimit=partitiontimelimit;
     else:
@@ -293,54 +293,57 @@ def timeleftq(starttime,buffertimelimit):
 #    njobs=eval(subprocess.Popen("squeue -h -r | wc -l",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
 #    return njobs<maxjobcount;
 
-def availlicensecount(scriptpath,scriptlanguage):
-    navaillicensesplit=[eval(x) for x in subprocess.Popen(scriptpath+"/tools/"+scriptlanguage+"licensecount.bash",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",")];
+def licensecount(scriptpath,scriptlanguage,pendlicensestream):
+    if pendlicensestream!=None:
+        try:
+            pendlicensestream.seek(0,0);
+            pendlicenseheader=pendlicensestream.readline();
+            npendlicensesplit=pendlicensestream.readline().rstrip("\n").split(",");
+            navaillicensesplit=subprocess.Popen(scriptpath+"/"+scriptlanguage+"licensecount.bash",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+            nlicensesplit=[eval(navaillicensesplit[i])-eval(npendlicensesplit[i]) for i in range(len(navaillicensesplit))];
+        except IndexError:
+            raise;
+    else:
+        nlicensesplit=[];
     #print "licensecount";
     #print scriptpath+"/"+scriptlanguage+"licensecount.bash";
     #print "";
     #sys.stdout.flush();
-    return navaillicensesplit;
-
-def pendlicensecount(username,modlist,modulesdirpath,softwarestatefile):
-    npendjobsteps=0;
-    npendjobthreads=0;
-    grepmods="|".join(modlist);
-    pendjobnames=subprocess.Popen("squeue -h -u "+username+" -o '%T %j' | grep 'PENDING' | cut -d' ' -f2 | grep -E \"("+grepmods+")\" | grep -v \"controller\" | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
-    if pendjobnames!="":
-        pendjobnamesplit=pendjobnames.split(",");
-        for pjn in pendjobnamesplit:
-            pjnsplit=pjn.split("_");
-            modname=pjnsplit[0];
-            controllername=pjnsplit[1];
-            nsteps=1-eval(pjnsplit[5]);
-            scriptlanguage=subprocess.Popen("cat "+modulesdirpath+"/"+modname+"/"+controllername+"/controller_"+modname+"_"+controllername+".job | grep 'scriptlanguage=' | cut -d'=' -f2 | cut -d'\"' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
-            needslicense=eval(subprocess.Popen("cat "+softwarestatefile+" | grep \""+scriptlanguage+"\" | cut -d',' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-            njobthreads=eval(subprocess.Popen("echo \"$(cat "+modulesdirpath+"/"+modname+"/"+controllername+"/jobs/"+pjn+".job | grep -E \"njobstepthreads\[[0-9]+\]=\" | cut -d'=' -f2 | tr '\n' '+' | head -c -1)\" | bc | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-            npendjobsteps+=nsteps;
-            npendjobthreads+=njobthreads;
-    return [npendjobsteps,npendjobthreads];
-
-def licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage):
-    navaillicensesplit=availlicensecount(scriptpath,scriptlanguage);
-    npendlicensesplit=pendlicensecount(username,modlist,modulesdirpath,softwarestatefile);
-    try:
-        nlicensesplit=[navaillicensesplit[i]-npendlicensesplit[i] for i in range(len(navaillicensesplit))];
-    except IndexError:
-        raise;
     return nlicensesplit;
 
-def clusterjobslotsleft(username,maxjobcount):
-    njobs=eval(subprocess.Popen("squeue -h -r -u "+username+" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-    jobsleft=(njobs<maxjobcount);
-    return jobsleft;
+def pendlicensecount(username,modlist,modulesdirpath,softwarestatefile):
+    grepmods="|".join(modlist);
+    pendjobnames=subprocess.Popen("squeue -h -u "+username+" -o '%T %j' | grep 'PENDING' | cut -d' ' -f2 | | grep -E \"("+grepmods+")\" | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    #pendjobnames=["involution_4_job_10_steps_289-320","involution_4_job_11_steps_321-352","involution_4_job_12_steps_353-384","involution_4_job_13_steps_385-416","involution_4_job_14_steps_417-448","involution_4_job_15_steps_449-480","involution_4_job_16_steps_481-512","involution_4_job_17_steps_513-544","involution_4_job_18_steps_545-576","involution_4_job_19_steps_577-608","involution_4_job_1_steps_1-32","involution_4_job_20_steps_609-640","involution_4_job_21_steps_641-672","involution_4_job_22_steps_673-704","involution_4_job_23_steps_705-736","involution_4_job_24_steps_737-768","involution_4_job_2_steps_33-64","involution_4_job_3_steps_65-96","involution_4_job_4_steps_97-128","involution_4_job_5_steps_129-160","involution_4_job_6_steps_161-192","involution_4_job_7_steps_193-224","involution_4_job_8_steps_225-256","involution_4_job_9_steps_257-288"];
+    npendjobsteps=0;
+    npendjobthreads=0;
+    for pjn in pendjobnames:
+        pjnsplit=pjn.split("_");
+        modname=pjnsplit[0];
+        controllername=pjnsplit[1];
+        nsteps=1-eval(pjnsplit[5]);
+        scriptlanguage=subprocess.Popen("cat "+modulesdirpath+"/"+modname+"/"+controllername+"/controller_"+modname+"_"+controllername+".job | grep 'scriptlanguage=' | cut -d'=' -f2 | cut -d'\"' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+        needslicense=eval(subprocess.Popen("cat "+softwarestatefile+" | grep \""+scriptlanguage+"\" | cut -d',' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+        njobthreads=eval(subprocess.Popen("echo \"$(cat "+modulesdirpath+"/"+modname+"/"+controllername+"/jobs/"+pjn+".job | grep -E \"njobstepthreads\[[0-9]+\]=\" | cut -d'=' -f2 | tr '\n' '+' | head -c -1)\" | bc | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+        npendjobsteps+=nsteps;
+        npendjobthreads+=njobthreads;
+    return [npendjobsteps,npendjobthreads];
 
-def clusterlicensesleft(nlicensesplit,requiredthreads):#,minnsteps=1):
-    nlicenses=nlicensesplit[0];
-    licensesleft=(nlicenses>0);#(navaillicenses>=minnsteps));
-    if len(nlicensesplit)>1:
-        nsublicenses=nlicensesplit[1];
-        licensesleft=(licensesleft and (nsublicenses>=requiredthreads));
-    return licensesleft;
+def clusterjobslotsleft(maxjobcount,requiredthreads,scriptpath,scriptlanguage,pendlicensestream):#,minnsteps=1):
+    njobs=eval(subprocess.Popen("squeue -h -r -u altman.ro | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+    #print "clusterjobslotsleft";
+    #print "squeue -h -r -u altman.ro | wc -l | head -c -1";
+    #print "";
+    #sys.stdout.flush();
+    jobsleft=(njobs<maxjobcount);
+    if pendlicensestream!=None:
+        nlicensesplit=licensecount(scriptpath,scriptlanguage,pendlicensestream);
+        nlicenses=nlicensesplit[0];
+        jobsleft=(jobsleft and (nlicenses>0));#(navaillicenses>=minnsteps));
+        if (nthreadsfield!="") and (len(nlicensesplit)>1):
+            nsublicenses=nlicensesplit[1];
+            jobsleft=(jobsleft and (nsublicenses>=requiredthreads));
+    return jobsleft;
 
 def userjobsrunningq(username,modname,controllername):
     njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
@@ -548,7 +551,7 @@ def distributeovernodes(resourcesstatefile,partitions,scriptmemorylimit,maxsteps
     memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory];
 
-def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch):
+def writejobfile(modname,dbpushq,jobname,jobstepnames,pendlicensestatefile,needslicense,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch):
     ndocs=len(docbatch);
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" || ".join(["\"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
@@ -595,7 +598,6 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
     jobstring+="\n";
     jobstring+="#Cluster info\n";
     jobstring+="scriptpath=\""+scriptpath+"\"\n";
-    jobstring+="modulescriptpath=\"${scriptpath}/modules\"\n";
     jobstring+="controllerpath=\""+controllerpath+"\"\n";
     jobstring+="workpath=\"${controllerpath}/jobs\"\n";
     jobstring+="\n";
@@ -616,32 +618,32 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
         else:
             jobstring+="njobstepthreads["+str(i)+"]="+str(docbatch[i][nthreadsfield])+"\n";
     jobstring+="\n";
-    #jobstring+="ndocs=0\n";
-    #jobstring+="njobthreads=0\n";
-    #jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
-    #jobstring+="do\n";
-    #jobstring+="    ndocs=$((${ndocs}+1))\n";
-    #jobstring+="    njobthreads=$((${njobthreads}+${njobstepthreads[${i}]}))\n";
-    #jobstring+="done\n";
-    #jobstring+="\n";
+    jobstring+="ndocs=0\n";
+    jobstring+="njobthreads=0\n";
+    jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
+    jobstring+="do\n";
+    jobstring+="    ndocs=$((${ndocs}+1))\n";
+    jobstring+="    njobthreads=$((${njobthreads}+${njobstepthreads[${i}]}))\n";
+    jobstring+="done\n";
+    jobstring+="\n";
 
-    #if needslicense:
-    #    jobstring+="(\n";
-    #    jobstring+="    flock -e 200\n";
-    #    jobstring+="    pendlicensefile=$(<"+pendlicensestatefile+" tr '\n' ';')\n";
-    #    jobstring+="    pendlicenseheader=$(echo \"${pendlicensefile}\" | cut -d';' -f1)\n";
-    #    jobstring+="    pendlicenseline=$(echo \"${pendlicensefile}\" | cut -d';' -f2)\n";
-    #    jobstring+="    if [[ \"$pendlicenseline\" =~ .*,.* ]]\n";
-    #    jobstring+="    then\n";
-    #    jobstring+="        npendlicenses=$(echo \"${pendlicenseline}\" | cut -d',' -f1)\n";
-    #    jobstring+="        npendsublicenses=$(echo \"${pendlicenseline}\" | cut -d',' -f2)\n";
-    #    jobstring+="        echo -e \"$pendlicenseheader\n$((${npendlicenses}-${ndocs})),$((${npendsublicenses}-${njobthreads}))\" >"+pendlicensestatefile+"\n";
-    #    jobstring+="    else\n";
-    #    jobstring+="        nlicenses=${licenseline}\n";
-    #    jobstring+="        echo -e \"${pendlicenseheader}\n$((${npendlicenses}-1))\" >"+pendlicensestatefile+"\n";
-    #    jobstring+="    fi\n";
-    #    jobstring+=") 200<>"+pendlicensestatefile+"\n";
-    #    jobstring+="\n";
+    if needslicense:
+        jobstring+="(\n";
+        jobstring+="    flock -e 200\n";
+        jobstring+="    pendlicensefile=$(<"+pendlicensestatefile+" tr '\n' ';')\n";
+        jobstring+="    pendlicenseheader=$(echo \"${pendlicensefile}\" | cut -d';' -f1)\n";
+        jobstring+="    pendlicenseline=$(echo \"${pendlicensefile}\" | cut -d';' -f2)\n";
+        jobstring+="    if [[ \"$pendlicenseline\" =~ .*,.* ]]\n";
+        jobstring+="    then\n";
+        jobstring+="        npendlicenses=$(echo \"${pendlicenseline}\" | cut -d',' -f1)\n";
+        jobstring+="        npendsublicenses=$(echo \"${pendlicenseline}\" | cut -d',' -f2)\n";
+        jobstring+="        echo -e \"$pendlicenseheader\n$((${npendlicenses}-${ndocs})),$((${npendsublicenses}-${njobthreads}))\" >"+pendlicensestatefile+"\n";
+        jobstring+="    else\n";
+        jobstring+="        nlicenses=${licenseline}\n";
+        jobstring+="        echo -e \"${pendlicenseheader}\n$((${npendlicenses}-1))\" >"+pendlicensestatefile+"\n";
+        jobstring+="    fi\n";
+        jobstring+=") 200<>"+pendlicensestatefile+"\n";
+        jobstring+="\n";
 
     jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
     jobstring+="do\n";
@@ -649,7 +651,7 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
     jobstring+="    mpirun -srun -n \"${njobstepthreads[i]}\" -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" ";
     if buffertimelimit!="infinite":
         jobstring+="--time=\""+buffertimelimit+"\" ";
-    jobstring+=scriptcommand+" "+scriptflags+" \"${modulescriptpath}/"+modname+scriptext+"\" \"${mongouri}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
+    jobstring+=scriptcommand+" "+scriptflags+" \"${scriptpath}/"+modname+scriptext+"\" \"${mongouri}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    sleep 0.1\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
@@ -718,36 +720,25 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
     jobstream.flush();
     jobstream.close();
 
-def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream):
-    needslicense=(licensestream!=None);
+def doinput(docbatch,nthreadsfield,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,pendlicensestream):
+    needslicense=(pendlicensestream!=None);
     if (nthreadsfield!="") and (len(docbatch)>0):
         requiredthreads=docbatch[0][nthreadsfield];
     else:
         requiredthreads=1;    
         #print needslicense;
         #sys.stdout.flush();
+    slotsleft=clusterjobslotsleft(maxjobcount,requiredthreads,scriptpath,scriptlanguage,pendlicensestream);
+    if not slotsleft:
+        with open(statusstatefile,"w") as statusstream:
+            statusstream.truncate(0);
+            statusstream.write("Waiting");
+        while not slotsleft:
+            time.sleep(sleeptime);
+            slotsleft=clusterjobslotsleft(maxjobcount,requiredthreads,scriptpath,scriptlanguage,pendlicensestream);
     if needslicense:
-        jobslotsleft=clusterjobslotsleft(username,maxjobcount);
-        nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
-        licensesleft=clusterlicensesleft(nlicensesplit,requiredthreads);
-        if not (jobslotsleft and licensesleft):
-            with open(statusstatefile,"w") as statusstream:
-                statusstream.truncate(0);
-                statusstream.write("Waiting");
-                statusstream.flush();
-            while not (jobslotsleft and licensesleft):
-                time.sleep(sleeptime);
-                jobslotsleft=clusterjobslotsleft(username,maxjobcount);
-                nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
-                licensesleft=clusterlicensesleft(nlicensesplit,requiredthreads);
-        fcntl.flock(licensestream,fcntl.LOCK_EX);
-        licensestream.seek(0,0);
-        licenseheader=licensestream.readline();
-        licensestream.truncate(0);
-        licensestream.seek(0,0);
-        licensestream.write(licenseheader);
-        licensestream.write(','.join([str(x) for x in nlicensesplit]));
-        licensestream.flush();
+        fcntl.flock(pendlicensestream,fcntl.LOCK_EX);
+        nlicensesplit=licensecount(scriptpath,scriptlanguage,pendlicensestream);
         nlicenses=nlicensesplit[0];
         if (nthreadsfield!="") and (len(nlicensesplit)>1) and (len(docbatch)>0):
             nsublicenses=nlicensesplit[1];
@@ -770,21 +761,11 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
             #pendlicensestream.write(str(nlicenses));
             maxsteps=min(maxstepcount,nlicenses);
     else:
-        jobslotsleft=clusterjobslotsleft(username,maxjobcount);
-        if not jobslotsleft:
-            with open(statusstatefile,"w") as statusstream:
-                statusstream.truncate(0);
-                statusstream.write("Waiting");
-                statusstream.flush();
-            while not jobslotsleft:
-                time.sleep(sleeptime);
-                jobslotsleft=clusterjobslotsleft(username,maxjobcount);
         maxsteps=maxstepcount;
 
     with open(statusstatefile,"w") as statusstream:
             statusstream.truncate(0);
             statusstream.write("Running");
-            statusstream.flush();
     #orderedpartitions=orderpartitions(largemempartitions);
     #if doc2jobname(newqueryresult[i],dbindexes) not in skippedjobslist(username,modname,controllername,controllerpath):
     #orderedpartitions=orderpartitions(partitions)+orderedpartitions;
@@ -793,42 +774,42 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
-def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,controllername,scripttimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield):
-    needslicense=(licensestream!=None);
-    #ndocs=len(docbatch);
-    #if nthreadsfield=="":
-    #    totnthreadsfield=ndocs;
-    #else:
-    #    totnthreadsfield=sum([x[nthreadsfield] for x in docbatch]);
+def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,controllername,SLURMtimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,pendlicensestream,nthreadsfield):
+    needslicense=(pendlicensestream!=None);
+    ndocs=len(docbatch);
+    if nthreadsfield=="":
+        totnthreadsfield=ndocs;
+    else:
+        totnthreadsfield=sum([x[nthreadsfield] for x in docbatch]);
     #while not clusterjobslotsleft(maxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
     #    time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
     jobstepnames=[modname+"_"+controllername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
     #jobstepnamescontract=jobstepnamescontract(jobstepnames);
     jobname=modname+"_"+controllername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
-    partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,buffertime);
+    partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],SLURMtimelimit,buffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
+    writejobfile(modname,dbpushq,jobname,jobstepnames,pendlicensestream.name,needslicense,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
     #Submit job file
     submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],inputdoc["nodemaxmemory"],resubmit=False);
     if needslicense:
         #fcntl.flock(pendlicensestream,fcntl.LOCK_EX);
-        #pendlicensestream.seek(0,0);
-        #pendlicenseheader=pendlicensestream.readline();
-        #npendlicensesplit=[eval(x) for x in pendlicensestream.readline().rstrip("\n").split(",")];
+        pendlicensestream.seek(0,0);
+        pendlicenseheader=pendlicensestream.readline();
+        npendlicensesplit=[eval(x) for x in pendlicensestream.readline().rstrip("\n").split(",")];
         #print npendlicensesplit;
-        #pendlicensestream.truncate(0);
+        pendlicensestream.truncate(0);
         #print "hi";
-        #pendlicensestream.seek(0,0);
-        #pendlicensestream.write(pendlicenseheader);
-        #npendlicenses=npendlicensesplit[0];
-        #if len(npendlicensesplit)>1:
-        #    npendsublicenses=npendlicensesplit[1];
-        #    pendlicensestream.write(str(npendlicenses+ndocs)+","+str(npendsublicenses+totnthreadsfield));
-        #else:
-        #    pendlicensestream.write(str(npendlicenses+ndocs));
-        fcntl.flock(licensestream,fcntl.LOCK_UN);
+        pendlicensestream.seek(0,0);
+        pendlicensestream.write(pendlicenseheader);
+        npendlicenses=npendlicensesplit[0];
+        if len(npendlicensesplit)>1:
+            npendsublicenses=npendlicensesplit[1];
+            pendlicensestream.write(str(npendlicenses+ndocs)+","+str(npendsublicenses+totnthreadsfield));
+        else:
+            pendlicensestream.write(str(npendlicenses+ndocs));
+        fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
     releaseheldjobs(username,modname,controllername);
     #seekstream.write(querystream.tell());
     #seekstream.flush();
@@ -854,22 +835,22 @@ try:
     controllerpartition=sys.argv[3];
     partitions=sys.argv[4].split(",");
     #largemempartitions=sys.argv[6].split(",");
-    sleeptime=timestamp2unit(sys.argv[5]);
+    writemode=sys.argv[5];
+    SLURMtimelimit=sys.argv[6];
+    buffertime=sys.argv[7];
+    sleeptime=timestamp2unit(sys.argv[8]);
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[6];
-    packagepath=sys.argv[7];
-    scriptpath=sys.argv[8];
+    mainpath=sys.argv[9];
+    packagepath=sys.argv[10];
+    scriptpath=sys.argv[11];
 
     #Input script info
-    scriptlanguage=sys.argv[9];
-    writemode=sys.argv[10];
+    scriptlanguage=sys.argv[12];
     #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[11];
-    scripttimelimit=sys.argv[12];
-    buffertime=sys.argv[13];
+    scriptmemorylimit=sys.argv[13];
     #outputlinemarkers=sys.argv[15].split(",");
 
     #Input database info
@@ -879,8 +860,6 @@ try:
     basecollection=sys.argv[16];
     nthreadsfield=sys.argv[17];
     #newcollection,newfield=sys.argv[18].split(",");
-
-    #Options
     dbpushq=sys.argv[18];
     pdffile=sys.argv[19];
     
@@ -932,7 +911,6 @@ try:
     #sys.stdout.flush();
 
     allindexes=toriccy.getunionindexes(db);
-    needslicense=False;
     try:
         with open(softwarestatefile,"r") as softwarestream:
             softwareheader=softwarestream.readline();
@@ -942,11 +920,11 @@ try:
                     needslicense=eval(softwarelinesplit[1]);
                     scriptext,scriptcommand,scriptflags=softwarelinesplit[2:];
                     if needslicense:
-                        licensestatefile=statepath+"/licenses/"+scriptlanguage+"licenses";
-                        licensestream=open(licensestatefile,"a+");
-                        #licenseheader=licensestream.readline();
+                        pendlicensestatefile=statepath+"/licenses/"+scriptlanguage+"licenses";
+                        pendlicensestream=open(pendlicensestatefile,"a+");
+                        #pendlicenseheader=pendlicensestream.readline();
                     else:
-                        licensestream=None;
+                        pendlicensestream=None;
                     break;
         #print pendlicensestream;
         #sys.stdout.flush();
@@ -997,7 +975,7 @@ try:
         #sys.stdout.flush();
 
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,controllername,scripttimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,controllerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,pendlicensestream),inputdoc=doinput([],nthreadsfield,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,statepath,scriptpath,scriptlanguage,pendlicensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,controllername,SLURMtimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,pendlicensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,controllerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
         #firstrun=False;
         with open(counterstatefile,"w") as counterstream:
             counterstream.write(counterheader);
@@ -1033,7 +1011,7 @@ try:
     #seekstream.close();
     if needslicense:
         #fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
-        licensestream.close();
+        pendlicensestream.close();
     mongoclient.close();
 
     print "";

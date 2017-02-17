@@ -1,0 +1,37 @@
+#!/bin/bash
+
+(
+    flock -e 200
+    i=0
+    r=$(</gss_gpfs_scratch/altman.ro/ToricCY/modules/q tr '\n' ';')
+    s=$(echo $r | cut -d';' -f1)
+    t=$(echo $r | cut -d';' -f2)
+    if [[ "$t" =~ .*,.* ]]
+    then
+        t1=$(echo $t | cut -d',' -f1)
+        t2=$(echo $t | cut -d',' -f2)
+        echo -e "$s\n$(($t1-1)),$(($t2-2))" >/gss_gpfs_scratch/altman.ro/ToricCY/modules/q
+    else
+        echo -e "$s\n$(($t-1))" >/gss_gpfs_scratch/altman.ro/ToricCY/modules/q
+    fi
+    #while read line
+    #do
+    #    if [ "$i" -eq 0 ]
+    #    then
+    #        licenseheader=$line
+    #        echo $licenseheader
+    #    elif [ "$i" -eq 1 ]
+    #    then
+    #        ntotallicenses=($line)
+    #        break
+    #    fi
+    #    i=$(($i+1))
+    #done < /gss_gpfs_scratch/altman.ro/ToricCY/modules/q
+    #echo "$licenseheader" > /gss_gpfs_scratch/altman.ro/ToricCY/modules/q
+    #if [ "${#ntotallicenses[@]}" -gt 1 ]
+    #then
+    #    echo "$((${ntotallicenses[0]}-1)),$((${ntotallicenses[1]-2}))" >> /gss_gpfs_scratch/altman.ro/ToricCY/modules/q
+    #else
+    #    echo "$((${ntotallicenses[0]}-1))" >> /gss_gpfs_scratch/altman.ro/ToricCY/modules/q
+    #fi
+) 200<>/gss_gpfs_scratch/altman.ro/ToricCY/modules/q

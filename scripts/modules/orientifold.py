@@ -2132,9 +2132,9 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #    o1.append(fset)
             #    o1red.append(fr)
             if On in oplanes.keys():
-                oplanes[On].append(fsetx)
+                oplanes[On].append(fset)
             else:
-                oplanes[On] = [fsetx]
+                oplanes[On] = [fset]
 
             if On in oplanesred.keys():
                 oplanesred[On].append(fr)
