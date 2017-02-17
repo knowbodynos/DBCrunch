@@ -740,9 +740,21 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
                 nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
                 licensesleft=clusterlicensesleft(nlicensesplit,requiredthreads);
-        fcntl.flock(licensestream,fcntl.LOCK_EX);
+        #fcntl.flock(licensestream,fcntl.LOCK_EX);
+        #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a+", so instead use bitwise OR with non-blocking and loop until lock is acquired.
+        while True:
+            try:
+                fcntl.flock(licensestream,fcntl.LOCK_EX | fcntl.LOCK_NB);
+                break;
+            except IOError as e:
+                if e.errno!=errno.EAGAIN:
+                    raise;
+                else:
+                    time.sleep(0.1);
         licensestream.seek(0,0);
         licenseheader=licensestream.readline();
+        #print licenseheader;
+        #sys.stdout.flush();
         licensestream.truncate(0);
         licensestream.seek(0,0);
         licensestream.write(licenseheader);
