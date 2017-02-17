@@ -803,15 +803,16 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq
     #while not clusterjobslotsleft(maxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
     #    time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
-    jobstepnames=[modname+"_"+controllername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
-    #jobstepnamescontract=jobstepnamescontract(jobstepnames);
-    jobname=modname+"_"+controllername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
-    partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,buffertime);
-    #if len(docbatch)<inputdoc["nsteps"]:
-    #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
-    #Submit job file
-    submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],inputdoc["nodemaxmemory"],resubmit=False);
+    if len(docbatch)>0:
+        jobstepnames=[modname+"_"+controllername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
+        #jobstepnamescontract=jobstepnamescontract(jobstepnames);
+        jobname=modname+"_"+controllername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
+        partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,buffertime);
+        #if len(docbatch)<inputdoc["nsteps"]:
+        #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
+        writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
+        #Submit job file
+        submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],inputdoc["nodemaxmemory"],resubmit=False);
     if needslicense:
         #fcntl.flock(pendlicensestream,fcntl.LOCK_EX);
         #pendlicensestream.seek(0,0);
