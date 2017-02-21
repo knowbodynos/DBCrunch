@@ -1,11 +1,10 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,os,errno,re,linecache,signal,fcntl,traceback,subprocess,time,datetime,tempfile,matplotlib,json,toriccy;#,json;
-import networkx as nx;
-matplotlib.use('Agg');
-import matplotlib.pyplot as plt;
-from matplotlib.backends.backend_pdf import PdfPages;
-plt.ioff();
+import time;
+#Timer and maxjobcount initialization
+starttime=time.time();
+
+import sys,os,errno,re,linecache,signal,fcntl,traceback,subprocess,datetime,tempfile,json,toriccy;#,json;
 #from pymongo import MongoClient;
 
 #Misc. function definitions
@@ -165,105 +164,7 @@ def formatinput(doc):#,scriptlanguage):
     #return str(formatteddoc).replace(" ","");
     return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
 
-def plotjobgraph(modname,controllerpath,controllername,workpath,pdffile):
-    joblist=[];
-    jobsteplist=[];
-    try:
-        with open(controllerpath+"/controller_"+modname+"_"+controllername+".out","r") as outstream:
-            for line in outstream:
-                if "batch job" in line:
-                    if len(jobsteplist)>0:
-                        joblist+=[jobsteplist];
-                    jobsteplist=[];
-                if "job step" in line:
-                    jobsteplist+=[re.sub("^.* "+modname+"_.*?_(.*?) .*$\n",r"\1",line).split("_")];
-            if len(jobsteplist)>0:
-                joblist+=[jobsteplist];
-
-        maxdepth=len(joblist[0][0]);
-        expandedleaves=[];
-        for leavesbatch in joblist:
-            ileaf=0;
-            expandedfirst=[leavesbatch[ileaf][:i+1] for i in range(len(leavesbatch[ileaf])-1)];
-            while ileaf<len(leavesbatch)-1:
-                leavespair=leavesbatch[ileaf:ileaf+2];
-                if all([len(x)>1 for x in leavespair]):
-                    expandedpairfirst=list(reversed([leavespair[0][:i+1] for i in range(len(leavespair[0])-1)]));
-                    expandedpairlast=[leavespair[1][:i+1] for i in range(len(leavespair[1])-1)];
-                    while (len(expandedpairfirst)>0) and (len(expandedpairlast)>0) and (expandedpairfirst[-1]==expandedpairlast[0]):
-                        expandedpairfirst=expandedpairfirst[:-1];
-                        expandedpairlast=expandedpairlast[1:];
-                    recombineleavespair=[leavespair[0]]+expandedpairfirst+expandedpairlast+[leavespair[1]];
-                else:
-                    recombineleavespair=leavespair;
-                leavesbatch=leavesbatch[:ileaf]+recombineleavespair+leavesbatch[ileaf+2:];
-                ileaf+=len(recombineleavespair)-1;
-            expandedlast=list(reversed([leavespair[1][:i+1] for i in range(len(leavespair[1])-1)]));
-            expandedleaves+=[expandedfirst+leavesbatch+expandedlast];
-
-        orderedexpandedleaves=toriccy.deldup([y for x in expandedleaves for y in x]);
-        expandedleavesindexes=[[orderedexpandedleaves.index(y) for y in x] for x in expandedleaves];
-        expandedleavessplitindexes=[];
-        for i in range(len(expandedleaves)):
-            expandedleavessplitindexbatch=[z+max([0]+[y for x in expandedleavessplitindexes for y in x if len(x)>0])-expandedleavesindexes[i][0]+1 for z in expandedleavesindexes[i]];
-            expandedleavessplitindexes+=[expandedleavessplitindexbatch];
-        expandedleavesitems=toriccy.deldup([(expandedleavessplitindexes[i][j],expandedleaves[i][j]) for i in range(len(expandedleaves)) for j in range(len(expandedleaves[i]))]);
-
-        expandedleavespathrules=[(x[i],x[i+1]) for x in expandedleavessplitindexes for i in range(len(x)-1)];
-        indexestolabels=[(x[0],x[1][-1]) for x in expandedleavesitems];
-        indexestocoords=[(expandedleavesitems[i][0],((len(expandedleavesitems[i][1])-1),-1.5-4*sum([len(x[1])==maxdepth for x in expandedleavesitems[:i]]))) for i in range(len(expandedleavesitems))];
-        indexnodecolors=['lightgray' for x in expandedleavesitems];
-        indexnodesizes=[500 for x in expandedleavesitems];
-        newindexeslabels=[];
-        newindlist=[];
-        newind=max([x[0] for x in expandedleavesitems])+1;
-        ycoord=0;
-        for x in expandedleavesitems:
-            if len(x[1])==maxdepth:
-                logfilename=modname+"_"+controllername+"_"+"_".join(x[1])+".log";
-                try:
-                    with open(workpath+"/"+logfilename,"r") as logstream:
-                        for line in logstream:
-                            if any([y in line for y in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
-                                expandedleavespathrules+=[(x[0],newind)];
-                                #indexestolabels+=[(newind,line.rstrip("\n"))];
-                                indexestocoords+=[(newind,(maxdepth+1,ycoord))];
-                                indexnodecolors+=['lightgray'];
-                                indexnodesizes+=[0];
-                                newindexeslabels+=[[maxdepth+1.05,ycoord-0.1,line.rstrip("\n")]];
-                                newindlist+=[newind];
-                                newind+=1;
-                                ycoord-=1;
-                except IOError:
-                    print "File path \""+pworkpath+"/"+logfilename+"\" does not exist.";
-                    sys.stdout.flush();
-        indexestolabels=dict(indexestolabels);
-        indexestocoords=dict(indexestocoords);
-
-        xmin=-1;
-        xmax=maxdepth+1;
-        ymin=1-4*sum([len(x[1])==maxdepth for x in expandedleavesitems]);
-        ymax=0;
-
-        fig=plt.figure(figsize=(xmax,-ymin));
-        plt.axis("off");
-        X=nx.MultiDiGraph();
-        X.add_edges_from(expandedleavespathrules);
-        nx.draw_networkx_nodes(X,indexestocoords,node_color=indexnodecolors,node_size=indexnodesizes,node_shape='s');
-        nx.draw_networkx_edges(X,indexestocoords);
-        nx.draw_networkx_labels(X,indexestocoords,labels=indexestolabels);
-        for x in newindexeslabels:
-            plt.text(*x,bbox=dict(facecolor='lightgray',alpha=1),horizontalalignment='left');
-        plt.xlim(xmin,xmax);
-        plt.ylim(ymin,ymax);
-        pdf_pages=PdfPages(controllerpath+"/"+modname+"_"+controllername+"_"+pdffile+".pdf");
-        pdf_pages.savefig(fig,bbox_inches="tight");
-        pdf_pages.close();
-    except IOError:
-        print "File path \""+controllerpath+"/controller_"+modname+"_"+controllername+".out\" does not exist.";
-        sys.stdout.flush();
-
-def getpartitiontimelimit(partition,scripttimelimit,buffertime):
+def getpartitiontimelimit(partition,scripttimelimit,scriptbuffertime):
     maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
     #print "getpartitiontimelimit";
     #print "sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1";
@@ -279,15 +180,26 @@ def getpartitiontimelimit(partition,scripttimelimit,buffertime):
     if partitiontimelimit=="infinite":
         buffertimelimit=partitiontimelimit;
     else:
-        buffertimelimit=seconds2timestamp(timestamp2unit(partitiontimelimit)-timestamp2unit(buffertime));
+        buffertimelimit=seconds2timestamp(timestamp2unit(partitiontimelimit)-timestamp2unit(scriptbuffertime));
     return [partitiontimelimit,buffertimelimit];
 
-def timeleftq(starttime,buffertimelimit):
+def timeleft(starttime,buffertimelimit):
     "Determine if runtime limit has been reached."
+    #print str(time.time()-starttime)+" "+str(timestamp2unit(buffertimelimit));
+    #sys.stdout.flush();
     if buffertimelimit=="infinite":
-        return True;
+        return 1;
     else:
-        return (time.time()-starttime)<buffertimelimit;
+        return timestamp2unit(buffertimelimit)-(time.time()-starttime);
+
+#def timeleftq(controllerjobid,buffertimelimit):
+#    "Determine if runtime limit has been reached."
+#    if buffertimelimit=="infinite":
+#        return True;
+#    else:
+#        timestats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Elapsed,Timelimit' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+#        elapsedtime,timelimit=timestats.split(",");
+#        return timestamp2unit(elapsedtime)<timestamp2unit(buffertimelimit);
 
 #def clusterjobslotsleft(maxjobcount):
 #    njobs=eval(subprocess.Popen("squeue -h -r | wc -l",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
@@ -718,7 +630,9 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
     jobstream.flush();
     jobstream.close();
 
-def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream):
+def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream):
+    #print "Start input";
+    #sys.stdout.flush();
     needslicense=(licensestream!=None);
     if (nthreadsfield!="") and (len(docbatch)>0):
         requiredthreads=docbatch[0][nthreadsfield];
@@ -730,19 +644,19 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
         nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
         licensesleft=clusterlicensesleft(nlicensesplit,requiredthreads);
-        if not (jobslotsleft and licensesleft):
+        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
                 statusstream.write("Waiting");
                 statusstream.flush();
-            while not (jobslotsleft and licensesleft):
+            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft):
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
                 nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
                 licensesleft=clusterlicensesleft(nlicensesplit,requiredthreads);
         #fcntl.flock(licensestream,fcntl.LOCK_EX);
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a+", so instead use bitwise OR with non-blocking and loop until lock is acquired.
-        while True:
+        while (timeleft(starttime,controllerbuffertimelimit)>0):
             try:
                 fcntl.flock(licensestream,fcntl.LOCK_EX | fcntl.LOCK_NB);
                 break;
@@ -751,6 +665,10 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
                     raise;
                 else:
                     time.sleep(0.1);
+        if not (timeleft(starttime,controllerbuffertimelimit)>0):
+            #print "hi";
+            #sys.stdout.flush();
+            return False;
         licensestream.seek(0,0);
         licenseheader=licensestream.readline();
         #print licenseheader;
@@ -783,14 +701,16 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
             maxsteps=min(maxstepcount,nlicenses);
     else:
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
-        if not jobslotsleft:
+        if (timeleft(starttime,controllerbuffertimelimit)>0) and not jobslotsleft:
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
                 statusstream.write("Waiting");
                 statusstream.flush();
-            while not jobslotsleft:
+            while (timeleft(starttime,controllerbuffertimelimit)>0) and not jobslotsleft:
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
+        if not (timeleft(starttime,controllerbuffertimelimit)>0):
+            return False;
         maxsteps=maxstepcount;
 
     with open(statusstatefile,"w") as statusstream:
@@ -803,9 +723,13 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,s
     orderedpartitions=orderpartitions(partitions);
     nodedistribution=distributeovernodes(resourcesstatefile,orderedpartitions,scriptmemorylimit,maxsteps);
     partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory=nodedistribution;
+    #print "End input";
+    #sys.stdout.flush();
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
-def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,controllername,scripttimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield):
+def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield):
+    #print "Start action";
+    #sys.stdout.flush();
     needslicense=(licensestream!=None);
     #ndocs=len(docbatch);
     #if nthreadsfield=="":
@@ -819,7 +743,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq
         jobstepnames=[modname+"_"+controllername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
         #jobstepnamescontract=jobstepnamescontract(jobstepnames);
         jobname=modname+"_"+controllername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
-        partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,buffertime);
+        partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,scriptbuffertime);
         #if len(docbatch)<inputdoc["nsteps"]:
         #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
         writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
@@ -843,15 +767,20 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq
         #    pendlicensestream.write(str(npendlicenses+ndocs));
         fcntl.flock(licensestream,fcntl.LOCK_UN);
     releaseheldjobs(username,modname,controllername);
+    #print "End action";
+    #sys.stdout.flush();
     #seekstream.write(querystream.tell());
     #seekstream.flush();
     #seekstream.seek(0);
     #doc=querystream.readline();
-        
+
+def docounterupdate(batchcounter,stepcounter,counterstatefile,counterheader):
+    with open(counterstatefile,"w") as counterstream:
+        counterstream.write(counterheader);
+        counterstream.write(str(batchcounter)+","+str(stepcounter));
+        counterstream.flush();
 
 try:
-    #Timer and maxjobcount initialization
-    starttime=time.time();
     maxjobcount,maxstepcount=[eval(x) for x in subprocess.Popen("scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed 's/\s//g' | cut -d'=' -f2 | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",")];
     #print "main";
     #print "scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed 's/\s//g' | cut -d'=' -f2 | tr '\n' ',' | head -c -1";
@@ -864,38 +793,39 @@ try:
     #Input controller info
     modname=sys.argv[1];
     controllername=sys.argv[2];
-    controllerpartition=sys.argv[3];
-    partitions=sys.argv[4].split(",");
+    controllerjobid=sys.argv[3];
+    controllerpartition=sys.argv[4];
+    controllerbuffertime=sys.argv[5];
     #largemempartitions=sys.argv[6].split(",");
-    sleeptime=timestamp2unit(sys.argv[5]);
+    sleeptime=eval(sys.argv[6]);
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[6];
-    packagepath=sys.argv[7];
-    scriptpath=sys.argv[8];
+    mainpath=sys.argv[7];
+    packagepath=sys.argv[8];
+    scriptpath=sys.argv[9];
 
     #Input script info
-    scriptlanguage=sys.argv[9];
-    writemode=sys.argv[10];
+    scriptlanguage=sys.argv[10];
+    partitions=sys.argv[11].split(",");
+    writemode=sys.argv[12];
     #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[11];
-    scripttimelimit=sys.argv[12];
-    buffertime=sys.argv[13];
+    scriptmemorylimit=sys.argv[13];
+    scripttimelimit=sys.argv[14];
+    scriptbuffertime=sys.argv[15];
     #outputlinemarkers=sys.argv[15].split(",");
 
     #Input database info
-    mongouri=sys.argv[14];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[15]);
+    mongouri=sys.argv[16];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[17]);
     #dumpfile=sys.argv[13];
-    basecollection=sys.argv[16];
-    nthreadsfield=sys.argv[17];
+    basecollection=sys.argv[18];
+    nthreadsfield=sys.argv[19];
     #newcollection,newfield=sys.argv[18].split(",");
 
     #Options
-    dbpushq=sys.argv[18];
-    pdffile=sys.argv[19];
+    dbpushq=sys.argv[20];
     
     #Read seek position from file
     #with open(controllerpath+"/"+seekfile,"r") as seekstream:
@@ -907,6 +837,8 @@ try:
     #If first submission, read from database
     #if seekpos==-1:
     #Open connection to remote database
+
+    controllertimelimit=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Timelimit' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
 
     print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
     print "Starting job controller_"+modname+"_"+controllername;
@@ -931,10 +863,10 @@ try:
             statusstream.truncate(0);
             statusstream.write("Starting");
 
-    if buffertime=="":
-        buffertime="00:00:00";
+    if scriptbuffertime=="":
+        scriptbuffertime="00:00:00";
 
-    controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,"",buffertime);
+    controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,controllertimelimit,controllerbuffertime);
     
     mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
@@ -994,7 +926,7 @@ try:
         raise;
     #batchcounter=1;
     #stepcounter=1;
-    while (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and timeleftq(starttime,controllerbuffertimelimit):
+    while (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and (timeleft(starttime,controllerbuffertimelimit)>0):
         #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         #if len(oldqueryresultinds)==0:
         #    oldqueryresult=[];
@@ -1010,17 +942,15 @@ try:
         #sys.stdout.flush();
 
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,controllername,scripttimelimit,buffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),stopat=lambda:(not timeleftq(starttime,controllerbuffertimelimit)),batchcounter=batchcounter,stepcounter=stepcounter,toplevel=True);
+        #print str(starttime)+" "+str(controllerbuffertimelimit);
+        #sys.stdout.flush();
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
         #firstrun=False;
-        with open(counterstatefile,"w") as counterstream:
-            counterstream.write(counterheader);
-            counterstream.write(str(batchcounter)+","+str(stepcounter));
-            counterstream.flush();
-        if timeleftq(starttime,controllerbuffertimelimit):
+        if (timeleft(starttime,controllerbuffertimelimit)>0):
             firstlastrun=(not (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun));
             releaseheldjobs(username,modname,controllername);
 
-    #while userjobsrunningq(username,modname,controllername) and timeleftq(starttime,controllerbuffertimelimit):
+    #while userjobsrunningq(username,modname,controllername) and (timeleft(starttime,controllerbuffertimelimit)>0):
     #    releaseheldjobs(username,modname,controllername);
     #    skippedjobs=skippedjobslist(username,modname,controllername,workpath);
     #    for x in skippedjobs:
@@ -1028,7 +958,7 @@ try:
     #        submitjob(workpath,x,controllerpartition,nodemaxmemory,nodemaxmemory,resubmit=True);
     #    time.sleep(sleeptime);
 
-    if (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and not timeleftq(starttime,controllerbuffertimelimit):
+    if (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and not (timeleft(starttime,controllerbuffertimelimit)>0):
         #Resubmit controller job
         nodemaxmemory=getnodemaxmemory(resourcesstatefile,controllerpartition);
         submitcontrollerjob(controllerpath,"controller_"+modname+"_"+controllername,controllerpartition,nodemaxmemory,resubmit=True);
@@ -1036,8 +966,8 @@ try:
             statusstream.truncate(0);
             statusstream.write("Resubmitting");
     else:
-        if pdffile!="":
-            plotjobgraph(modname,controllerpath,controllername,workpath,pdffile);
+        #if pdffile!="":
+        #    plotjobgraph(modname,controllerpath,controllername,workpath,pdffile);
         with open(statusstatefile,"w") as statusstream:
             statusstream.truncate(0);
             statusstream.write("Completing");

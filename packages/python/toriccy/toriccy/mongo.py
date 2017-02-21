@@ -1,8 +1,22 @@
-import sys,os,tempfile;
+import sys,os,tempfile,signal;
+from contextlib import contextmanager
 from pymongo import MongoClient;
 from math import ceil;
 from . import tools;
 from . import parse;
+
+class TimeoutException(Exception): pass;
+
+@contextmanager
+def time_limit(seconds):
+    def signal_handler(signum, frame):
+        raise TimeoutException, "Timed out!";
+    signal.signal(signal.SIGALRM, signal_handler);
+    signal.alarm(seconds);
+    try:
+        yield;
+    finally:
+        signal.alarm(0);
 
 def collectionfind(db,collection,query,projection,formatresult="string"):
     "Query specific collection in database."
@@ -171,7 +185,7 @@ def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch
                 querystatestream.flush();
         i-=1;
     #Update querystate files by removing the subdocument records of completed documents
-    minupdatetier=min([x.index(True) for x in endofdocs])+1;
+    minupdatetier=min([x.index(True) for x in endofdocs]+[len(queries)+1])+1;
     for i in range(minupdatetier,len(queries)):
         try:
             with open(statefilepath+"/"+statefilename+queries[i][0],"r") as querystatestream, tempfile.NamedTemporaryFile(dir=statefilepath,delete=False) as tempstream:
@@ -190,9 +204,11 @@ def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
 
-def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,stopat=lambda:False,batchcounter=1,stepcounter=1,resetstatefile=False,toplevel=True):
+def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,timeleft=lambda:True,batchcounter=1,stepcounter=1,counterupdate=lambda x,y:None,resetstatefile=False,toplevel=True):
     docbatch=[];
     endofdocs=[];
+    #print "a";
+    #sys.stdout.flush();
     if toplevel:
         if resetstatefile:
             for x in queries:
@@ -204,43 +220,75 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     else:
         thiscollindexes=getintersectionindexes(db,queries[0][0]);
     prevfilters=[];
+    #print "b";
+    #sys.stdout.flush();
     try:
         thisiostream=open(statefilepath+"/"+statefilename+queries[0][0],"r");
         for line in thisiostream:
             linedoc=readform(line.rstrip("\n"));
-            if all([linedoc[x]==queries[0][1][x] for x in thiscollindexes if x in queries[0][1].keys()]):
-                linefilter={"$or":[{x:{"$ne":linedoc[x]}} for x in thiscollindexes if x not in queries[0][1].keys()]};
+            querytruekeys=[x for x in queries[0][1].keys() if (type(queries[0][1][x])!=list) and (type(queries[0][1][x])!=dict)];
+            if all([linedoc[x]==queries[0][1][x] for x in thiscollindexes if x in querytruekeys]):
+                linefilter={"$or":[{x:{"$ne":linedoc[x]}} for x in thiscollindexes if x not in querytruekeys]};
                 prevfilters+=[linefilter];
     except IOError:
         thisiostream=open(statefilepath+"/"+statefilename+queries[0][0],"w");
+    #print "c";
+    #sys.stdout.flush();
     thisiostream.close();
     newquerydoc={"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters};
     newprojdoc=dict(queries[0][2].items()+[(x,1) for x in thiscollindexes]+[("_id",0)]);
     thisquery=[queries[0][0],newquerydoc,newprojdoc];
-    docs=collectionfind(db,*thisquery);
+    #print thisquery;
+    #sys.stdout.flush();
+    if timeleft()==True:
+        docs=collectionfind(db,*thisquery);
+    else:
+        #print "hi";
+        #sys.stdout.flush();
+        try:
+            with time_limit(int(timeleft())):
+                docs=collectionfind(db,*thisquery);
+        except TimeoutException, msg:
+            docs=[];
+            pass;
+    #print "d";
+    #sys.stdout.flush();
     i=0;
-    while (i<len(docs)) and not stopat():
+    while (i<len(docs)) and (timeleft()>0):
+        
         doc=docs[i];
         if len(queries)>1:
+            #print "e";
+            #sys.stdout.flush();
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
             nextqueries=[[queries[1][0],dict(queries[1][1].items()+[(x,doc[x]) for x in commonindexes]),queries[1][2]]]+queries[2:];
+            #print "f";
+            #sys.stdout.flush();
             newinputdoc=inputdoc.copy();
             newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatch)});
-            [endofsubdocs,subdocbatch]=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,stopat=stopat,batchcounter=batchcounter,stepcounter=stepcounter,resetstatefile=resetstatefile,toplevel=False);
+            #print "g";
+            #sys.stdout.flush();
+            endofsubdocs,subdocbatch=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,timeleft=timeleft,batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=counterupdate,resetstatefile=resetstatefile,toplevel=False);
         else:
+            #print "h";
+            #sys.stdout.flush();
             [endofsubdocs,subdocbatch]=[[[True]],[{}]];
 
+        #print "i";
+        #sys.stdout.flush();
         docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
+        #print "j";
+        #sys.stdout.flush();
 
         if toplevel:
             endofdocs+=endofsubdocs;
-            if len(docbatch)==inputdoc["nsteps"]:
+            if (len(docbatch)==inputdoc["nsteps"]) or not (timeleft()>0):
                 docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
                 action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-                inputdoc.update(inputfunc(docbatchprojfields));
                 updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                 batchcounter+=1;
                 stepcounter+=len(docbatch);
+                counterupdate(batchcounter,stepcounter);
                 #docbatchtier=[];
                 #for j in range(len(docbatch)):
                 #    linedoc=docbatch[j];
@@ -265,14 +313,24 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
                 #    stepcounter+=1;
                 #batchcounter+=1;
                 docbatch=[];
-                if not endofdocs[-1][0]:
+                if (len(endofdocs)>0) and not endofdocs[-1][0]:
                     i-=1;
                 endofdocs=[];
+                #print "k";
+                inputfuncresult=inputfunc(docbatchprojfields);
+                #print "l: "+str(inputfuncresult)+" "+str(not (timeleft()>0));
+                #sys.stdout.flush();
+                if not inputfuncresult:
+                    break;
+                inputdoc.update(inputfuncresult);
         else:
             endofdocs+=[[all(x) and (i==len(docs)-1)]+x for x in endofsubdocs];
-            if len(docbatch)==inputdoc["nsteps"]:
+            if (len(docbatch)==inputdoc["nsteps"]) or not (timeleft()>0):
                 return [endofdocs,docbatch];
         i+=1;
+
+    #print "timeleft: "+str(timeleft());
+    #sys.stdout.flush();
     if toplevel:
         docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
         action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
@@ -280,6 +338,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
             batchcounter+=1;
             stepcounter+=len(docbatch);
+            counterupdate(batchcounter,stepcounter);
         return [batchcounter,stepcounter];
     else:
         return [endofdocs,docbatch];

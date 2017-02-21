@@ -15,6 +15,9 @@
 #Job file write mode
 #SBATCH --open-mode="append"
 #################
+#Job max time
+#SBATCH --time="1-00:00:00"
+#################
 #Partition (queue) to use for job
 #SBATCH --partition="ser-par-10g"
 #################
@@ -33,22 +36,24 @@ h11="template"
 #Input controller info
 modname="toricswisscheese"
 controllername="${h11}"
-controllerpartition="ser-par-10g"
-partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+controllerjobid="${SLURM_JOBID}"
+controllerpartition="${SLURM_JOB_PARTITION}"
+controllerbuffertime="00:05:00"
 #largemempartitions="largemem-10g"
-sleeptime="00:00:01"
+sleeptime="1"
 
 #Input path info
-mainpath="/gss_gpfs_scratch/$USER"
+mainpath="/gss_gpfs_scratch/${USER}"
 packagepath="${mainpath}/ToricCY"
 scriptpath="${packagepath}/scripts"
 
 #Input script info
 scriptlanguage="sage"
+partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 writemode="truncate"
 scriptmemorylimit="1000000000"
 scripttimelimit=""
-buffertime="00:05:00"
+scriptbuffertime="00:05:00"
 #outputlinemarkers="Output: "
 
 #Input database info
@@ -59,6 +64,5 @@ nthreadsfield="NTRIANGS"
 
 #Options
 dbpushq="True"
-pdffile="jobgraph"
 
-python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerpartition}" "${partitions}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${buffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${dbpushq}" "${pdffile}"
+python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerpartition}" "${controllerbuffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${dbpushq}"
