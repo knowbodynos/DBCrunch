@@ -35,9 +35,10 @@ try:
     workpath=sys.argv[4];
     jobstepname=sys.argv[5];
     dbpushq=eval(sys.argv[6]);
-    cputime=sys.argv[7];
-    maxrss=sys.argv[8];
-    maxvmsize=sys.argv[9];
+    markdone=sys.argv[7];
+    cputime=sys.argv[8];
+    maxrss=sys.argv[9];
+    maxvmsize=sys.argv[10];
 
     #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
     #if len(sacctstats)==3:
@@ -83,8 +84,13 @@ try:
                     #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
                     #sys.stdout.flush();
 
+        statsset={};
         if dbpushq:
-            db[basecollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize),"BSONSIZE":bsonsize}}});
+            statsset.update({modname+"STATS":{"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize),"BSONSIZE":bsonsize}});
+        if markdone!="":
+            statsset.update({modname+markdone:True});
+        if len(statsset)>0:
+            db[basecollection].update(indexdoc,{"$set":statsset});
 
         #print "CPUTime: "+str(cputime)+" seconds";
         #print "MaxRSS: "+str(maxrss)+" bytes";

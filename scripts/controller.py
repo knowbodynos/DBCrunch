@@ -460,7 +460,7 @@ def distributeovernodes(resourcesstatefile,partitions,scriptmemorylimit,maxsteps
     memoryperstep=nodemaxmemory/nstepsdistribmem;
     return [partition,nnodes,ncores,nsteps,memoryperstep,nodemaxmemory];
 
-def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch):
+def writejobfile(modname,dbpushq,markdone,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch):
     ndocs=len(docbatch);
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" || ".join(["\"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
@@ -514,6 +514,7 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
     jobstring+="#Job info\n";
     jobstring+="modname=\""+modname+"\"\n";
     jobstring+="dbpushq=\""+dbpushq+"\"\n";
+    jobstring+="markdone=\""+markdone+"\"\n";
     #jobstring+="outputlinemarkers=\""+",".join(outputlinemarkers)+"\"\n";
     #jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     #jobstring+="scriptmemorylimit=\""+str(memoryperstep)+"\"\n";
@@ -611,7 +612,7 @@ def writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllern
     jobstring+="    if ! ${skipped}\n";
     jobstring+="    then\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${basecollection}\" \"${workpath}\" \"${outputlinemarkers}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
-    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpushq}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpushq}\" \"${markdone}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${dbpushq}\" \"${SLURM_JOBID}.${i}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    else\n";
     #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${controllerpath}/hi\"\n";
@@ -727,7 +728,7 @@ def doinput(docbatch,nthreadsfield,username,maxjobcount,maxstepcount,controllerj
     #sys.stdout.flush();
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"memoryperstep":memoryperstep,"nodemaxmemory":nodemaxmemory};
 
-def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield):
+def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq,markdone,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield):
     #print "Start action";
     #sys.stdout.flush();
     needslicense=(licensestream!=None);
@@ -746,7 +747,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq
         partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,scriptbuffertime);
         #if len(docbatch)<inputdoc["nsteps"]:
         #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-        writejobfile(modname,dbpushq,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
+        writejobfile(modname,dbpushq,markdone,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,inputdoc["partition"],inputdoc["nnodes"],inputdoc["ncores"],inputdoc["memoryperstep"],mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch);
         #Submit job file
         submitjob(workpath,jobname,jobstepnames,inputdoc["partition"],inputdoc["memoryperstep"],inputdoc["nodemaxmemory"],resubmit=False);
     if needslicense:
@@ -826,6 +827,7 @@ try:
 
     #Options
     dbpushq=sys.argv[20];
+    markdone=sys.argv[21];
     
     #Read seek position from file
     #with open(controllerpath+"/"+seekfile,"r") as seekstream:
@@ -944,7 +946,7 @@ try:
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
         #print str(starttime)+" "+str(controllerbuffertimelimit);
         #sys.stdout.flush();
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,markdone,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
         #firstrun=False;
         if (timeleft(starttime,controllerbuffertimelimit)>0):
             firstlastrun=(not (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun));
