@@ -130,29 +130,29 @@ def seconds2timestamp(seconds):
     timestamp+=hours+":"+minutes+":"+seconds;
     return timestamp;
 
-def contractededjobname2jobdocs(jobname,dbindexes):
-    indexsplit=[[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")];
-    return [dict([(dbindexes[i],x[i]) for i in range(len(dbindexes))]) for x in indexsplit];
+#def contractededjobname2jobdocs(jobname,dbindexes):
+#    indexsplit=[[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")];
+#    return [dict([(dbindexes[i],x[i]) for i in range(len(dbindexes))]) for x in indexsplit];
 
-def jobname2jobdoc(jobname,dbindexes):
-    indexsplit=jobname.split("_");
-    parselength=min(len(dbindexes),len(indexsplit));
-    return dict([(dbindexes[i],eval(indexsplit[i])) for i in range(parselength)]);
+def jobstepname2indexdoc(jobstepname,dbindexes):
+    indexsplit=jobstepname.split("_");
+    nindexes=min(len(indexsplit)-2,len(dbindexes));
+    return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
 
-def doc2jobname(doc,dbindexes):
-    return '_'.join([str(doc[x]) for x in dbindexes if x in doc.keys()]);
+def indexdoc2jobstepname(doc,modname,controllername,dbindexes):
+    return modname+"_"+controllername+"_"+"_".join([str(doc[x]) for x in dbindexes if x in doc.keys()]);
 
-def doc2jobjson(doc,dbindexes):
-    return dict([(y,doc[y]) for y in dbindexes]);
+#def doc2jobjson(doc,dbindexes):
+#    return dict([(y,doc[y]) for y in dbindexes]);
 
-def jobnameexpand(jobname):
-    bracketexpanded=jobname.rstrip("]").split("[");
-    return [bracketexpanded[0]+x for x in bracketexpanded[1].split(",")];
+#def jobnameexpand(jobname):
+#    bracketexpanded=jobname.rstrip("]").split("[");
+#    return [bracketexpanded[0]+x for x in bracketexpanded[1].split(",")];
 
-def jobstepnamescontract(jobstepnames):
-    "3 because modname,controllername are first two."
-    bracketcontracted=[x.split("_") for x in jobstepnames];
-    return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
+#def jobstepnamescontract(jobstepnames):
+#    "3 because modname,controllername are first two."
+#    bracketcontracted=[x.split("_") for x in jobstepnames];
+#    return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
 
 def formatinput(doc):#,scriptlanguage):
     #if scriptlanguage=="python":
@@ -741,7 +741,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,username,modname,dbpushq
     #    time.sleep(sleeptime);
     #doc=json.loads(doc.rstrip('\n'));
     if len(docbatch)>0:
-        jobstepnames=[modname+"_"+controllername+"_"+doc2jobname(y,dbindexes) for y in docbatch];
+        jobstepnames=[indexdoc2jobstepname(x,modname,controllername,dbindexes) for x in docbatch];
         #jobstepnamescontract=jobstepnamescontract(jobstepnames);
         jobname=modname+"_"+controllername+"_job_"+str(batchcounter)+"_steps_"+str(stepcounter)+"-"+str(stepcounter+len(docbatch)-1);
         partitiontimelimit,buffertimelimit=getpartitiontimelimit(inputdoc["partition"],scripttimelimit,scriptbuffertime);
@@ -946,7 +946,7 @@ try:
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
         #print str(starttime)+" "+str(controllerbuffertimelimit);
         #sys.stdout.flush();
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,markdone,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobname2jobdoc('_'.join(x.split("_")[2:]),dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+doc2jobname(x,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
+        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),inputdoc=doinput([],nthreadsfield,username,maxjobcount,maxstepcount,controllerjobid,controllerbuffertimelimit,starttime,sleeptime,statusstatefile,partitions,scriptmemorylimit,softwarestatefile,modlist,modulesdirpath,scriptpath,scriptlanguage,licensestream),action=lambda w,x,y,z:doaction(w,x,y,z,username,modname,dbpushq,markdone,controllername,scripttimelimit,scriptbuffertime,writemode,mongouri,basecollection,dbindexes,controllerpath,workpath,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,licensestream,nthreadsfield),readform=lambda x:jobstepname2indexdoc(x,dbindexes),writeform=lambda x:indexdoc2jobstepname(x,modname,controllername,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
         #firstrun=False;
         if (timeleft(starttime,controllerbuffertimelimit)>0):
             firstlastrun=(not (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun));

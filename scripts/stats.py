@@ -17,9 +17,10 @@ def PrintException():
 #def default_sigpipe():
 #    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
-def jobstepname2doc(jobstepname,dbindexes):
-    indexsplit=jobstepname.split("_")[2:];
-    return dict([(dbindexes[i],indexsplit[i]) for i in range(len(dbindexes))]);
+def jobstepname2indexdoc(jobstepname,dbindexes):
+    indexsplit=jobstepname.split("_");
+    nindexes=min(len(indexsplit)-2,len(dbindexes));
+    return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
 
 def merge_dicts(*dicts):
     result={};
@@ -50,7 +51,7 @@ try:
 
     dbindexes=toriccy.getintersectionindexes(db,basecollection);
 
-    indexdoc=jobstepname2doc(jobstepname,dbindexes);
+    indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
 
     bsonsize=0;
     try:

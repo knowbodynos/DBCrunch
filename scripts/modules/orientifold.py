@@ -1614,6 +1614,8 @@ def fixed_flip(rwold, ni, ai, polys, sr, rwmat):
     pr = PolynomialRing(base_ring=ZZ, names=names)
     x = pr.gens()
     x1 = pr1.gens()
+
+    pr1c = PolynomialRing(base_ring=CC, names=normalize_names('x+', n0))
     
     x2 = []
     for i in range(len(x)):
@@ -1659,6 +1661,20 @@ def fixed_flip(rwold, ni, ai, polys, sr, rwmat):
                     test = True
                     break
             if test:
+                continue
+
+            # Check if this set is logically consistent
+            # That is, take into account the dependencies among the new coordinates
+            # We ignore the set of the Groebner basis is [1]
+            idGens = []
+            for k in range(n):
+                if k in comb and k in ni:
+                    idGens.append(pr1c(x2[k]-1))
+                elif k in z:
+                    idGens.append(pr1c(x2[k]))
+            idl = pr1c.ideal(idGens)
+            gb = idl.groebner_basis()
+            if gb == [1]:
                 continue
             
             bv = [bl[c] for c in comb]
