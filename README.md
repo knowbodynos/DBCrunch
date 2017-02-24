@@ -45,19 +45,17 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 Some useful aliases to keep in the "${HOME}/.bashrc" file:
 
-{
-#Functions
-scancelgrep() \{
+\#Functions
+scancelgrep() {
     nums=$(squeue -h -u altman.ro -o "%.100P %.100j %.100i %.100t %.100T" | grep $1 | sed "s/\s\s\s*//g" | cut -d" " -f1);
     for n in $nums;
     do
         scancel $n;
     done
-\}
+}
 
-sfindpart() \{
+sfindpart() {
     greppartitions="ser-par-10g|ser-par-10g-2|ser-par-10g-3|ser-par-10g-4|ht-10g|interactive-10g"
-
     partitionsidle=$(sinfo -h -o '%t %c %D %P' | grep -E "(${greppartitions})\*?\s*$" | grep 'idle' | awk '$0=$1" "$2*$3" "$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ' ' | head -c -1)
     partitionscomp=$(sinfo -h -o '%t %c %D %P' | grep -E "(${greppartitions})\*?\s*$" | grep 'comp' | awk '$0=$1" "$2*$3" "$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ' ' | head -c -1)
     partitionsrun=$(squeue -h -o '%L %T %P' | grep -E "(${greppartitions})\*?\s*$" | grep 'RUNNING' | sed 's/^\([0-9][0-9]:[0-9][0-9]\s\)/00:\1/g' | sed 's/^\([0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0\1/g' | sed 's/^\([0-9][0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0-\1/g' | sort -k1,1 | cut -d' ' -f3 | tr '\n' ' ' | head -c -1)
@@ -77,9 +75,9 @@ sfindpart() \{
             echo ${orderedpartitions[$i]}
         fi
     done
-\}
+}
 
-#Aliases
+\#Aliases
 alias sage='source /shared/apps/sage/sage-5.12/sage'
 alias lsx='watch -n 5 "ls"'
 alias sjob='squeue -u altman.ro -o "%.10i %.13P %.30j %.8u %.2t %.10M %.6D %R"'
@@ -92,4 +90,3 @@ alias swatch='function _swatch(){ watch -n$1 "squeue -u altman.ro -o \"%.10i %.1
 alias siwatch='function _siwatch(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -t -X $(squeue -h -u altman.ro -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev) "watch -n$2 \"squeue -u altman.ro\""; scancel $jobnum; };_siwatch'
 alias scratch='cd /gss_gpfs_scratch/altman.ro'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
-}
