@@ -20,6 +20,7 @@ from collections import defaultdict
 import toriccy.tools as tools
 import toriccy.parse as parse
 from toriccy.parse import pythonlist2mathematicalist as py2mat
+from toriccy.parse import mathematicalist2pythonlist as mat2py
 import sys
 import re
     
@@ -2274,14 +2275,14 @@ h11 = involdoc['H11']
 h21 = involdoc['H21']
 invol = involdoc['INVOL']
 basis = involdoc['BASIS']
-dresverts = parse.mathematicalist2pythonlist(involdoc['DRESVERTS'])
+dresverts = mat2py(involdoc['DRESVERTS'])
 sr = involdoc['SRIDEAL']
 rwmat = involdoc['RESCWS']
 
-invol = tools.deldup([sorted([y-1 for y in x]) for x in parse.mathematicalist2pythonlist(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
-basisinds = [x-1 for x in tools.transpose_list(parse.mathematicalist2pythonlist(re.sub("[JD]","",basis)))[1]]
+invol = tools.deldup([sorted([y-1 for y in x]) for x in mat2py(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
+basisinds = [x-1 for x in tools.transpose_list(mat2py(re.sub("[JD]","",basis)))[1]]
 sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
-rwmat = np.transpose(np.array(parse.mathematicalist2pythonlist(rwmat)))
+rwmat = np.transpose(np.array(mat2py(rwmat)))
 
 output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
 

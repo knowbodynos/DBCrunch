@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,subprocess,json,toriccy;
+import sys,linecache,traceback,subprocess,signal,json,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -13,6 +13,9 @@ def PrintException():
     line = linecache.getline(filename, lineno, f.f_globals);
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
     print "More info: ",traceback.format_exc();
+
+def default_sigpipe():
+    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
 try:
     basecollection=sys.argv[1];

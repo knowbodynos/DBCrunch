@@ -58,4 +58,4 @@ blocking="False"
 dbpush="True"
 markdone="MARK"
 
-python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"

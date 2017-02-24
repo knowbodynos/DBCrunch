@@ -6,7 +6,7 @@
 
 from sage.all_cmdline import *;
 
-import sys,os,fcntl,errno,linecache,traceback,time,subprocess,json,toriccy;
+import sys,os,fcntl,errno,linecache,traceback,time,subprocess,signal,json,toriccy;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
 from mpi4py import MPI;
@@ -27,6 +27,9 @@ def PrintException():
     line=linecache.getline(filename,lineno,f.f_globals);
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename,lineno,line.strip(),exc_obj);
     print "More info: ",traceback.format_exc();
+
+def default_sigpipe():
+    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
 #################################################################################
 #Module-specific function definitions

@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,json,toriccy;#,signal,subprocess;
+import sys,linecache,traceback,re,subrocess,signal,json,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -14,8 +14,8 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
     print "More info: ",traceback.format_exc();
 
-#def default_sigpipe():
-#    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
+def default_sigpipe():
+    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
 def jobstepname2indexdoc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_");

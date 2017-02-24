@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "controller_orientifold_template"
+#SBATCH -J "controller_orientifold_2"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/orientifold/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/orientifold/2"
 #################
 #Job output file
-#SBATCH -o "controller_orientifold_template.out"
+#SBATCH -o "controller_orientifold_2.out"
 #################
 #Job error file
-#SBATCH -e "controller_orientifold_template.err"
+#SBATCH -e "controller_orientifold_2.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -31,7 +31,7 @@
 #SBATCH --exclusive
 #################
 
-h11="template"
+h11="2"
 
 #Input controller info
 modname="orientifold"
