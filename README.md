@@ -6,8 +6,9 @@ The data is streamed directly from a remote MongoDB database, processed on a hig
 
 Installation instructions for the Massachusetts Green High Performance Computing Center's Discovery cluster:
 
-1) Add the following lines to "${HOME}/.bashrc":
+1) Add the following lines to `${HOME}/.bashrc`:
 
+```
    module load gnu-4.4-compilers 
    module load fftw-3.3.3
    module load platform-mpi
@@ -19,34 +20,37 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
    export SAGE_ROOT=/shared/apps/sage/sage-5.12
    export SLURMONGO_ROOT=/gss_gpfs_scratch/${USER}/SLURMongo
+```
 
-2) Restart your Discovery session OR enter source "${HOME}/.bashrc".
+2) Restart your Discovery session OR enter source `${HOME}/.bashrc`.
 
-3) Modify "${SLURMONGO_ROOT}/state/mongouri" and enter the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields.
+3) Modify `${SLURMONGO_ROOT}/state/mongouri` and enter the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields.
 
-4) Navigate to "${SLURMONGO_ROOT}/templates" and choose a controller_(some_module_name)_template.job template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
+4) Navigate to `${SLURMONGO_ROOT}/templates` and choose a `controller_(some_module_name)_template.job` template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
 
-   dbpush="False" 
+```
+   dbpush="False"
    markdone=""
+```
 
 5) Run the following command:
    
-   ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)
+   `${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)`
 
-6) Navigate to "${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)" and run the command:
+6) Navigate to `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)` and run the command:
 
-   ./reset.bash
+   `./reset.bash`
    
 7) You can now submit the job using the command:
 
-   sbatch controller_(some_module_name)_(some_controller_name).job
+   `sbatch controller_(some_module_name)_(some_controller_name).job`
    
 ------------------------------------------------------------------------------------------------------------
 
-Some useful aliases to keep in the "${HOME}/.bashrc" file:
+Some useful aliases to keep in the `${HOME}/.bashrc` file:
 
 ```
-\#Functions
+#Functions
 scancelgrep() {
     nums=$(squeue -h -u altman.ro -o "%.100P %.100j %.100i %.100t %.100T" | grep $1 | sed "s/\s\s\s*//g" | cut -d" " -f1);
     for n in $nums;
@@ -78,7 +82,7 @@ sfindpart() {
     done
 }
 
-\#Aliases
+#Aliases
 alias sage='source /shared/apps/sage/sage-5.12/sage'
 alias lsx='watch -n 5 "ls"'
 alias sjob='squeue -u altman.ro -o "%.10i %.13P %.30j %.8u %.2t %.10M %.6D %R"'
