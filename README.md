@@ -26,7 +26,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 3) Modify `${SLURMONGO_ROOT}/state/mongouri` and enter the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields.
 
-4) Navigate to `${SLURMONGO_ROOT}/templates` and choose a `controller_*(some_module_name)*_template.job` template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
+4) Navigate to `${SLURMONGO_ROOT}/templates` and choose a `controller_(some_module_name)_template.job` template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
 
 ```
    dbpush="False"
@@ -35,15 +35,15 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 5) Run the following command:
    
-   `${SLURMONGO_ROOT}/scripts/tools/copy_template.bash *(some_module_name)* *(some_controller_name)*`
+   `${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)`
 
-6) Navigate to `${SLURMONGO_ROOT}/modules/*(some_module_name)*/*(some_controller_name)*` and run the command:
+6) Navigate to `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)` and run the command:
 
    `./reset.bash`
    
 7) You can now submit the job using the command:
 
-   `sbatch controller_*(some_module_name)*_*(some_controller_name)*.job`
+   `sbatch controller_(some_module_name)_(some_controller_name).job`
    
 ------------------------------------------------------------------------------------------------------------
 
