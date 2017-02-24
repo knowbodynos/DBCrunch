@@ -43,7 +43,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
    
 7) You can now submit the job using the command:
 
-   `sbatch --export=SLURM_ROOT=${SLURM_ROOT} controller_(some_module_name)_(some_controller_name).job`
+   `sbatch controller_(some_module_name)_(some_controller_name).job`
    
 ------------------------------------------------------------------------------------------------------------
 
@@ -93,7 +93,6 @@ alias sfindpart=sfindpart
 alias sinteract='function _sinteract(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -X $(squeue -h -u altman.ro -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev); scancel $jobnum; };_sinteract'
 alias swatch='function _swatch(){ watch -n$1 "squeue -u altman.ro -o \"%.10i %.13P %.30j %.8u %.2t %.10M %.6D %R\" -S \"P,-t,-p\""; };_swatch'
 alias siwatch='function _siwatch(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -t -X $(squeue -h -u altman.ro -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev) "watch -n$2 \"squeue -u altman.ro\""; scancel $jobnum; };_siwatch'
-alias ssbatch='sbatch --export=SLURM_ROOT=${SLURM_ROOT}'
 alias scratch='cd /gss_gpfs_scratch/altman.ro'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
 ```
