@@ -44,7 +44,8 @@ Installation instructions for the Massachusetts Green High Performance Computing
 ------------------------------------------------------------------------------------------------------------
 
 Some useful aliases to keep in the "${HOME}/.bashrc" file:
-`
+
+```
 \#Functions
 scancelgrep() {
     nums=$(squeue -h -u altman.ro -o "%.100P %.100j %.100i %.100t %.100T" | grep $1 | sed "s/\s\s\s*//g" | cut -d" " -f1);
@@ -90,4 +91,4 @@ alias swatch='function _swatch(){ watch -n$1 "squeue -u altman.ro -o \"%.10i %.1
 alias siwatch='function _siwatch(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -t -X $(squeue -h -u altman.ro -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev) "watch -n$2 \"squeue -u altman.ro\""; scancel $jobnum; };_siwatch'
 alias scratch='cd /gss_gpfs_scratch/altman.ro'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
-`
+```
