@@ -2,6 +2,7 @@
 
 mainpath="/gss_gpfs_scratch/${USER}"
 templatepath="${mainpath}/ToricCY/templates"
+toolspath="${mainpath}/ToricCY/scripts/tools"
 
 modname=$1
 controllername=$2
@@ -20,11 +21,11 @@ then
   mkdir ${controllerpath}
 fi
 
-cp "${templatepath}/statusstate" "${controllerpath}/"
-cp "${templatepath}/skippedstate" "${controllerpath}/"
-cp "${templatepath}/counterstate" "${controllerpath}/"
-cp "${templatepath}/setup" "${controllerpath}/"
+cp "${toolspath}/reset.bash" "${controllerpath}/"
 cp "${templatepath}/controller_${modname}_template.job" "${controllerpath}/"
+echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skippedstate 2>/dev/null
+echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/counterstate 2>/dev/null
+echo "Pending" > ${controllerpath}/statusstate 2>/dev/null
 
 if [ ! -d "${controllerpath}/jobs" ]
 then

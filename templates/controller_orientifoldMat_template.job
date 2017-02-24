@@ -58,12 +58,13 @@ scriptbuffertime="00:05:00"
 
 #Input database info
 mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
-queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'INVOL':{'\$exists':True,'\$ne':None},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1}]]"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1}]]"
 basecollection="INVOL"
 nthreadsfield=""
 
 #Options
-dbpushq="True"
+blocking="False"
+dbpush="True"
 markdone="MARK"
 
-python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerpartition}" "${controllerbuffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${dbpushq}" "${markdone}"
+python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerpartition}" "${controllerbuffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"

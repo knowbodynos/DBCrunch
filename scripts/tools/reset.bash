@@ -11,8 +11,8 @@ rm ${herepath}/*.err ${herepath}/*.out 2>/dev/null
 rm -r ${herepath}/jobs/* 2>/dev/null
 rm ${herepath}/querystate* 2>/dev/null
 
-echo "jobstep,exitcode,resubmitq" > ${herepath}/skippedstate 2>/dev/null
-echo -e "batchcounter,stepcounter\n1,1" > ${herepath}/counterstate 2>/dev/null
+echo "JobStep,ExitCode,Resubmit?" > ${herepath}/skippedstate 2>/dev/null
+echo -e "BatchCounter,StepCounter\n1,1" > ${herepath}/counterstate 2>/dev/null
 echo "Pending" > ${herepath}/statusstate 2>/dev/null
 
 currdir=$(pwd)

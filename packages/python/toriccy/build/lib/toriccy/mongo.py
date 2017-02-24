@@ -203,6 +203,7 @@ def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch
 def printasfunc(*args):
     print list(args)[-1];
     sys.stdout.flush();
+    return [];
 
 def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,timeleft=lambda:True,batchcounter=1,stepcounter=1,counterupdate=lambda x,y:None,resetstatefile=False,toplevel=True):
     docbatch=[];
@@ -283,46 +284,53 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
         if toplevel:
             endofdocs+=endofsubdocs;
             if (len(docbatch)==inputdoc["nsteps"]) or not (timeleft()>0):
-                docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
-                action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-                updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
-                batchcounter+=1;
-                stepcounter+=len(docbatch);
-                counterupdate(batchcounter,stepcounter);
-                #docbatchtier=[];
-                #for j in range(len(docbatch)):
-                #    linedoc=docbatch[j];
-                #    k=endofdocs[j].index(True);
-                #    linedoctrim=dict([(x,linedoc[x]) for x in allcollindexes[k]]);
-                #    if linedoctrim not in docbatchtier:
-                #        alliostreams[k].seek(0,2);
-                #        alliostreams[k].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
-                #        alliostreams[k].flush();
-                #        docbatchtier+=[linedoctrim];
-                #        for l in range(k+1,len(endofdocs[j])):
-                #            alliostreams[l].seek(0,0);
-                #            with tempfile.NamedTemporaryFile(dir=statefilepath,delete=False) as tempstream:
-                #                for line in alliostreams[l]:
-                #                    linesubdoc=readform(line.rstrip("\n"));
-                #                    if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
-                #                        tempstream.write(line);
-                #                        tempstream.flush();
-                #                alliostreams[l].close();
-                #                os.rename(tempstream.name,statefilepath+"/"+statefilename+queries[l][0]);
-                #                alliostreams[l]=open(statefilepath+"/"+statefilename+queries[l][0],"a+");
-                #    stepcounter+=1;
-                #batchcounter+=1;
-                docbatch=[];
-                if (len(endofdocs)>0) and not endofdocs[-1][0]:
+                while len(docbatch)>0:
+                    docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
+                    docbatchpass=action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
+                    if docbatchpass==None:
+                        break;
+                    docbatchprojfieldspass=docbatchprojfields[len(docbatch)-len(docbatchpass):];
+                    endofdocspass=endofdocs[len(docbatch)-len(docbatchpass):];
+                    docbatchwrite=docbatch[:len(docbatch)-len(docbatchpass)];
+                    endofdocswrite=endofdocs[:len(docbatch)-len(docbatchpass)];
+                    updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatchwrite,endofdocswrite,readform=readform,writeform=writeform);
+                    batchcounter+=1;
+                    stepcounter+=len(docbatchwrite);
+                    counterupdate(batchcounter,stepcounter);
+                    #docbatchtier=[];
+                    #for j in range(len(docbatch)):
+                    #    linedoc=docbatch[j];
+                    #    k=endofdocs[j].index(True);
+                    #    linedoctrim=dict([(x,linedoc[x]) for x in allcollindexes[k]]);
+                    #    if linedoctrim not in docbatchtier:
+                    #        alliostreams[k].seek(0,2);
+                    #        alliostreams[k].write(str(writeform(linedoctrim)).replace(" ","")+"\n");
+                    #        alliostreams[k].flush();
+                    #        docbatchtier+=[linedoctrim];
+                    #        for l in range(k+1,len(endofdocs[j])):
+                    #            alliostreams[l].seek(0,0);
+                    #            with tempfile.NamedTemporaryFile(dir=statefilepath,delete=False) as tempstream:
+                    #                for line in alliostreams[l]:
+                    #                    linesubdoc=readform(line.rstrip("\n"));
+                    #                    if not (all([x in linesubdoc.items() for x in linedoctrim.items()]) or all([x in linedoctrim.items() for x in linesubdoc.items()])):
+                    #                        tempstream.write(line);
+                    #                        tempstream.flush();
+                    #                alliostreams[l].close();
+                    #                os.rename(tempstream.name,statefilepath+"/"+statefilename+queries[l][0]);
+                    #                alliostreams[l]=open(statefilepath+"/"+statefilename+queries[l][0],"a+");
+                    #    stepcounter+=1;
+                    #batchcounter+=1;
+                    docbatch=docbatchpass;
+                    endofdocs=endofdocspass;
+                    #print "k";
+                    inputfuncresult=inputfunc(docbatchprojfieldspass);
+                    #print "l: "+str(inputfuncresult)+" "+str(not (timeleft()>0));
+                    #sys.stdout.flush();
+                    if inputfuncresult==None:
+                        break;
+                    inputdoc.update(inputfuncresult);
+                if (len(endofdocswrite)>0) and not endofdocswrite[-1][0]:
                     i-=1;
-                endofdocs=[];
-                #print "k";
-                inputfuncresult=inputfunc(docbatchprojfields);
-                #print "l: "+str(inputfuncresult)+" "+str(not (timeleft()>0));
-                #sys.stdout.flush();
-                if not inputfuncresult:
-                    break;
-                inputdoc.update(inputfuncresult);
         else:
             endofdocs+=[[all(x) and (i==len(docs)-1)]+x for x in endofsubdocs];
             if (len(docbatch)==inputdoc["nsteps"]) or not (timeleft()>0):
@@ -332,13 +340,31 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #print "timeleft: "+str(timeleft());
     #sys.stdout.flush();
     if toplevel:
-        docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
-        action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
-        if len(docbatch)>0:
-            updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
+        while len(docbatch)>0:
+            docbatchprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatch];
+            #print "a";
+            docbatchpass=action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
+            #print docbatchpass;
+            #print "b";
+            if docbatchpass==None:
+                break;
+            docbatchprojfieldspass=docbatchprojfields[len(docbatch)-len(docbatchpass):];
+            endofdocspass=endofdocs[len(docbatch)-len(docbatchpass):];
+            docbatchwrite=docbatch[:len(docbatch)-len(docbatchpass)];
+            endofdocswrite=endofdocs[:len(docbatch)-len(docbatchpass)];
+            #print docbatchwrite;
+            updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatchwrite,endofdocswrite,readform=readform,writeform=writeform);
             batchcounter+=1;
-            stepcounter+=len(docbatch);
+            stepcounter+=len(docbatchwrite);
             counterupdate(batchcounter,stepcounter);
+            docbatch=docbatchpass;
+            endofdocs=endofdocspass;
+            if len(docbatch)>0:
+                inputfuncresult=inputfunc(docbatchprojfieldspass);
+                if inputfuncresult==None:
+                    break;
+                inputdoc.update(inputfuncresult);
+                #print "hi";
         return [batchcounter,stepcounter];
     else:
         return [endofdocs,docbatch];
