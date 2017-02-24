@@ -4,7 +4,7 @@
 #SBATCH -J "controller_triangulate_template"
 #################
 #Working directory
-#SBATCH -D "/gss_gpfs_scratch/altman.ro/SLURMongo/modules/triangulate/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/triangulate/template"
 #################
 #Job output file
 #SBATCH -o "controller_triangulate_template.out"

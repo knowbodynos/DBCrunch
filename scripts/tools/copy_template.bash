@@ -34,6 +34,7 @@ fi
 files=$(find "${controllerpath}/" -mindepth 1 -type f)
 for file in ${files}
     do
+    	perl -i -pe 's|#SBATCH(.*)\${SLURMONGO_ROOT}|#SBATCH\1'"${SLURMONGO_ROOT}"'|g' ${file}
     	sed -i "s/template/${controllername}/g" ${file}
     	newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
     	mv ${file} ${newfile} 2>/dev/null

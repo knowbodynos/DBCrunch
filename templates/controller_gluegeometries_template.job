@@ -4,7 +4,7 @@
 #SBATCH -J "controller_gluegeometries_template"
 #################
 #Working directory
-#SBATCH -D "/gss_gpfs_scratch/altman.ro/SLURMongo/modules/gluegeometries/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/gluegeometries/template"
 #################
 #Job output file
 #SBATCH -o "controller_gluegeometries_template.out"
