@@ -4,7 +4,7 @@
 #SBATCH -J "controller_orientifold_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/orientifold/template"
+#SBATCH -D "/gss_gpfs_scratch/altman.ro/SLURMongo/modules/orientifold/template"
 #################
 #Job output file
 #SBATCH -o "controller_orientifold_template.out"

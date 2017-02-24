@@ -4,7 +4,7 @@
 #SBATCH -J "controller_toricswisscheese_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/toricswisscheese/template"
+#SBATCH -D "/gss_gpfs_scratch/altman.ro/SLURMongo/modules/toricswisscheese/template"
 #################
 #Job output file
 #SBATCH -o "controller_toricswisscheese_template.out"

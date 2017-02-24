@@ -961,10 +961,10 @@ try:
     #if seekpos==-1:
     #Open connection to remote database
 
-    controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition%30,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
     while len(controllerstats)<4:
         time.sleep(sleeptime);
-        controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+        controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition%30,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
     controllerpartition,controllertimelimit,controllernnodes,controllerncores=controllerstats;
 
     print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
@@ -975,6 +975,7 @@ try:
 
     statepath=packagepath+"/state";
     modulesdirpath=packagepath+"/modules";
+    scriptpath=packagepath+"/scripts";
     modulepath=modulesdirpath+"/"+modname;
     controllerpath=modulepath+"/"+controllername;
     workpath=controllerpath+"/jobs";  
