@@ -4,7 +4,7 @@
 #SBATCH -J "controller_toricswisscheese_template"
 #################
 #Working directory
-#SBATCH -D "/gss_gpfs_scratch/altman.ro/modules/toricswisscheese/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/toricswisscheese/template"
 #################
 #Job output file
 #SBATCH -o "controller_toricswisscheese_template.out"
@@ -37,15 +37,8 @@ h11="template"
 modname="toricswisscheese"
 controllername="${h11}"
 controllerjobid="${SLURM_JOBID}"
-controllerpartition="${SLURM_JOB_PARTITION}"
 controllerbuffertime="00:05:00"
-#largemempartitions="largemem-10g"
 sleeptime="1"
-
-#Input path info
-mainpath="/gss_gpfs_scratch/${USER}"
-packagepath="${mainpath}/ToricCY"
-scriptpath="${packagepath}/scripts"
 
 #Input script info
 scriptlanguage="sage"
@@ -54,10 +47,8 @@ writemode="truncate"
 scriptmemorylimit="1000000000"
 scripttimelimit=""
 scriptbuffertime="00:05:00"
-#outputlinemarkers="Output: "
 
 #Input database info
-mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
 queries="[['POLY1',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'DRESVERTS':1,'FUNDGP':1,'FAV':1,'JTOD':1}],['GEOM1',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'GEOMN':1,'NTRIANGS':1}]]"
 basecollection="GEOM1"
 nthreadsfield="NTRIANGS"
@@ -67,4 +58,4 @@ blocking="False"
 dbpush="True"
 markdone="MARK"
 
-python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerpartition}" "${controllerbuffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"
+python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"

@@ -6,7 +6,7 @@
 
 from sage.all_cmdline import *;
 
-import sys,os,fcntl,errno,linecache,traceback,time,json,toriccy;
+import sys,os,fcntl,errno,linecache,traceback,time,subprocess,json,toriccy;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
 from mpi4py import MPI;
@@ -197,14 +197,19 @@ def glue_mori(DtoJmat,mori_rows_group):
 if rank==0:
     try:
         #IO Definitions
-        mongouri=sys.argv[1];
-        polydoc=json.loads(sys.argv[4]);
+        polydoc=json.loads(sys.argv[1]);
         #Read in pertinent fields from JSON
         polyid=polydoc['POLYID'];
         h11=polydoc['H11'];
         dresverts=toriccy.mathematicalist2pythonlist(polydoc['DRESVERTS']);
         rescws=toriccy.mathematicalist2pythonlist(polydoc['RESCWS']);
         DtoJmat=toriccy.mathematicalist2pythonlist(polydoc['DTOJ']);
+
+        packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+        statepath=packagepath+"/state";
+        mongourifile=statepath+"/mongouri";
+        with open(mongourifile,"r") as mongouristream:
+            mongouri=mongouristream.readline().rstrip("\n");
 
         mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
         dbname=mongouri.split("/")[-1];

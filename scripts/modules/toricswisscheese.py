@@ -6,7 +6,7 @@
 
 from sage.all_cmdline import *;
 
-import sys,os,fcntl,errno,linecache,traceback,time,json,toriccy;
+import sys,os,fcntl,errno,linecache,traceback,time,subprocess,json,toriccy;
 from toriccy.parse import pythonlist2mathematicalist as py2mat;
 from toriccy.parse import mathematicalist2pythonlist as mat2py;
 from mpi4py import MPI;
@@ -184,8 +184,7 @@ def ToricSwissCheese(homogeneity_on,h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,i
 if rank==0:
     try:
         #IO Definitions
-        mongouri=sys.argv[1];
-        geomdoc=json.loads(sys.argv[4]);
+        geomdoc=json.loads(sys.argv[1]);
         #Read in pertinent fields from JSON
         polyid=geomdoc['POLYID'];
         geomn=geomdoc['GEOMN'];
@@ -194,6 +193,12 @@ if rank==0:
         fgp=geomdoc['FUNDGP'];
         fav=geomdoc['FAV'];
         JtoDmat=mat2py(geomdoc['JTOD']);
+
+        packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+        statepath=packagepath+"/state";
+        mongourifile=statepath+"/mongouri";
+        with open(mongourifile,"r") as mongouristream:
+            mongouri=mongouristream.readline().rstrip("\n");
 
         mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
         dbname=mongouri.split("/")[-1];

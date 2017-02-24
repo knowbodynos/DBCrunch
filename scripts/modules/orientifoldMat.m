@@ -255,7 +255,7 @@ ToricCYDirac=MongoDirac@getDB["ToricCY"];*)
 MemoryLimit=ToExpression[$CommandLine[[9]]];
 SkippedFile=$CommandLine[[10]];*)
 (*Geometry=Map[#[[1]]->ToExpression[#[[2]]]&,ToExpression[$CommandLine[[7]]]];*)
-Geometry=JSONtoExpressionRules[$CommandLine[[8]]];
+Geometry=JSONtoExpressionRules[$CommandLine[[5]]];
 
 PolyID="POLYID"/.Geometry;
 GeomN="GEOMN"/.Geometry;

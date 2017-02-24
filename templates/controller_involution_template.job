@@ -4,7 +4,7 @@
 #SBATCH -J "controller_involution_template"
 #################
 #Working directory
-#SBATCH -D "/gss_gpfs_scratch/altman.ro/modules/involution/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/involution/template"
 #################
 #Job output file
 #SBATCH -o "controller_involution_template.out"
@@ -37,15 +37,8 @@ h11="template"
 modname="involution"
 controllername="${h11}"
 controllerjobid="${SLURM_JOBID}"
-controllerpartition="${SLURM_JOB_PARTITION}"
 controllerbuffertime="00:05:00"
-#largemempartitions="largemem-10g"
 sleeptime="1"
-
-#Input path info
-mainpath="/gss_gpfs_scratch/${USER}"
-packagepath="${mainpath}/ToricCY"
-scriptpath="${packagepath}/scripts"
 
 #Input script info
 scriptlanguage="mathematica"
@@ -54,10 +47,8 @@ writemode="truncate"
 scriptmemorylimit="500000000"
 scripttimelimit=""
 scriptbuffertime="00:05:00"
-#outputlinemarkers="Output: "
 
 #Input database info
-mongouri="mongodb://manager:toric@129.10.135.170:27017/ToricCY"
 queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1}]]"
 basecollection="TRIANG"
 nthreadsfield=""
@@ -67,4 +58,4 @@ blocking="False"
 dbpush="True"
 markdone="MARK"
 
-python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerpartition}" "${controllerbuffertime}" "${sleeptime}" "${mainpath}" "${packagepath}" "${scriptpath}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${mongouri}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"
+python ${scriptpath}/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"

@@ -197,7 +197,7 @@ def favorable(ndivsJ,h11):
 if rank==0:
     try:
         #IO Definitions
-        polydoc=json.loads(sys.argv[4]);
+        polydoc=json.loads(sys.argv[1]);
         #Read in pertinent fields from JSON
         polyid=polydoc['POLYID'];
         nverts=mat2py(polydoc['NVERTS']);

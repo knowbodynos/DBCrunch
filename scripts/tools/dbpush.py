@@ -17,9 +17,10 @@ def PrintException():
 #def default_sigpipe():
 #    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
 
-def jobstepname2doc(jobstepname,dbindexes):
-    indexsplit=jobstepname.split("_")[2:];
-    return dict([(dbindexes[i],indexsplit[i]) for i in range(len(dbindexes))]);
+def jobstepname2indexdoc(jobstepname,dbindexes):
+    indexsplit=jobstepname.split("_");
+    nindexes=min(len(indexsplit)-2,len(dbindexes));
+    return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
 
 def merge_dicts(*dicts):
     result={};
@@ -28,17 +29,24 @@ def merge_dicts(*dicts):
     return result;
 
 try:
-    mongouri=sys.argv[1];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    modname=sys.argv[2];
+    modname=sys.argv[1];
     #jobstepid=sys.argv[3];
-    basecollection=sys.argv[3];
-    workpath=sys.argv[4];
-    jobstepname=sys.argv[5];
-
+    basecollection=sys.argv[2];
+    workpath=sys.argv[3];
+    jobstepname=sys.argv[4];
+    #dbpush=eval(sys.argv[6]);
+    #markdone=sys.argv[7];
+    
     cputime="";
     maxrss="";
     maxvmsize="";
     bsonsize="";
+
+    packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+    statepath=packagepath+"/state";
+    mongourifile=statepath+"/mongouri";
+    with open(mongourifile,"r") as mongouristream:
+        mongouri=mongouristream.readline().rstrip("\n");
 
     #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
     #if len(sacctstats)==3:
@@ -50,15 +58,13 @@ try:
 
     dbindexes=toriccy.getintersectionindexes(db,basecollection);
 
-    indexdoc=jobstepname2doc(jobstepname,dbindexes);
+    indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
 
-    bsonsize=0;
     try:
         with open(workpath+"/"+jobstepname+".log","r") as logstream:
             for line in logstream:
                 #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
-                line=line.rstrip("\n");
-                linehead=re.sub("^([-+].*?>|None|CPUTime: |MaxRSS: |MaxVMSize: |BSONSize: ).*",r"\1",line);
+                linehead=re.sub("^([-+].*?>|None).*",r"\1",line).rstrip("\n");
                 if linehead[0] in ["-","+"]:
                     linemarker=linehead[0];
                     newcollection,strindexdoc=linehead[1:-1].split(".");
@@ -72,10 +78,12 @@ try:
                     #print linedoc;
                     #sys.stdout.flush();
                     doc=json.loads(linedoc);#.replace(" ",""));
+                    bsonsize+=toriccy.bsonsize(doc);
                     #fulldoc=merge_dicts(indexdoc,doc);
                     #newcollection=toriccy.gettierfromdoc(db,fulldoc);
                     #newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
                     #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
+                    #if dbpush:
                     if linemarker=="+":
                         db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
                     elif linemarker=="-":

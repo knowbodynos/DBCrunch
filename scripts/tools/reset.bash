@@ -1,9 +1,8 @@
 #!/bin/bash
 
-mainpath="/gss_gpfs_scratch/${USER}"
 herepath=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-toriccypath="${mainpath}/ToricCY/packages/python/toriccy"
-toolspath="${mainpath}/ToricCY/scripts/tools"
+toriccypath="${SLURMONGO_ROOT}/packages/python/toriccy"
+toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
 djob 2>/dev/null
 
@@ -26,4 +25,4 @@ basecollection=$(cat ${herepath}/controller*.job | grep "basecollection=" | cut 
 modname=$(cat ${herepath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
 markdone=$(cat ${herepath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
 h11=$(cat ${herepath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
-python ${toolspath}/unmark.py "${mongouri}" "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"
+python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"

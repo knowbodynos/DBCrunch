@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,json,toriccy;#,signal,subprocess;
+import sys,linecache,traceback,re,subprocess,json,toriccy;#,signal,subprocess;
 
 #Misc. function definitions
 def PrintException():
@@ -29,17 +29,22 @@ def merge_dicts(*dicts):
     return result;
 
 try:
-    mongouri=sys.argv[1];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    modname=sys.argv[2];
+    modname=sys.argv[1];
     #jobstepid=sys.argv[3];
-    basecollection=sys.argv[3];
-    workpath=sys.argv[4];
-    jobstepname=sys.argv[5];
-    dbpushq=eval(sys.argv[6]);
-    markdone=sys.argv[7];
-    cputime=sys.argv[8];
-    maxrss=sys.argv[9];
-    maxvmsize=sys.argv[10];
+    basecollection=sys.argv[2];
+    workpath=sys.argv[3];
+    jobstepname=sys.argv[4];
+    dbpush=eval(sys.argv[5]);
+    markdone=sys.argv[6];
+    cputime=sys.argv[7];
+    maxrss=sys.argv[8];
+    maxvmsize=sys.argv[9];
+
+    packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+    statepath=packagepath+"/state";
+    mongourifile=statepath+"/mongouri";
+    with open(mongourifile,"r") as mongouristream:
+        mongouri=mongouristream.readline().rstrip("\n");
 
     #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
     #if len(sacctstats)==3:
@@ -77,7 +82,7 @@ try:
                     #newcollection=toriccy.gettierfromdoc(db,fulldoc);
                     #newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
                     #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
-                    if dbpushq:
+                    if dbpush:
                         if linemarker=="+":
                             db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
                         elif linemarker=="-":
@@ -86,7 +91,7 @@ try:
                     #sys.stdout.flush();
 
         statsset={};
-        if dbpushq:
+        if dbpush:
             statsset.update({modname+"STATS":{"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize),"BSONSIZE":bsonsize}});
         if markdone!="":
             statsset.update({modname+markdone:True});

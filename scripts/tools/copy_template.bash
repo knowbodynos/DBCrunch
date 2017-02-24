@@ -1,13 +1,12 @@
 #!/bin/bash
 
-mainpath="/gss_gpfs_scratch/${USER}"
-templatepath="${mainpath}/ToricCY/templates"
-toolspath="${mainpath}/ToricCY/scripts/tools"
+templatepath="${SLURMONGO_ROOT}/templates"
+toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
 modname=$1
 controllername=$2
 
-modpath="${mainpath}/modules/${modname}"
+modpath="${SLURMONGO_ROOT}/modules/${modname}"
 
 if [ ! -d "${modpath}" ]
 then

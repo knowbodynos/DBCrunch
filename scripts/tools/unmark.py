@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,json,toriccy;
+import sys,linecache,traceback,subprocess,json,toriccy;
 
 #Misc. function definitions
 def PrintException():
@@ -15,11 +15,16 @@ def PrintException():
     print "More info: ",traceback.format_exc();
 
 try:
-    mongouri=sys.argv[1];
-    basecollection=sys.argv[2];
-    modname=sys.argv[3];
-    markdone=sys.argv[4];
-    query=json.loads(sys.argv[5]);
+    basecollection=sys.argv[1];
+    modname=sys.argv[2];
+    markdone=sys.argv[3];
+    query=json.loads(sys.argv[4]);
+
+    packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+    statepath=packagepath+"/state";
+    mongourifile=statepath+"/mongouri";
+    with open(mongourifile,"r") as mongouristream:
+        mongouri=mongouristream.readline().rstrip("\n");
 
     mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];

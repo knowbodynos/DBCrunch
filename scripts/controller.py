@@ -521,7 +521,7 @@ def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,con
     jobstring+="#################\n";
     jobstring+="\n";
     jobstring+="#Database info\n";
-    jobstring+="mongouri=\""+mongouri+"\"\n";
+    #jobstring+="mongouri=\""+mongouri+"\"\n";
     jobstring+="basecollection=\""+basecollection+"\"\n";
     #jobstring+="newcollection=\""+newcollection+"\"\n";
     jobstring+="\n";
@@ -582,7 +582,7 @@ def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,con
     jobstring+="    mpirun -srun -n \"${njobstepthreads[i]}\" -J \"${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" ";
     if buffertimelimit!="infinite":
         jobstring+="--time=\""+buffertimelimit+"\" ";
-    jobstring+=scriptcommand+" "+scriptflags+" \"${modulescriptpath}/"+modname+scriptext+"\" \"${mongouri}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${docs[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
+    jobstring+=scriptcommand+" "+scriptflags+" \"${modulescriptpath}/"+modname+scriptext+"\" \"${docs[${i}]}\" \"${workpath}\" \"${jobstepnames[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    sleep 0.1\n";
     jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
@@ -632,7 +632,7 @@ def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,con
     jobstring+="    if ! ${skipped}\n";
     jobstring+="    then\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${basecollection}\" \"${workpath}\" \"${outputlinemarkers}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
-    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpush}\" \"${markdone}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpush}\" \"${markdone}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${dbpush}\" \"${SLURM_JOBID}.${i}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    else\n";
     #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${controllerpath}/hi\"\n";
@@ -909,46 +909,46 @@ try:
     #sys.stdout.flush();
 
     #Cluster info
-    username=subprocess.Popen("echo $USER | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+    username,packagepath=subprocess.Popen("echo \"${USER},${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
 
     #Input controller info
     modname=sys.argv[1];
     controllername=sys.argv[2];
     controllerjobid=sys.argv[3];
-    controllerpartition=sys.argv[4];
-    controllerbuffertime=sys.argv[5];
+    #controllerpartition=sys.argv[4];
+    controllerbuffertime=sys.argv[4];
     #largemempartitions=sys.argv[6].split(",");
-    sleeptime=eval(sys.argv[6]);
+    sleeptime=eval(sys.argv[5]);
 
     #seekfile=sys.argv[7]; 
 
     #Input path info
-    mainpath=sys.argv[7];
-    packagepath=sys.argv[8];
-    scriptpath=sys.argv[9];
+    #packagepath=sys.argv[7];
+    #packagepath=sys.argv[8];
+    #scriptpath=sys.argv[9];
 
     #Input script info
-    scriptlanguage=sys.argv[10];
-    partitions=sys.argv[11].split(",");
-    writemode=sys.argv[12];
+    scriptlanguage=sys.argv[6];
+    partitions=sys.argv[7].split(",");
+    writemode=sys.argv[8];
     #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[13];
-    scripttimelimit=sys.argv[14];
-    scriptbuffertime=sys.argv[15];
+    scriptmemorylimit=sys.argv[9];
+    scripttimelimit=sys.argv[10];
+    scriptbuffertime=sys.argv[11];
     #outputlinemarkers=sys.argv[15].split(",");
 
     #Input database info
-    mongouri=sys.argv[16];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
-    queries=eval(sys.argv[17]);
+    #mongouri=sys.argv[16];#"mongodb://manager:toric@129.10.135.170:27017/ToricCY";
+    queries=eval(sys.argv[12]);
     #dumpfile=sys.argv[13];
-    basecollection=sys.argv[18];
-    nthreadsfield=sys.argv[19];
+    basecollection=sys.argv[13];
+    nthreadsfield=sys.argv[14];
     #newcollection,newfield=sys.argv[18].split(",");
 
     #Options
-    blocking=eval(sys.argv[20]);
-    dbpush=sys.argv[21];
-    markdone=sys.argv[22];
+    blocking=eval(sys.argv[15]);
+    dbpush=sys.argv[16];
+    markdone=sys.argv[17];
     
     #Read seek position from file
     #with open(controllerpath+"/"+seekfile,"r") as seekstream:
@@ -961,11 +961,11 @@ try:
     #if seekpos==-1:
     #Open connection to remote database
 
-    controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
-    while len(controllerstats)<3:
+    controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    while len(controllerstats)<4:
         time.sleep(sleeptime);
-        controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
-    controllertimelimit,controllernnodes,controllerncores=controllerstats;
+        controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    controllerpartition,controllertimelimit,controllernnodes,controllerncores=controllerstats;
 
     print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
     print "Starting job controller_"+modname+"_"+controllername;
@@ -974,13 +974,14 @@ try:
     sys.stdout.flush();
 
     statepath=packagepath+"/state";
-    modulesdirpath=mainpath+"/modules";
+    modulesdirpath=packagepath+"/modules";
     modulepath=modulesdirpath+"/"+modname;
     controllerpath=modulepath+"/"+controllername;
     workpath=controllerpath+"/jobs";  
     resourcesstatefile=statepath+"/resources";
     modulesstatefile=statepath+"/modules";
     softwarestatefile=statepath+"/software";
+    mongourifile=statepath+"/mongouri";
     counterstatefile=controllerpath+"/counterstate";
     statusstatefile=controllerpath+"/statusstate";
     querystatefilename="querystate";
@@ -994,6 +995,9 @@ try:
         scriptbuffertime="00:00:00";
 
     controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,controllertimelimit,controllerbuffertime);
+
+    with open(mongourifile,"r") as mongouristream:
+        mongouri=mongouristream.readline().rstrip("\n");
     
     mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];

@@ -2265,7 +2265,7 @@ def main_all(filename, tofile):
 
     print(o1s)
     
-involdoc = json.loads(sys.argv[4])
+involdoc = json.loads(sys.argv[1])
 polyid = involdoc['POLYID']
 geonum = involdoc['GEOMN']
 trinum = involdoc['TRIANGN']
