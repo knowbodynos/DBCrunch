@@ -26,7 +26,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 4) Navigate to "${SLURMONGO_ROOT}/templates" and choose a controller_(some_module_name)_template.job template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
 
-   dbpush="False"
+   dbpush="False" 
    markdone=""
 
 5) Run the following command:
@@ -45,16 +45,17 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 Some useful aliases to keep in the "${HOME}/.bashrc" file:
 
+{
 #Functions
-scancelgrep() {
+scancelgrep() \{
     nums=$(squeue -h -u altman.ro -o "%.100P %.100j %.100i %.100t %.100T" | grep $1 | sed "s/\s\s\s*//g" | cut -d" " -f1);
     for n in $nums;
     do
         scancel $n;
     done
-}
+\}
 
-sfindpart() {
+sfindpart() \{
     greppartitions="ser-par-10g|ser-par-10g-2|ser-par-10g-3|ser-par-10g-4|ht-10g|interactive-10g"
 
     partitionsidle=$(sinfo -h -o '%t %c %D %P' | grep -E "(${greppartitions})\*?\s*$" | grep 'idle' | awk '$0=$1" "$2*$3" "$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ' ' | head -c -1)
@@ -76,7 +77,7 @@ sfindpart() {
             echo ${orderedpartitions[$i]}
         fi
     done
-}
+\}
 
 #Aliases
 alias sage='source /shared/apps/sage/sage-5.12/sage'
@@ -91,3 +92,4 @@ alias swatch='function _swatch(){ watch -n$1 "squeue -u altman.ro -o \"%.10i %.1
 alias siwatch='function _siwatch(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -t -X $(squeue -h -u altman.ro -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev) "watch -n$2 \"squeue -u altman.ro\""; scancel $jobnum; };_siwatch'
 alias scratch='cd /gss_gpfs_scratch/altman.ro'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
+}
