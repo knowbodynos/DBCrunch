@@ -37,7 +37,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
    
    `${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)`
    
-   (Note: If you choose to copy the template manually, note that you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)
+   (Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)
 
 6) Navigate to `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)` and run the command:
 
