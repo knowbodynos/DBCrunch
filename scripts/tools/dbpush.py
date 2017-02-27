@@ -78,19 +78,25 @@ try:
                     #print linedoc;
                     #sys.stdout.flush();
                     doc=json.loads(linedoc);#.replace(" ",""));
-                    bsonsize+=mongolink.bsonsize(doc);
                     #fulldoc=merge_dicts(indexdoc,doc);
                     #newcollection=mongolink.gettierfromdoc(db,fulldoc);
                     #newindexdoc=dict([(x,fulldoc[x]) for x in mongolink.getintersectionindexes(db,newcollection)]);
                     #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
                     #if dbpush:
                     if linemarker=="+":
-                        db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
+                        bsonsize+=mongolink.bsonsize(doc);
+                        if dbpush:
+                            db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
                     elif linemarker=="-":
                         if len(doc)>0:
-                            db[newcollection].update(newindexdoc,{"$unset":doc});
+                            bsonsize-=mongolink.bsonsize(doc);
+                            if dbpush:
+                                db[newcollection].update(newindexdoc,{"$unset":doc});
                         else:
-                            db[newcollection].remove(newindexdoc);
+                            removedoc=collectionfind(db,newcollection,newindexdoc,{},formatresult="expression");
+                            bsonsize-=mongolink.bsonsize(removedoc);
+                            if dbpush:
+                                db[newcollection].remove(newindexdoc);
                     #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
                     #sys.stdout.flush();
                 elif linehead=="CPUTime: ":

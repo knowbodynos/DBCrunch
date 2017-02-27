@@ -17,10 +17,10 @@ import copy
 from time import time
 import json
 from collections import defaultdict
-import toriccy.tools as tools
-import toriccy.parse as parse
-from toriccy.parse import pythonlist2mathematicalist as py2mat
-from toriccy.parse import mathematicalist2pythonlist as mat2py
+import mongolink.tools as tools
+import mongolink.parse as parse
+from mongolink.parse import pythonlist2mathematicalist as py2mat
+from mongolink.parse import mathematicalist2pythonlist as mat2py
 import sys
 import re
     

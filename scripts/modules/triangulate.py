@@ -7,9 +7,9 @@
 from sage.all_cmdline import *;
 
 import sys,os,fcntl,errno,linecache,traceback,time,re,itertools,json;
-from toriccy.parse import pythonlist2mathematicalist as py2mat;
-from toriccy.parse import mathematicalist2pythonlist as mat2py;
-import toriccy.tools as tools;
+from mongolink.parse import pythonlist2mathematicalist as py2mat;
+from mongolink.parse import mathematicalist2pythonlist as mat2py;
+import mongolink.tools as tools;
 
 #################################################################################
 #Misc. function definitions

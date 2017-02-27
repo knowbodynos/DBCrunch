@@ -6,9 +6,9 @@
 
 from sage.all_cmdline import *;
 
-import sys,os,fcntl,errno,linecache,traceback,time,subprocess,signal,json,toriccy;
-from toriccy.parse import pythonlist2mathematicalist as py2mat;
-from toriccy.parse import mathematicalist2pythonlist as mat2py;
+import sys,os,fcntl,errno,linecache,traceback,time,subprocess,signal,json,mongolink;
+from mongolink.parse import pythonlist2mathematicalist as py2mat;
+from mongolink.parse import mathematicalist2pythonlist as mat2py;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -40,7 +40,7 @@ def mori(dresverts,triang):
     conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
     cone_combs=[x for x in Set([y for y in conelist if y.dim()==4]).subsets(2).list() if x[0].intersection(x[1]).dim()==3];
     cone_intersects=[x[0].intersection(x[1]).rays().matrix().rows()+[aug_dresverts[-1]] for x in cone_combs];
-    cone_unions=[toriccy.deldup(x[0].rays().matrix().rows()+x[1].rays().matrix().rows()+[aug_dresverts[-1]]) for x in cone_combs];
+    cone_unions=[mongolink.deldup(x[0].rays().matrix().rows()+x[1].rays().matrix().rows()+[aug_dresverts[-1]]) for x in cone_combs];
     compl_pos=[[i for i in range(len(cone_unions[j])) if cone_unions[j][i] not in cone_intersects[j]] for j in range(len(cone_unions))];
     kers=[matrix(x).left_kernel().matrix().rows() for x in cone_unions];
     sel_kers=[[x if all([x[i]>0 for i in compl_pos[j]]) else -x if all([x[i]<0 for i in compl_pos[j]]) else None for x in kers[j]] for j in range(len(kers))];
@@ -165,8 +165,8 @@ def match(itensXD_pair,c2Xnums_pair,eX_pair,mori_rows_pair):
         range1=[k for k in range(len(x)) if x[k]>0];
         set0=Set(range0).subsets(min(len(range0),3)).list();
         set1=Set(range1).subsets(min(len(range1),3)).list();
-        inums0=[toriccy.nestind(itensXD_pair[0],y) for y in set0];
-        inums1=[toriccy.nestind(itensXD_pair[1],y) for y in set1];
+        inums0=[mongolink.nestind(itensXD_pair[0],y) for y in set0];
+        inums1=[mongolink.nestind(itensXD_pair[1],y) for y in set1];
         flop=flop and all([y==0 for y in flatten(inums0+inums1)]);
     return (itensXD_pair[0]==itensXD_pair[1]) and (Set(c2Xnums_pair[0])==Set(c2Xnums_pair[1])) and (eX_pair[0]==eX_pair[1]) and flop;
 
@@ -190,9 +190,9 @@ def glue_mori(DtoJmat,mori_rows_group):
     for x in mori_rows_group[1:]:
         g_mori=g_mori.intersection(Cone(x));
     g_mori_rows=[list(x) for x in g_mori.rays().column_matrix().columns()];
-    g_mori_cols=toriccy.transpose_list(g_mori_rows);
+    g_mori_cols=mongolink.transpose_list(g_mori_rows);
     g_kahler_cols=[sum([DtoJmat[k][j]*vector(g_mori_cols[j]) for j in range(len(g_mori_cols))]) for k in range(len(DtoJmat))];
-    g_kahler_rows=toriccy.transpose_list(g_kahler_cols);
+    g_kahler_rows=mongolink.transpose_list(g_kahler_cols);
     return [g_mori_rows,g_kahler_rows];
 
 #################################################################################
@@ -204,9 +204,9 @@ if rank==0:
         #Read in pertinent fields from JSON
         polyid=polydoc['POLYID'];
         h11=polydoc['H11'];
-        dresverts=toriccy.mathematicalist2pythonlist(polydoc['DRESVERTS']);
-        rescws=toriccy.mathematicalist2pythonlist(polydoc['RESCWS']);
-        DtoJmat=toriccy.mathematicalist2pythonlist(polydoc['DTOJ']);
+        dresverts=mongolink.mathematicalist2pythonlist(polydoc['DRESVERTS']);
+        rescws=mongolink.mathematicalist2pythonlist(polydoc['RESCWS']);
+        DtoJmat=mongolink.mathematicalist2pythonlist(polydoc['DTOJ']);
 
         packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
         statepath=packagepath+"/state";
@@ -214,10 +214,10 @@ if rank==0:
         with open(mongourifile,"r") as mongouristream:
             mongouri=mongouristream.readline().rstrip("\n");
 
-        mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+        mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
         dbname=mongouri.split("/")[-1];
         db=mongoclient[dbname];
-        triangs=toriccy.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
+        triangs=mongolink.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
         mongoclient.close();
         #Set the number of basis divisors
         ndivsJ=matrix(rescws).rank();
@@ -232,7 +232,7 @@ if rank==0:
         Ibasechange=[x[0]-x[1] for x in basis];
         Iprechow=C.ideal(Ilin+Ibasechange);
         ######################## Begin parallel MPI scatter/gather of geometrical information ###############################
-        scatt=[[C,DD,JJ,dresverts,DtoJmat,Iprechow,x] for x in toriccy.distribcores(triangs,size)];
+        scatt=[[C,DD,JJ,dresverts,DtoJmat,Iprechow,x] for x in mongolink.distribcores(triangs,size)];
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];
@@ -244,9 +244,9 @@ if rank==0:
         for t in triangs_chunk:
             #Obtain Mori and Kahler matrices
             mori_rows=mori(dresverts_chunk,t['TRIANG']);
-            mori_cols=toriccy.transpose_list(mori_rows);
+            mori_cols=mongolink.transpose_list(mori_rows);
             kahler_cols=[sum([DtoJmat_chunk[k][j]*vector(mori_cols[j]) for j in range(len(mori_cols))]) for k in range(len(DtoJmat_chunk))];
-            kahler_rows=toriccy.transpose_list(kahler_cols);
+            kahler_rows=mongolink.transpose_list(kahler_cols);
             #Obtain Stanley-Reisner ideal and Chow ideal
             SR=SR_ideal(dresverts_chunk,t['TRIANG']);
             SRid=[prod([DD_chunk[j] for j in x]) for x in SR];
@@ -276,6 +276,7 @@ if rank==0:
             mori_rows_L+=[x['MORIMATP']];
         #Determine which triangulations to glue together
         to_glue_L=glue_groups(itensXD_L,c2Xnums_L,eX_L,mori_rows_L);
+        print to_glue_L;
         #Compress properties that should remain the same across the whole polytope into single variables
         JtoDmat=postchow[0]['JTOD'];
         invbasis=postchow[0]['INVBASIS'];
@@ -298,7 +299,7 @@ if rank==0:
             #Add new properties to TRIANGDATA tier of JSON
             m=0;
             for k in to_glue_L[i]:
-                print "+TRIANG2."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':m+1},separators=(',',':'))+">"+json.dumps({'GEOMN':i+1,'TRIANGN':m+1,'ALLTRIANGN':triangs[k]['GEOMN'],'H11':h11,'SRIDEAL':py2mat(postchow[k]['SRIDEAL']),'CHERN2XD':py2mat(postchow[k]['CHERN2XD']),'IPOLYAD':py2mat(postchow[k]['IPOLYAD']),'ITENSAD':py2mat(postchow[k]['ITENSAD']),'IPOLYXD':py2mat(postchow[k]['IPOLYXD']),'ITENSXD':py2mat(postchow[k]['ITENSXD']),'IPOLYAJ':py2mat(postchow[k]['IPOLYAJ']),'ITENSAJ':py2mat(postchow[k]['ITENSAJ']),'CHERNAD':py2mat(postchow[k]['CHERNAD']),'CHERNAJ':py2mat(postchow[k]['CHERNAJ']),'CHERN3XD':py2mat(postchow[k]['CHERN3XD']),'CHERN3XJ':py2mat(postchow[k]['CHERN3XJ']),'MORIMATP':py2mat(postchow[k]['MORIMATP']),'KAHLERMATP':py2mat(postchow[k]['KAHLERMATP'])},separators=(',',':'));
+                print "+TRIANG2."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':m+1},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':m+1,'ALLTRIANGN':triangs[k]['GEOMN'],'H11':h11,'TRIANG':triangs[k]['TRIANG'],'SRIDEAL':py2mat(postchow[k]['SRIDEAL']),'CHERN2XD':py2mat(postchow[k]['CHERN2XD']),'IPOLYAD':py2mat(postchow[k]['IPOLYAD']),'ITENSAD':py2mat(postchow[k]['ITENSAD']),'IPOLYXD':py2mat(postchow[k]['IPOLYXD']),'ITENSXD':py2mat(postchow[k]['ITENSXD']),'IPOLYAJ':py2mat(postchow[k]['IPOLYAJ']),'ITENSAJ':py2mat(postchow[k]['ITENSAJ']),'CHERNAD':py2mat(postchow[k]['CHERNAD']),'CHERNAJ':py2mat(postchow[k]['CHERNAJ']),'CHERN3XD':py2mat(postchow[k]['CHERN3XD']),'CHERN3XJ':py2mat(postchow[k]['CHERN3XJ']),'MORIMATP':py2mat(postchow[k]['MORIMATP']),'KAHLERMATP':py2mat(postchow[k]['KAHLERMATP'])},separators=(',',':'));
                 print "-TRIANG1."+json.dumps({'POLYID':polyid,'GEOMN':triangs[k]['GEOMN'],'TRIANGN':1},separators=(',',':'))+">"+json.dumps({},separators=(',',':'));
                 sys.stdout.flush();
                 m+=1;
@@ -323,9 +324,9 @@ else:
                 for t in triangs_chunk:
                     #Obtain Mori and Kahler matrices
                     mori_rows=mori(dresverts_chunk,t['TRIANG']);
-                    mori_cols=toriccy.transpose_list(mori_rows);
+                    mori_cols=mongolink.transpose_list(mori_rows);
                     kahler_cols=[sum([DtoJmat_chunk[k][j]*vector(mori_cols[j]) for j in range(len(mori_cols))]) for k in range(len(DtoJmat_chunk))];
-                    kahler_rows=toriccy.transpose_list(kahler_cols);
+                    kahler_rows=mongolink.transpose_list(kahler_cols);
                     #Obtain Stanley-Reisner ideal and Chow ideal
                     SR=SR_ideal(dresverts_chunk,t['TRIANG']);
                     SRid=[prod([DD_chunk[j] for j in x]) for x in SR];

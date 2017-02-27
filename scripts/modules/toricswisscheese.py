@@ -6,9 +6,9 @@
 
 from sage.all_cmdline import *;
 
-import sys,os,fcntl,errno,linecache,traceback,time,subprocess,signal,json,toriccy;
-from toriccy.parse import pythonlist2mathematicalist as py2mat;
-from toriccy.parse import mathematicalist2pythonlist as mat2py;
+import sys,os,fcntl,errno,linecache,traceback,time,subprocess,signal,json,mongolink;
+from mongolink.parse import pythonlist2mathematicalist as py2mat;
+from mongolink.parse import mathematicalist2pythonlist as mat2py;
 from mpi4py import MPI;
 
 comm=MPI.COMM_WORLD;
@@ -62,7 +62,7 @@ def groupabsetpairs(origsetpairs,NL,h11,ab=0):
 def ToricSwissCheese(homogeneity_on,h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,itensXD):
     "Solves for the rotation matrices of a Toric Swiss Cheese solution."
     if fav:
-        mori_cols=toriccy.transpose_list(mori_rows);
+        mori_cols=mongolink.transpose_list(mori_rows);
         ndivsD=len(JtoDmat);
         RaLbssetpairs=[];
         #Small Cycle
@@ -203,13 +203,13 @@ if rank==0:
         with open(mongourifile,"r") as mongouristream:
             mongouri=mongouristream.readline().rstrip("\n");
 
-        mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+        mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
         dbname=mongouri.split("/")[-1];
         db=mongoclient[dbname];
-        triangdata=toriccy.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid,'GEOMN':geomn},{'_id':0,'MORIMATP':1,'ITENSXD':1},formatresult='expression');
+        triangdata=mongolink.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid,'GEOMN':geomn},{'_id':0,'MORIMATP':1,'ITENSXD':1},formatresult='expression');
         mongoclient.close();
         ######################## Begin parallel MPI scatter/gather of toric swiss cheese information ###############################
-        scatt=[[h11,dresverts,fgp,fav,JtoDmat,x] for x in toriccy.distribcores(triangdata,size)];
+        scatt=[[h11,dresverts,fgp,fav,JtoDmat,x] for x in mongolink.distribcores(triangdata,size)];
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];
@@ -259,7 +259,7 @@ if rank==0:
         pretoricswisscheese=comm.scatter(scatt,root=0);
         #Reorganize gathered information into a serial form
         posttoricswisscheese=[x for y in posttoricswisscheese_group for x in y];
-        #posttoricswisscheese=toriccy.transpose_list(posttoricswisscheese_redist);
+        #posttoricswisscheese=mongolink.transpose_list(posttoricswisscheese_redist);
         #print posttoricswisscheese;
         for toricswisscheese_NL in posttoricswisscheese:
             if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
