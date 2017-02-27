@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,subprocess,signal,json,toriccy;
+import sys,linecache,traceback,re,subprocess,signal,json,mongolink;
 
 #Misc. function definitions
 def PrintException():
@@ -50,11 +50,11 @@ try:
     #if len(sacctstats)==3:
     #    cputime,maxrss,maxvmsize=sacctstats;
 
-    mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+    mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    dbindexes=toriccy.getintersectionindexes(db,basecollection);
+    dbindexes=mongolink.getintersectionindexes(db,basecollection);
 
     indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
 
@@ -77,16 +77,19 @@ try:
                     #print linedoc;
                     #sys.stdout.flush();
                     doc=json.loads(linedoc);#.replace(" ",""));
-                    bsonsize+=toriccy.bsonsize(doc);
+                    bsonsize+=mongolink.bsonsize(doc);
                     #fulldoc=merge_dicts(indexdoc,doc);
-                    #newcollection=toriccy.gettierfromdoc(db,fulldoc);
-                    #newindexdoc=dict([(x,fulldoc[x]) for x in toriccy.getintersectionindexes(db,newcollection)]);
+                    #newcollection=mongolink.gettierfromdoc(db,fulldoc);
+                    #newindexdoc=dict([(x,fulldoc[x]) for x in mongolink.getintersectionindexes(db,newcollection)]);
                     #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
                     if dbpush:
                         if linemarker=="+":
                             db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
                         elif linemarker=="-":
-                            db[newcollection].update(newindexdoc,{"$unset":doc});
+                            if len(doc)>0:
+                                db[newcollection].update(newindexdoc,{"$unset":doc});
+                            else:
+                                db[newcollection].remove(newindexdoc);
                     #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
                     #sys.stdout.flush();
 

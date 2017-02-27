@@ -1,0 +1,15 @@
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/mongo.py
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/mongo.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/mongo (2:23:17, 12:24 PM).py
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/parse.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/mongo (2:23:17, 12:24 PM).pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/tools.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/__init__.py
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/__init__.pyc
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/tools.py
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/mongolink/parse.py
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/EGG-INFO/not-zip-safe
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/EGG-INFO/SOURCES.txt
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/EGG-INFO/top_level.txt
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/EGG-INFO/dependency_links.txt
+/home/altman.ro/.local/lib/python2.7/site-packages/mongolink-1.0-py2.7.egg/EGG-INFO/PKG-INFO

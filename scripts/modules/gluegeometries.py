@@ -280,7 +280,7 @@ if rank==0:
         JtoDmat=postchow[0]['JTOD'];
         invbasis=postchow[0]['INVBASIS'];
         #Add new properties to base tier of JSON
-        print "+POLY1.{\"POLYID\":"+str(polyid)+"}>"+json.dumps({'BASIS':py2mat(basis),'EULER':int(eX_L[0]),'NGEOMS':len(to_glue_L),'JTOD':py2mat(JtoDmat),'INVBASIS':py2mat(invbasis)},separators=(',',':'));
+        print "+POLY1."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'BASIS':py2mat(basis),'EULER':int(eX_L[0]),'NGEOMS':len(to_glue_L),'JTOD':py2mat(JtoDmat),'INVBASIS':py2mat(invbasis)},separators=(',',':'));
         sys.stdout.flush();
         #Glue triangulations into their compositie geometries
         g_mori_rows_L=[];
@@ -293,12 +293,13 @@ if rank==0:
             g_kahler_rows_L+=[g_kahler_rows];
             #Add new properties to GEOMDATA tier of JSON
             j=to_glue_L[i][0];
-            print "+GEOM1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(i+1)+"}>"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'H11':h11,'NTRIANGS':len(to_glue_L[i]),'CHERN2XJ':py2mat(postchow[j]['CHERN2XJ']),'CHERN2XNUMS':py2mat(postchow[j]['CHERN2XNUMS']),'IPOLYXJ':py2mat(postchow[j]['IPOLYXJ']),'ITENSXJ':py2mat(postchow[j]['ITENSXJ']),'MORIMAT':py2mat(g_mori_rows),'KAHLERMAT':py2mat(g_kahler_rows)},separators=(',',':'));
+            print "+GEOM1."+json.dumps({'POLYID':polyid,'GEOMN':i+1},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'H11':h11,'NTRIANGS':len(to_glue_L[i]),'CHERN2XJ':py2mat(postchow[j]['CHERN2XJ']),'CHERN2XNUMS':py2mat(postchow[j]['CHERN2XNUMS']),'IPOLYXJ':py2mat(postchow[j]['IPOLYXJ']),'ITENSXJ':py2mat(postchow[j]['ITENSXJ']),'MORIMAT':py2mat(g_mori_rows),'KAHLERMAT':py2mat(g_kahler_rows)},separators=(',',':'));
             sys.stdout.flush();
             #Add new properties to TRIANGDATA tier of JSON
             m=0;
             for k in to_glue_L[i]:
-                print "+TRIANG1.{\"POLYID\":"+str(polyid)+",\"GEOMN\":"+str(triangs[k]['GEOMN'])+",\"TRIANGN\":"+str(1)+"}>"+json.dumps({'GEOMN':i+1,'TRIANGN':m+1,'ALLTRIANGN':triangs[k]['GEOMN'],'SRIDEAL':py2mat(postchow[k]['SRIDEAL']),'CHERN2XD':py2mat(postchow[k]['CHERN2XD']),'IPOLYAD':py2mat(postchow[k]['IPOLYAD']),'ITENSAD':py2mat(postchow[k]['ITENSAD']),'IPOLYXD':py2mat(postchow[k]['IPOLYXD']),'ITENSXD':py2mat(postchow[k]['ITENSXD']),'IPOLYAJ':py2mat(postchow[k]['IPOLYAJ']),'ITENSAJ':py2mat(postchow[k]['ITENSAJ']),'CHERNAD':py2mat(postchow[k]['CHERNAD']),'CHERNAJ':py2mat(postchow[k]['CHERNAJ']),'CHERN3XD':py2mat(postchow[k]['CHERN3XD']),'CHERN3XJ':py2mat(postchow[k]['CHERN3XJ']),'MORIMATP':py2mat(postchow[k]['MORIMATP']),'KAHLERMATP':py2mat(postchow[k]['KAHLERMATP'])},separators=(',',':'));
+                print "+TRIANG2."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':m+1},separators=(',',':'))+">"+json.dumps({'GEOMN':i+1,'TRIANGN':m+1,'ALLTRIANGN':triangs[k]['GEOMN'],'H11':h11,'SRIDEAL':py2mat(postchow[k]['SRIDEAL']),'CHERN2XD':py2mat(postchow[k]['CHERN2XD']),'IPOLYAD':py2mat(postchow[k]['IPOLYAD']),'ITENSAD':py2mat(postchow[k]['ITENSAD']),'IPOLYXD':py2mat(postchow[k]['IPOLYXD']),'ITENSXD':py2mat(postchow[k]['ITENSXD']),'IPOLYAJ':py2mat(postchow[k]['IPOLYAJ']),'ITENSAJ':py2mat(postchow[k]['ITENSAJ']),'CHERNAD':py2mat(postchow[k]['CHERNAD']),'CHERNAJ':py2mat(postchow[k]['CHERNAJ']),'CHERN3XD':py2mat(postchow[k]['CHERN3XD']),'CHERN3XJ':py2mat(postchow[k]['CHERN3XJ']),'MORIMATP':py2mat(postchow[k]['MORIMATP']),'KAHLERMATP':py2mat(postchow[k]['KAHLERMATP'])},separators=(',',':'));
+                print "-TRIANG1."+json.dumps({'POLYID':polyid,'GEOMN':triangs[k]['GEOMN'],'TRIANGN':1},separators=(',',':'))+">"+json.dumps({},separators=(',',':'));
                 sys.stdout.flush();
                 m+=1;
     except Exception as e:

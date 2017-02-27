@@ -263,7 +263,7 @@ if rank==0:
         #print posttoricswisscheese;
         for toricswisscheese_NL in posttoricswisscheese:
             if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
-                print "+SWISSCHEESE1.{\"POLYID\":"+str(polyid)+",\"'GEOMN\":"+str(geomn)+",\"'NLARGE\":"+str(toricswisscheese_NL[0])+"}>"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
+                print "+SWISSCHEESE1."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
             else:
                 print "None";
             sys.stdout.flush();

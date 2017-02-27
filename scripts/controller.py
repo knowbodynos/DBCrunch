@@ -4,7 +4,7 @@ import time;
 #Timer and maxjobcount initialization
 starttime=time.time();
 
-import sys,os,errno,re,linecache,signal,fcntl,traceback,subprocess,datetime,tempfile,json,toriccy;#,json;
+import sys,os,errno,re,linecache,signal,fcntl,traceback,subprocess,datetime,tempfile,json,mongolink;#,json;
 #from pymongo import MongoClient;
 
 #Misc. function definitions
@@ -160,7 +160,7 @@ def formatinput(doc):#,scriptlanguage):
     #elif scriptlanguage=="sage":
     #    formatteddoc=doc;
     #elif scriptlanguage=="mathematica":
-    #    formatteddoc=toriccy.pythondictionary2mathematicarules(doc);
+    #    formatteddoc=mongolink.pythondictionary2mathematicarules(doc);
     #return str(formatteddoc).replace(" ","");
     return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
 
@@ -409,7 +409,7 @@ def orderpartitions(partitions):
     #print "squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'PENDING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1";
     #print "";
     #sys.stdout.flush();
-    orderedpartitions=[x for x in toriccy.deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend+partitions) if x!=""];
+    orderedpartitions=[x for x in mongolink.deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend+partitions) if x!=""];
     return orderedpartitions;
 
 def getmaxmemorypernode(resourcesstatefile,partition):
@@ -844,7 +844,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
                 nextdocind-=1;
                 maxthreads-=1;
     docbatchwrite=docbatch[:nextdocind];
-    docbatchpass=docbatch[nextdocind:];
+    #docbatchpass=docbatch[nextdocind:];
 
     memoryperstep=nnodes*maxmemorypernode/len(docbatchwrite);
     #ndocs=len(docbatch);
@@ -870,7 +870,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
     submitjob(workpath,jobname,jobstepnames,nnodes,ncores,nthreads,partition,memoryperstep,maxmemorypernode,resubmit=False);
     needslicense=(licensestream!=None);
     if needslicense:
-        fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
+        fcntl.flock(licensestream,fcntl.LOCK_UN);
         #pendlicensestream.seek(0,0);
         #pendlicenseheader=pendlicensestream.readline();
         #npendlicensesplit=[eval(x) for x in pendlicensestream.readline().rstrip("\n").split(",")];
@@ -893,7 +893,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
     #seekstream.flush();
     #seekstream.seek(0);
     #doc=querystream.readline();
-    return docbatchpass;
+    return nextdocind;#docbatchpass;
 
 def docounterupdate(batchcounter,stepcounter,counterstatefile,counterheader):
     with open(counterstatefile,"w") as counterstream:
@@ -1000,15 +1000,15 @@ try:
     with open(mongourifile,"r") as mongouristream:
         mongouri=mongouristream.readline().rstrip("\n");
     
-    mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+    mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
-    dbindexes=toriccy.getintersectionindexes(db,basecollection);
+    dbindexes=mongolink.getintersectionindexes(db,basecollection);
     #print dbindexes;
     #sys.stdout.flush();
 
-    allindexes=toriccy.getunionindexes(db);
+    allindexes=mongolink.getunionindexes(db);
     needslicense=False;
     try:
         with open(softwarestatefile,"r") as softwarestream:
@@ -1068,7 +1068,7 @@ try:
         #if len(oldqueryresultinds)==0:
         #    oldqueryresult=[];
         #else:
-        #    oldqueryresult=toriccy.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
+        #    oldqueryresult=mongolink.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
         #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,controllername) for y in contractededjobname2jobdocs(x,dbindexes) if len(x)>0];
         #with open(querystatefile,"a") as iostream:
         #    for line in oldqueryresult+oldqueryresultrunning:
@@ -1081,7 +1081,7 @@ try:
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
         #print str(starttime)+" "+str(controllerbuffertimelimit);
         #sys.stdout.flush();
-        [batchcounter,stepcounter]=toriccy.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),inputdoc=doinput([],nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),action=lambda w,x,y,z:doaction(w,x,y,z,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,basecollection),readform=lambda x:jobstepname2indexdoc(x,dbindexes),writeform=lambda x:indexdoc2jobstepname(x,modname,controllername,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
+        [batchcounter,stepcounter]=mongolink.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),inputdoc=doinput([],nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),action=lambda w,x,y,z:doaction(w,x,y,z,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,basecollection),readform=lambda x:jobstepname2indexdoc(x,dbindexes),writeform=lambda x:indexdoc2jobstepname(x,modname,controllername,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
         #print "bye";
         #firstrun=False;
         if (timeleft(starttime,controllerbuffertimelimit)>0):
@@ -1109,6 +1109,10 @@ try:
         with open(statusstatefile,"w") as statusstream:
             statusstream.truncate(0);
             statusstream.write("Completing");
+        print "";
+        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print "Completing job controller_"+modname+"_"+controllername+"\n";
+        sys.stdout.flush();
 
     #querystream.close();
     #seekstream.close();
@@ -1116,10 +1120,5 @@ try:
         #fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
         licensestream.close();
     mongoclient.close();
-
-    print "";
-    print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-    print "Completing job controller_"+modname+"_"+controllername;
-    sys.stdout.flush();
 except Exception as e:
     PrintException();

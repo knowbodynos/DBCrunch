@@ -2224,7 +2224,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     # print(cgs)
     # print(general_poly(rwmat, cgs))
 
-    return "+INVOL."+json.dumps(query)+">"+json.dumps(output);
+    return [query,output];
 
 
 def main_all(filename, tofile):
@@ -2284,7 +2284,7 @@ basisinds = [x-1 for x in tools.transpose_list(mat2py(re.sub("[JD]","",basis)))[
 sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
 rwmat = np.transpose(np.array(mat2py(rwmat)))
 
-output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
+query, output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
 
-print output
+print "+INVOL."+json.dumps(query)+">"+json.dumps(output)
 sys.stdout.flush()

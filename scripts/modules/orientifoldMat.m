@@ -6,7 +6,7 @@ $HistoryLength=0;
 IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[7]])*);
 
 (*Get["cohomCalgKoszulExtensionSilent`"];*)
-Get["ToricCYParse`"];
+Get["MongoLink`"];
 (*Get["ToricCY`"];*)
 
 

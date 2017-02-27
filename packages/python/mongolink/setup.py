@@ -2,12 +2,12 @@
 
 from setuptools import setup;
 
-setup(name='toriccy',
+setup(name='mongolink',
       version='1.0',
-      description='Query the ToricCY MongoDB database.',
+      description='Query a MongoDB database.',
       url='https://github.com/knowbodynos/toriccy',
       author='Ross Altman',
       author_email='knowbodynos@gmail.com',
       license='Northeastern University',
-      packages=['toriccy'],
+      packages=['mongolink'],
       zip_safe=False);

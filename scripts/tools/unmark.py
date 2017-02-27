@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,subprocess,signal,json,toriccy;
+import sys,linecache,traceback,subprocess,signal,json,mongolink;
 
 #Misc. function definitions
 def PrintException():
@@ -29,7 +29,7 @@ try:
     with open(mongourifile,"r") as mongouristream:
         mongouri=mongouristream.readline().rstrip("\n");
 
-    mongoclient=toriccy.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+    mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
     dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 

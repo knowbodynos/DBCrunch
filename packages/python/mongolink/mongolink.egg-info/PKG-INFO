@@ -1,7 +1,7 @@
 Metadata-Version: 1.0
-Name: toriccy
+Name: mongolink
 Version: 1.0
-Summary: Query the ToricCY MongoDB database.
+Summary: Query a MongoDB database.
 Home-page: https://github.com/knowbodynos/toriccy
 Author: Ross Altman
 Author-email: knowbodynos@gmail.com

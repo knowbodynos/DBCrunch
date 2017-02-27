@@ -1,7 +1,7 @@
 #!/bin/bash
 
 herepath=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-toriccypath="${SLURMONGO_ROOT}/packages/python/toriccy"
+mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
 toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
 djob 2>/dev/null
@@ -15,10 +15,10 @@ echo -e "BatchCounter,StepCounter\n1,1" > ${herepath}/counterstate 2>/dev/null
 echo "Pending" > ${herepath}/statusstate 2>/dev/null
 
 currdir=$(pwd)
-cd ${toriccypath}
+cd ${mongolinkpath}
 python setup.py install --user --record filespy.txt
 sage --python setup.py install --user --record filessage.txt
-cd ${curdir}
+cd ${currdir}
 
 mongouri=$(cat ${herepath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
 basecollection=$(cat ${herepath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')

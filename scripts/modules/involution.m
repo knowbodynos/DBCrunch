@@ -6,7 +6,7 @@ WorkingPath/:Set[WorkingPath,_]:=(ClearAll[WorkingPath];WorkingPath=$CommandLine
 IntermediateName/:Set[IntermediateName,_]:=(ClearAll[IntermediateName];IntermediateName=$CommandLine[[7]]);
 
 Get["cohomCalgKoszulExtensionSilent`"];
-Get["ToricCYParse`"];
+Get["MongoLink`"];
 (*Get["ToricCY`"];*)
 
 
