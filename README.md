@@ -24,7 +24,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 2) Restart your Discovery session OR run the command `source ${HOME}/.bashrc`.
 
-3) Install Mathematica and Python components by running the command `${SLURMMONGO_ROOT}/install.bash` from a login node.
+3) Install Mathematica and Python components by running the command `${SLURMONGO_ROOT}/install.bash` from a login node.
 
 4) Modify `${SLURMONGO_ROOT}/state/mongouri` and enter the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields.
 
