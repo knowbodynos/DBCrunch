@@ -1,6 +1,5 @@
 setup.py
 mongolink/__init__.py
-mongolink/mongo (2:23:17, 12:24 PM).py
 mongolink/mongo.py
 mongolink/parse.py
 mongolink/tools.py
