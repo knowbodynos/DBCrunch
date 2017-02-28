@@ -1,5 +1,5 @@
 # SLURMongo
-This package links the SLURM workload manager with MongoDB, in order to optimize the staged processing of large amounts of data in parallel.
+This package in an API linking the SLURM workload manager with MongoDB, in order to optimize the staged, parallel processing of large amounts of data.
 The data is streamed directly from a remote MongoDB database, processed on a high-performance computing cluster running SLURM, and fed directly back to the remote database along with statistics such as CPU time, max memory used, and storage.
 
 ------------------------------------------------------------------------------------------------------------
