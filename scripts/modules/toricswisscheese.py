@@ -206,7 +206,7 @@ if rank==0:
         mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
         dbname=mongouri.split("/")[-1];
         db=mongoclient[dbname];
-        triangdata=mongolink.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid,'GEOMN':geomn},{'_id':0,'MORIMATP':1,'ITENSXD':1},formatresult='expression');
+        triangdata=mongolink.collectionfind(db,'TRIANG',{'H11':h11,'POLYID':polyid,'GEOMN':geomn},{'_id':0,'MORIMATP':1,'ITENSXD':1},formatresult='expression');
         mongoclient.close();
         ######################## Begin parallel MPI scatter/gather of toric swiss cheese information ###############################
         scatt=[[h11,dresverts,fgp,fav,JtoDmat,x] for x in mongolink.distribcores(triangdata,size)];
@@ -263,7 +263,7 @@ if rank==0:
         #print posttoricswisscheese;
         for toricswisscheese_NL in posttoricswisscheese:
             if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
-                print "+SWISSCHEESE1."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
+                print "+SWISSCHEESE."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
             else:
                 print "None";
             sys.stdout.flush();

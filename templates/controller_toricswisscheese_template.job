@@ -49,8 +49,8 @@ scripttimelimit=""
 scriptbuffertime="00:05:00"
 
 #Input database info
-queries="[['POLY1',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'DRESVERTS':1,'FUNDGP':1,'FAV':1,'JTOD':1}],['GEOM1',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'GEOMN':1,'NTRIANGS':1}]]"
-basecollection="GEOM1"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'DRESVERTS':1,'FUNDGP':1,'FAV':1,'JTOD':1}],['GEOM',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'GEOMN':1,'NTRIANGS':1}]]"
+basecollection="GEOM"
 nthreadsfield="NTRIANGS"
 
 #Options

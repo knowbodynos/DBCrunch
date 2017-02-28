@@ -238,7 +238,7 @@ if rank==0:
         mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
         dbname=mongouri.split("/")[-1];
         db=mongoclient[dbname];
-        triangs=mongolink.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
+        triangs=mongolink.collectionfind(db,'TRIANGtemp',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
         #print triangs;
         #sys.stdout.flush();
         mongoclient.close();
