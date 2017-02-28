@@ -35,29 +35,31 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 5) Modify `${SLURMONGO_ROOT}/state/mongouri` and enter the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields.
 
-6) Navigate to `${SLURMONGO_ROOT}/templates` and choose a `controller_(some_module_name)_template.job` template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
+6) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module *controller_(some_module_name)_template* you wish to run. For testing purposes, please modify `controller_(some_module_name)_template.job` by finding the lines defining the variables dbpush and markdone. Change them to:
 
 ```
    dbpush="False"
    markdone=""
 ```
 
-   When you are finished testing, you can change these back to:
+   This prevents the controller from writing the results back to the remote MongoDB database. When you are finished testing, you can change these back to:
    
 ```
    dbpush="True"
    markdone="MARK"
 ```
 
-7) Run the following command:
+7) To copy the template to a usable format, run the following command:
    
 ```
    ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)
 ```
    
-   (Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)
+   where, in practice, *(some_controller_name)* is the value of H11 (i.e., 1 through 6) that we wish to run the module on.
 
-8) Navigate to `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. You can now submit the job using the command:
+   *(Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)*
+
+8) The template has now been copied to the directory `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. Navigate here, and you can now submit the job using the command:
 
 ```
    sbatch controller_(some_module_name)_(some_controller_name).job
