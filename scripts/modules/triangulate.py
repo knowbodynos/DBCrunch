@@ -212,9 +212,9 @@ try:
     #Determine the number of triangulations corresponding to the polytope
     nalltriangs=len(triangs);
     #Add new properties to the base tier of the JSON
-    print "+POLY1."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts),'DRESVERTS':py2mat(dresverts),'CWS':py2mat(cws),'RESCWS':py2mat(rescws),'FAV':fav,'DTOJ':py2mat(DtoJmat),'FUNDGP':fgp,'NALLTRIANGS':nalltriangs},separators=(',',':'));
+    print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts),'DRESVERTS':py2mat(dresverts),'CWS':py2mat(cws),'RESCWS':py2mat(rescws),'FAV':fav,'DTOJ':py2mat(DtoJmat),'FUNDGP':fgp,'NALLTRIANGS':nalltriangs},separators=(',',':'));
     for i in range(nalltriangs):
-        print "+TRIANG1."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1,'H11':h11,'TRIANG':py2mat(triangs[i])},separators=(',',':'));
+        print "+TRIANGtemp."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1,'H11':h11,'TRIANG':py2mat(triangs[i])},separators=(',',':'));
     sys.stdout.flush();
 except Exception as e:
     PrintException();
