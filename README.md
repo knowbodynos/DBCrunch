@@ -8,11 +8,11 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 1) Make sure that the directory `/gss_gpfs_scratch/${USER}` exists. If not, then create it using:
 
-   `mkdir /gss_gpfs_scratch/${USER}`
+`   mkdir /gss_gpfs_scratch/${USER}`
 
 2) Add the following lines to `${HOME}/.bashrc`:
 
-   ```
+```
    module load gnu-4.4-compilers 
    module load fftw-3.3.3
    module load platform-mpi
@@ -25,7 +25,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
    export SAGE_ROOT=/shared/apps/sage/sage-5.12
    export SLURMONGO_ROOT=/gss_gpfs_scratch/${USER}/SLURMongo
-   ```
+```
 
 3) Restart your Discovery session OR run the command `source ${HOME}/.bashrc`.
 
@@ -35,31 +35,31 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 6) Navigate to `${SLURMONGO_ROOT}/templates` and choose a `controller_(some_module_name)_template.job` template for some module. For testing purposes, find the lines defining the variables dbpush and markdone. Change them to:
 
-   ```
+```
    dbpush="False"
    markdone=""
-   ```
+```
 
    When you are finished testing, you can change these back to:
    
-   ```
+```
    dbpush="True"
    markdone="MARK"
-   ```
+```
 
 7) Run the following command:
    
-   `${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)`
+`   ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)`
    
    (Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)
 
 8) Navigate to `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. You can now submit the job using the command:
 
-   `sbatch controller_(some_module_name)_(some_controller_name).job`
+`   sbatch controller_(some_module_name)_(some_controller_name).job`
    
 9) If you need to cancel the controller job for any reason, make sure you run the command:
 
-   `./reset.bash`
+`   ./reset.bash`
    
    before resubmitting the job.
    
