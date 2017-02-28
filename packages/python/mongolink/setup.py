@@ -4,8 +4,8 @@ from setuptools import setup;
 
 setup(name='mongolink',
       version='1.0',
-      description='Query a MongoDB database.',
-      url='https://github.com/knowbodynos/toriccy',
+      description='A Python API for streaming from a remote MongoDB database.',
+      url='https://github.com/knowbodynos/SLURMongo',
       author='Ross Altman',
       author_email='knowbodynos@gmail.com',
       license='Northeastern University',

@@ -276,7 +276,7 @@ if rank==0:
             mori_rows_L+=[x['MORIMATP']];
         #Determine which triangulations to glue together
         to_glue_L=glue_groups(itensXD_L,c2Xnums_L,eX_L,mori_rows_L);
-        print to_glue_L;
+        #print to_glue_L;
         #Compress properties that should remain the same across the whole polytope into single variables
         JtoDmat=postchow[0]['JTOD'];
         invbasis=postchow[0]['INVBASIS'];

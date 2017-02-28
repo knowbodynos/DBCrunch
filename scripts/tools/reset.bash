@@ -4,8 +4,6 @@ herepath=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
 toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
-djob 2>/dev/null
-
 rm ${herepath}/*.err ${herepath}/*.out 2>/dev/null
 rm -r ${herepath}/jobs/* 2>/dev/null
 rm ${herepath}/querystate* 2>/dev/null
