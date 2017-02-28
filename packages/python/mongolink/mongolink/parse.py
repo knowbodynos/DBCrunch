@@ -22,7 +22,7 @@ def finddicts(nested,dictkeys=[],nondictkeys=[],orig=True):
     if type(nested)==dict:
         nesteditems=nested.items();
         for i in range(len(nesteditems)):
-            if (type(nesteditems[i][1])==dict) or (type(nesteditems[i][1])==list):
+            if ((type(nesteditems[i][1])==dict) or (type(nesteditems[i][1])==list)) and (nesteditems[i][0]!="_id"):
                 founddicts+=finddicts(nesteditems[i][1],dictkeys+[nesteditems[i][0]],nondictkeys+intermednondictkeys,orig=False);
             else:
                 intermednondictkeys+=[dictkeys+[nesteditems[i][0]]];
@@ -35,33 +35,34 @@ def finddicts(nested,dictkeys=[],nondictkeys=[],orig=True):
     listsallowed=tools.deldup(founddicts+nondictkeys+intermednondictkeys);
     dictonly=tools.deldup([y[:filter(lambda x:type(y[x]) in [str,unicode],range(len(y)))[-1]+1] for y in listsallowed]);
     if orig:
-        nobasedict=tools.deldup([x if (not (type(tools.nestind(nested,x)) in [str,unicode]) or not all([y[0]=='D' for y in [tools.nestind(nested,x),x[-1]]])) else x[:-1] for x in dictonly]);
+        nobasedict=tools.deldup([x if (not (type(tools.nestind(nested,x)) in [str,unicode]) or not x[-2]=="INVOL") else x[:-1] for x in dictonly]);
         return nobasedict;
     else:
         return dictonly;
 
 def stringform2expressionform(s):
     "Convert compressed value to expanded value."
-    if type(s)==int:
-        result=s;
-    elif s.replace(" ","").replace("{","").replace("}","").replace(",","").replace("-","").replace("/","").isnumeric():
-        result=eval(s.replace("{","[").replace("}","]"));
-    else:
-        if s.find("->")>=0:
-            t1='{';
-            t2='}';
+    if type(s)==str:
+        if s.replace(" ","").replace("{","").replace("}","").replace(",","").replace("-","").replace("/","").isnumeric():
+            result=eval(s.replace("{","[").replace("}","]"));
         else:
-            t1='[';
-            t2=']';
-        result=eval(re.sub('(['+t1+',:])(.*?)(?=(['+t2+',:]))',r'\1"\2"',s.replace(" ","").replace("{",t1).replace("}",t2).replace("->",":")));
+            if s.find("->")>=0:
+                t1='{';
+                t2='}';
+            else:
+                t1='[';
+                t2=']';
+            result=eval(re.sub('(['+t1+',:])(.*?)(?=(['+t2+',:]))',r'\1"\2"',s.replace(" ","").replace("{",t1).replace("}",t2).replace("->",":")));
+    else:
+        result=s;
     return result;
 
 def expressionform2stringform(e):
     "Convert expanded value to compressed value."
-    if type(e)==int:
-        result=e;
-    else:
+    if (type(e)==list) or (type(e)==dict):
         result=unicode(e).replace(" ","").replace("':'","->").replace("[","{").replace("]","}").replace("'","");
+    else:
+        result=e;
     return result;
 
 def string2expression(doc):

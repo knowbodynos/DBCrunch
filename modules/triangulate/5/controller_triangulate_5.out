@@ -1,0 +1,13 @@
+2017 02 28 02:23:29
+Starting job controller_triangulate_5
+
+
+2017 02 28 02:23:30
+Submitted batch job 1868748 as triangulate_5_job_1_steps_1-2 on partition ser-par-10g-2 with 1 nodes, 40 CPU(s), and 64000MB RAM allocated.
+....With job step 1868748.0 as triangulate_5_4086 on partition ser-par-10g-2 with 1 CPU(s) and 32000MB RAM allocated.
+....With job step 1868748.1 as triangulate_5_5788 on partition ser-par-10g-2 with 1 CPU(s) and 32000MB RAM allocated.
+
+
+2017 02 28 02:24:54
+Completing job controller_triangulate_5
+

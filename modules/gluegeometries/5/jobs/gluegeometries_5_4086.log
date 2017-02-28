@@ -1,0 +1,265 @@
+[{u'GEOMN': 1, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,5},{0,2,5,7},{0,2,6,7},{0,4,5,7},{0,4,6,7},{1,2,4,5},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{2,5,7,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 2, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,5},{0,2,5,8},{0,2,6,7},{0,2,7,8},{0,4,5,8},{0,4,6,7},{0,4,7,8},{1,2,4,5},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 3, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,7},{0,2,6,7},{0,4,6,7},{1,2,4,5},{1,2,5,6},{1,4,5,6},{2,3,4,7},{2,3,4,8},{2,3,6,7},{2,3,6,8},{2,4,5,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 4, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,7},{0,2,6,7},{0,4,6,7},{1,2,4,5},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,5,7},{2,5,6,8},{2,5,7,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 5, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,7},{0,2,6,7},{0,4,6,7},{1,2,4,5},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,5,8},{2,4,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 6, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,7},{0,2,6,7},{0,4,6,7},{1,2,4,8},{1,2,5,6},{1,2,5,8},{1,4,5,6},{1,4,5,8},{2,3,4,7},{2,3,4,8},{2,3,6,7},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 7, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,7},{0,2,6,7},{0,4,6,7},{1,2,4,8},{1,2,5,6},{1,2,5,8},{1,4,5,6},{1,4,5,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 8, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,8},{0,2,6,7},{0,2,7,8},{0,4,6,7},{0,4,7,8},{1,2,4,5},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,5,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 9, u'TRIANG': u'{{0,1,2,4},{0,1,2,6},{0,1,4,6},{0,2,4,8},{0,2,6,7},{0,2,7,8},{0,4,6,7},{0,4,7,8},{1,2,4,8},{1,2,5,6},{1,2,5,8},{1,4,5,6},{1,4,5,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 10, u'TRIANG': u'{{0,1,2,5},{0,1,2,6},{0,1,4,5},{0,1,4,6},{0,2,5,7},{0,2,6,7},{0,4,5,7},{0,4,6,7},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{2,5,7,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 11, u'TRIANG': u'{{0,1,2,5},{0,1,2,6},{0,1,4,5},{0,1,4,6},{0,2,5,8},{0,2,6,7},{0,2,7,8},{0,4,5,8},{0,4,6,7},{0,4,7,8},{1,2,5,6},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 12, u'TRIANG': u'{{0,1,2,6},{0,1,2,8},{0,1,4,5},{0,1,4,6},{0,1,5,8},{0,2,6,7},{0,2,7,8},{0,4,5,8},{0,4,6,7},{0,4,7,8},{1,2,5,6},{1,2,5,8},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 13, u'TRIANG': u'{{0,1,2,6},{0,1,2,8},{0,1,4,6},{0,1,4,8},{0,2,6,7},{0,2,7,8},{0,4,6,7},{0,4,7,8},{1,2,5,6},{1,2,5,8},{1,4,5,6},{1,4,5,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 14, u'TRIANG': u'{{0,1,4,5},{0,1,4,6},{0,1,5,7},{0,1,6,7},{0,4,5,7},{0,4,6,7},{1,2,3,6},{1,2,3,8},{1,2,5,6},{1,2,5,8},{1,3,6,7},{1,3,7,8},{1,4,5,6},{1,5,7,8},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 15, u'TRIANG': u'{{0,1,4,5},{0,1,4,6},{0,1,5,7},{0,1,6,7},{0,4,5,7},{0,4,6,7},{1,2,5,6},{1,2,5,7},{1,2,6,7},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{2,5,7,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 16, u'TRIANG': u'{{0,1,4,5},{0,1,4,6},{0,1,5,7},{0,1,6,7},{0,4,5,7},{0,4,6,7},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,2,7,8},{1,4,5,6},{1,5,7,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 17, u'TRIANG': u'{{0,1,4,5},{0,1,4,6},{0,1,5,8},{0,1,6,7},{0,1,7,8},{0,4,5,8},{0,4,6,7},{0,4,7,8},{1,2,3,6},{1,2,3,8},{1,2,5,6},{1,2,5,8},{1,3,6,7},{1,3,7,8},{1,4,5,6},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 18, u'TRIANG': u'{{0,1,4,5},{0,1,4,6},{0,1,5,8},{0,1,6,7},{0,1,7,8},{0,4,5,8},{0,4,6,7},{0,4,7,8},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,2,7,8},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 19, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,3,4},{1,2,3,6},{1,2,4,5},{1,2,5,6},{1,3,4,7},{1,3,6,7},{1,4,5,6},{2,3,4,8},{2,3,6,8},{2,4,5,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 20, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,3,4},{1,2,3,6},{1,2,4,8},{1,2,5,6},{1,2,5,8},{1,3,4,7},{1,3,6,7},{1,4,5,6},{1,4,5,8},{2,3,4,8},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 21, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,3,6},{1,2,3,8},{1,2,5,6},{1,2,5,8},{1,3,4,7},{1,3,4,8},{1,3,6,7},{1,4,5,6},{1,4,5,8},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 22, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,3,6},{1,2,3,8},{1,2,5,6},{1,2,5,8},{1,3,6,7},{1,3,7,8},{1,4,5,6},{1,4,5,7},{1,5,7,8},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 23, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,3,6},{1,2,3,8},{1,2,5,6},{1,2,5,8},{1,3,6,7},{1,3,7,8},{1,4,5,6},{1,4,5,8},{1,4,7,8},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 24, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,4,5},{1,2,4,7},{1,2,5,6},{1,2,6,7},{1,4,5,6},{2,3,4,7},{2,3,4,8},{2,3,6,7},{2,3,6,8},{2,4,5,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 25, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,4,5},{1,2,4,7},{1,2,5,6},{1,2,6,7},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,5,7},{2,5,6,8},{2,5,7,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 26, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,4,5},{1,2,4,7},{1,2,5,6},{1,2,6,7},{1,4,5,6},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,5,8},{2,4,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 27, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,4,7},{1,2,4,8},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,4,5,6},{1,4,5,8},{2,3,4,7},{2,3,4,8},{2,3,6,7},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{4,5,6,8}}'}, {u'GEOMN': 28, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,4,7},{1,2,4,8},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,4,5,6},{1,4,5,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,4,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 29, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,5,6},{1,2,5,7},{1,2,6,7},{1,4,5,6},{1,4,5,7},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{2,5,7,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 30, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,2,7,8},{1,4,5,6},{1,4,5,7},{1,5,7,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8},{4,5,7,8}}'}, {u'GEOMN': 31, u'TRIANG': u'{{0,1,4,6},{0,1,4,7},{0,1,6,7},{0,4,6,7},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,2,7,8},{1,4,5,6},{1,4,5,8},{1,4,7,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 32, u'TRIANG': u'{{0,1,4,6},{0,1,4,8},{0,1,6,7},{0,1,7,8},{0,4,6,7},{0,4,7,8},{1,2,3,6},{1,2,3,8},{1,2,5,6},{1,2,5,8},{1,3,6,7},{1,3,7,8},{1,4,5,6},{1,4,5,8},{2,3,6,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}, {u'GEOMN': 33, u'TRIANG': u'{{0,1,4,6},{0,1,4,8},{0,1,6,7},{0,1,7,8},{0,4,6,7},{0,4,7,8},{1,2,5,6},{1,2,5,8},{1,2,6,7},{1,2,7,8},{1,4,5,6},{1,4,5,8},{2,3,6,7},{2,3,6,8},{2,3,7,8},{2,5,6,8},{3,4,6,7},{3,4,6,8},{3,4,7,8},{4,5,6,8}}'}]
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 253 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 253, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+EXCEPTION IN (/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py, LINE 334 "mori_rows=mori(dresverts_chunk,t['TRIANG']);"): list indices must be integers, not unicode
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+
+More info:  Traceback (most recent call last):
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 334, in <module>
+    mori_rows=mori(dresverts_chunk,t['TRIANG']);
+  File "/gss_gpfs_scratch/altman.ro/SLURMongo/scripts/modules/gluegeometries.py", line 40, in mori
+    conelist=[Cone([aug_dresverts[i] for i in x]) for x in triang];
+TypeError: list indices must be integers, not unicode
+

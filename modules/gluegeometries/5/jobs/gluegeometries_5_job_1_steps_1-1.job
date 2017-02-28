@@ -1,0 +1,108 @@
+#!/bin/bash
+
+#Created 2017 02 28 02:32:07
+
+#Job name
+#SBATCH -J "gluegeometries_5_job_1_steps_1-1"
+#################
+#Working directory
+#SBATCH -D "/gss_gpfs_scratch/altman.ro/SLURMongo/modules/gluegeometries/5/jobs"
+#################
+#Job output file
+#SBATCH -o "gluegeometries_5_job_1_steps_1-1.out"
+#################
+#Job error file
+#SBATCH -e "gluegeometries_5_job_1_steps_1-1.err"
+#################
+#Job file write mode
+#SBATCH --open-mode="truncate"
+#################
+#Job max time
+#SBATCH --time="1-00:00:00"
+#################
+#Partition (queue) to use for job
+#SBATCH --partition="ser-par-10g-2"
+#################
+#Number of tasks (CPUs) allocated for job
+#SBATCH -n 40
+#################
+#Number of nodes to distribute n tasks across
+#SBATCH -N 1
+#################
+#Lock down N nodes for job
+#SBATCH --exclusive
+#################
+
+#Database info
+basecollection="POLY1"
+
+#Cluster info
+scriptpath="/gss_gpfs_scratch/altman.ro/SLURMongo/scripts"
+modulescriptpath="${scriptpath}/modules"
+controllerpath="/gss_gpfs_scratch/altman.ro/SLURMongo/modules/gluegeometries/5"
+workpath="${controllerpath}/jobs"
+
+#Job info
+modname="gluegeometries"
+dbpush="True"
+markdone="MARK"
+
+jobstepnames[0]="gluegeometries_5_4086"
+docs[0]="{\"NALLTRIANGS\":33,\"POLYID\":4086,\"H11\":5,\"RESCWS\":\"{{0,0,0,0,1},{0,0,1,1,0},{1,1,0,0,0},{0,0,0,1,0},{1,1,1,1,0},{1,2,1,2,1},{4,5,5,5,2},{0,1,0,0,0},{1,0,2,0,0}}\",\"DTOJ\":\"{{0,0,0,1,0,0,0,0,0},{0,0,0,0,0,1,0,0,0},{0,0,0,0,0,0,1,0,0},{0,0,0,0,0,0,0,1,0},{0,0,0,0,0,0,0,0,1}}\",\"DRESVERTS\":\"{{-1,0,-1,0},{-1,0,-1,1},{-1,0,0,1},{-1,0,1,0},{-1,1,-1,0},{-1,2,3,2},{1,-1,-1,-1},{-1,0,0,0},{-1,1,2,1}}\"}"
+njobstepthreads[0]=33
+
+for i in {0..0}
+do
+    mpirun -srun -n "${njobstepthreads[i]}" -J "${jobstepnames[${i}]}" --mem-per-cpu="64000M" --time="23:55:00" sage  "${modulescriptpath}/gluegeometries.py" "${docs[${i}]}" "${workpath}" "${jobstepnames[${i}]}" > "${workpath}/${jobstepnames[${i}]}.log" &
+    sleep 0.1
+    pids[${i}]=$!
+done
+
+for i in {0..0}
+do
+    wait ${pids[${i}]}
+
+    sleep 0.1
+    jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j "${SLURM_JOBID}.${i}" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))
+    exitcode=${jobstepstats[0]}
+    cputime=${jobstepstats[1]}
+    maxrss=${jobstepstats[2]}
+    maxvmsize=${jobstepstats[3]}
+    while [ "${exitcode}" == "" ] || [ "${cputime}" == "" ] || [ "${maxrss}" == "" ] || [ "${maxvmsize}" == "" ]
+    do
+        sleep 0.1
+        jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j "${SLURM_JOBID}.${i}" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))
+        exitcode=${jobstepstats[0]}
+        cputime=${jobstepstats[1]}
+        maxrss=${jobstepstats[2]}
+        maxvmsize=${jobstepstats[3]}
+    done
+    skipped=false
+    if [ "${exitcode}" == "0:0" ] && test -s "${workpath}/${jobstepnames[${i}]}.log"
+    then
+        while read line
+        do
+            if [[ ! "$line" =~ ^\+.* && ! "$line" =~ ^-.* && ! "$line" =~ ^None.* ]]
+            then
+                skipped=true
+                break
+            fi
+        done < "${workpath}/${jobstepnames[${i}]}.log"
+    else
+        skipped=true
+    fi
+    
+    if ! ${skipped}
+    then
+        srun -N 1 -n 1 --exclusive -J "stats_${jobstepnames[${i}]}" --mem-per-cpu="64000M" python "${scriptpath}/stats.py" "${modname}" "${basecollection}" "${workpath}" "${jobstepnames[${i}]}" "${dbpush}" "${markdone}" "${cputime}" "${maxrss}" "${maxvmsize}" >> "${workpath}/${jobstepnames[${i}]}.log" &
+    else
+        echo "${jobstepnames[${i}]},${exitcode},False" >> "${controllerpath}/skippedstate"
+    fi
+    sleep 0.1
+    pids[${i}]=$!
+done
+
+for i in {0..0}
+do
+    wait ${pids[${i}]}
+done

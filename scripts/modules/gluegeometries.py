@@ -172,15 +172,20 @@ def match(itensXD_pair,c2Xnums_pair,eX_pair,mori_rows_pair):
 
 def glue_groups(itensXD_L,c2Xnums_L,eX_L,mori_rows_L):
     "Determine the sets of triangulations that correspond to a unique Calabi-Yau threefold and should be glued according to both Wall's theorem and the flop-tracing method."
-    pairs=[inds for inds in Set(range(len(itensXD_L))).subsets(2).list() if match([itensXD_L[i] for i in inds],[c2Xnums_L[i] for i in inds],[eX_L[i] for i in inds],[mori_rows_L[i] for i in inds])];
-    groups=[];
-    for i in range(len(pairs)):
-        glue=pairs[i];
-        for j in range(i+1,len(pairs)):
-            if len(glue.intersection(pairs[j]))>0:
-                glue=glue.union(pairs[j]);
-        if not any([glue.issubset(x) for x in groups]):
-            groups+=[glue];
+    groups=[inds for inds in Set(range(len(itensXD_L))).subsets(2).list() if match([itensXD_L[i] for i in inds],[c2Xnums_L[i] for i in inds],[eX_L[i] for i in inds],[mori_rows_L[i] for i in inds])];
+    i=0;
+    while i<len(groups):
+        origgroup=groups[i];
+        j=i+1;
+        while j<len(groups):
+            if len(groups[i].intersection(groups[j]))>0:
+                groups[i]=groups[i].union(groups[j]);
+                groups=groups[:j]+groups[j+1:];
+                j-=1;
+            j+=1;
+        if groups[i]!=origgroup:
+            i-=1;
+        i+=1;
     groups_list=[list(x) for x in groups];
     return groups_list+[[i] for i in range(len(itensXD_L)) if not any([i in x for x in groups_list])];
 
@@ -218,6 +223,8 @@ if rank==0:
         dbname=mongouri.split("/")[-1];
         db=mongoclient[dbname];
         triangs=mongolink.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
+        print triangs;
+        sys.stdout.flush();
         mongoclient.close();
         #Set the number of basis divisors
         ndivsJ=matrix(rescws).rank();
@@ -277,6 +284,7 @@ if rank==0:
         #Determine which triangulations to glue together
         to_glue_L=glue_groups(itensXD_L,c2Xnums_L,eX_L,mori_rows_L);
         #print to_glue_L;
+        #sys.stdout.flush();
         #Compress properties that should remain the same across the whole polytope into single variables
         JtoDmat=postchow[0]['JTOD'];
         invbasis=postchow[0]['INVBASIS'];

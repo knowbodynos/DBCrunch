@@ -1,8 +1,8 @@
 Metadata-Version: 1.0
 Name: mongolink
 Version: 1.0
-Summary: Query a MongoDB database.
-Home-page: https://github.com/knowbodynos/toriccy
+Summary: A Python API for streaming from a remote MongoDB database.
+Home-page: https://github.com/knowbodynos/SLURMongo
 Author: Ross Altman
 Author-email: knowbodynos@gmail.com
 License: Northeastern University
