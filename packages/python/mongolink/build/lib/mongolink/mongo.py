@@ -38,7 +38,7 @@ def collectionfind(db,collection,query,projection,formatresult="string"):
 
 def gettiers(db):
     "Return all tiers (i.e. collections) of database."
-    return [x["TIER"] for x in collectionfind(db,"TIERS",{},{"_id":0,"TIER":1})];
+    return tools.deldup([x["TIER"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1})]);
 
 #def getindexes(db,collection="all"):
 #    "Return all indexes for a collection."
@@ -150,7 +150,7 @@ def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult=
 
 def querydatabase(db,queries,chunk=100,formatresult="string"):
     "Query all collections in the database and concatenate the documents of each that refer to the same object."
-    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"TIERS",{},{"_id":0,"TIER":1,"TIERID":1})]);
+    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1,"TIERID":1})]);
     maxquerylen=max([len(x[1]) for x in queries]);
     sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (maxquerylen-len(x[1]),tiersord[x[0]]));
     maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
