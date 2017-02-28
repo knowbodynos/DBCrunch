@@ -8,7 +8,9 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 1) Make sure that the directory `/gss_gpfs_scratch/${USER}` exists. If not, then create it using:
 
-`   mkdir /gss_gpfs_scratch/${USER}`
+```
+   mkdir /gss_gpfs_scratch/${USER}
+```
 
 2) Add the following lines to `${HOME}/.bashrc`:
 
@@ -49,17 +51,23 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 7) Run the following command:
    
-`   ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)`
+```
+   ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)
+```
    
    (Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)
 
 8) Navigate to `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. You can now submit the job using the command:
 
-`   sbatch controller_(some_module_name)_(some_controller_name).job`
+```
+   sbatch controller_(some_module_name)_(some_controller_name).job
+```
    
 9) If you need to cancel the controller job for any reason, make sure you run the command:
 
-`   ./reset.bash`
+```
+   ./reset.bash
+```
    
    before resubmitting the job.
    
