@@ -23,7 +23,10 @@ def collectionfind(db,collection,query,projection,formatresult="string"):
     if projection=="count":
         result=db[collection].find(query).count();
     else:
-        stringresult=list(db[collection].find(query,projection));
+        if len(projection)==0:
+            stringresult=list(db[collection].find(query));
+        else:
+            stringresult=list(db[collection].find(query,projection));
         if formatresult=="string":
             result=stringresult;
         elif formatresult=="expression":

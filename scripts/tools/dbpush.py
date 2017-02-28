@@ -93,7 +93,7 @@ try:
                             if dbpush:
                                 db[newcollection].update(newindexdoc,{"$unset":doc});
                         else:
-                            removedocs=list(db[newcollection].find(newindexdoc,{}));
+                            removedocs=list(db[newcollection].find(newindexdoc));
                             for removedoc in removedocs:
                                 bsonsize-=mongolink.bsonsize(removedoc);
                                 if dbpush:

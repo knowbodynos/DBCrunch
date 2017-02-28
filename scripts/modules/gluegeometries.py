@@ -158,16 +158,32 @@ def chowHysurf(C,DD,JJ,DtoJmat,itensAD,itensXD,cnAD,cnAJ):
 
 def match(itensXD_pair,c2Xnums_pair,eX_pair,mori_rows_pair):
     "Determine if the above pairs of values match."
-    inter=Cone([vector(x) for x in mori_rows_pair[0]]).intersection(Cone([-vector(x) for x in mori_rows_pair[1]])).rays().column_matrix().columns();
+    #inter=Cone([vector(x) for x in mori_rows_pair[0]]).intersection(Cone([-vector(x) for x in mori_rows_pair[1]])).rays().column_matrix().columns();
+    potentialflop=False;
     flop=True;
-    for x in inter:
-        range0=[k for k in range(len(x)) if x[k]<0];
-        range1=[k for k in range(len(x)) if x[k]>0];
-        set0=Set(range0).subsets(min(len(range0),3)).list();
-        set1=Set(range1).subsets(min(len(range1),3)).list();
-        inums0=[mongolink.nestind(itensXD_pair[0],y) for y in set0];
-        inums1=[mongolink.nestind(itensXD_pair[1],y) for y in set1];
-        flop=flop and all([y==0 for y in flatten(inums0+inums1)]);
+    i=0;
+    while (i<len(mori_rows_pair[0])) and flop:
+        row0=mori_rows_pair[0][i];
+        j=0;
+        while (j<len(mori_rows_pair[1])) and flop:
+            row1=mori_rows_pair[1][j];
+            flopinds=[k for k in range(len(row0)) if (row0[k]==-row1[k]) and (row0[k]!=0)];
+            if all([row0[k]==row1[k] for k in range(len(row0)) if k not in flopinds]):
+                potentialflop=True;
+                if len(flopinds)>0:
+                    range0=[k for k in flopinds if row0[k]<0];
+                    range1=[k for k in flopinds if row1[k]<0];
+                    if (len(range0)>0) and (len(range1)>0):
+                        set0=Set(range0).subsets(min(len(range0),3)).list();
+                        set1=Set(range1).subsets(min(len(range1),3)).list();
+                        inums0=[mongolink.nestind(itensXD_pair[0],list(y)) for y in set0];
+                        inums1=[mongolink.nestind(itensXD_pair[1],list(y)) for y in set1];
+                        flop=flop and all([y==0 for y in flatten(inums0+inums1)]);
+                    else:
+                        flop=False;
+            j+=1;
+        i+=1;
+    flop=flop and potentialflop;
     return (itensXD_pair[0]==itensXD_pair[1]) and (Set(c2Xnums_pair[0])==Set(c2Xnums_pair[1])) and (eX_pair[0]==eX_pair[1]) and flop;
 
 def glue_groups(itensXD_L,c2Xnums_L,eX_L,mori_rows_L):
@@ -223,8 +239,8 @@ if rank==0:
         dbname=mongouri.split("/")[-1];
         db=mongoclient[dbname];
         triangs=mongolink.collectionfind(db,'TRIANG1',{'H11':h11,'POLYID':polyid},{'_id':0,'GEOMN':1,'TRIANG':1},formatresult='expression');
-        print triangs;
-        sys.stdout.flush();
+        #print triangs;
+        #sys.stdout.flush();
         mongoclient.close();
         #Set the number of basis divisors
         ndivsJ=matrix(rescws).rank();

@@ -42,7 +42,7 @@ def finddicts(nested,dictkeys=[],nondictkeys=[],orig=True):
 
 def stringform2expressionform(s):
     "Convert compressed value to expanded value."
-    if type(s)==str:
+    if type(s) in [str,unicode]:
         if s.replace(" ","").replace("{","").replace("}","").replace(",","").replace("-","").replace("/","").isnumeric():
             result=eval(s.replace("{","[").replace("}","]"));
         else:
