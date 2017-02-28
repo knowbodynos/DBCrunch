@@ -33,9 +33,15 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 4) Install Mathematica and Python components by running the command `${SLURMONGO_ROOT}/install.bash` from a login node.
 
-5) Modify `${SLURMONGO_ROOT}/state/mongouri` and enter the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields.
+5) Modify `${SLURMONGO_ROOT}/state/mongouri` by entering the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields. The format should look like:
 
-6) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module *controller_(some_module_name)_template* you wish to run. For testing purposes, please modify `controller_(some_module_name)_template.job` by finding the lines defining the variables dbpush and markdone. Change them to:
+```
+   mongodb://(username):(password)@(IP address):(port)/(MongoDB database name)
+```
+
+6) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template*) that you wish to run.
+
+   For testing purposes, please modify `controller_(some_module_name)_template.job` by finding the lines defining the variables *dbpush* and *markdone*. Change them to:
 
 ```
    dbpush="False"
