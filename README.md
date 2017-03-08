@@ -85,15 +85,15 @@ Some useful aliases to keep in the `${HOME}/.bashrc` file:
 
 ```
 #Functions
-scancelgrep() {
-    nums=$(squeue -h -u ${USER} -o "%.100P %.100j %.100i %.100t %.100T" | grep $1 | sed "s/\s\s\s*//g" | cut -d" " -f1);
-    for n in $nums;
+_scancelgrep() {
+    nums=$(squeue -h -u ${USER} -o "%.100P %.100j %.100i %.100t %.100T" | grep $1 | sed "s/\s\s\s*//g" | cut -d" " -f1)
+    for n in $nums
     do
-        scancel $n;
+        scancel $n
     done
 }
 
-sfindpart() {
+_sfindpart() {
     greppartitions="ser-par-10g|ser-par-10g-2|ser-par-10g-3|ser-par-10g-4|ht-10g|interactive-10g"
 
     partitionsidle=$(sinfo -h -o '%t %c %D %P' | grep -E "(${greppartitions})\*?\s*$" | grep 'idle' | awk '$0=$1" "$2*$3" "$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ' ' | head -c -1)
@@ -117,16 +117,53 @@ sfindpart() {
     done
 }
 
+_sinteract(){
+    jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -X $(squeue -h -u ${USER} -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev); scancel $jobnum;
+}
+
+_watchjobs() {
+    jobs=$(squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" | tr '\n' '!' 2>/dev/null)
+    njobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | wc -l)
+    nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " R " | wc -l)
+    npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
+    steps=$(sacct -o "JobID%30,JobName%130,State" --jobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | sed "s/\s\s*/ /g" | cut -d" " -f2 | tr '\n' ',' | head -c -1) 2>/dev/null | grep -v "stats_" | grep -E "\."  | tr '\n' '!' 2>/dev/null)
+    nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
+    pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | tr "\n" "+" | head -c -1)
+    if [[ "${pendsteps}" == "" ]]
+    then
+        npendsteps=0
+    else
+        npendsteps=$(echo "-(${pendsteps})" | bc)
+    fi
+    nsteps=$(($nrunsteps+$npendsteps))
+    echo "# Jobs: ${njobs}   # Run Jobs: ${nrunjobs}   # Pend Jobs: ${npendjobs}"
+    echo "# Steps: ${nsteps}   # Run Steps: ${nrunsteps}   # Pend Steps: ${npendsteps}"
+    echo ""
+    #squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p"
+    echo "${jobs}" | tr '!' '\n' 2>/dev/null
+}
+export -f _watchjobs
+
+_swatch() {
+    watch -n$1 bash -c "_watchjobs"
+}
+
+_siwatch(){
+    jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g");
+    ssh -t -X $(squeue -h -u ${USER} -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev) "watch -n$2 bash -c \"_watchjobs\""
+    scancel $jobnum
+}
+
 #Aliases
 alias sage='source /shared/apps/sage/sage-5.12/sage'
 alias lsx='watch -n 5 "ls"'
-alias sjob='squeue -u ${USER} -o "%.10i %.13P %.30j %.8u %.2t %.10M %.6D %R"'
+alias sjob='squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p"'
 alias djob='jobids=$(squeue -h -u ${USER} | grep -v "(null)" | sed "s/\s\s\s*//g" | cut -d" " -f1); for job in $jobids; do scancel $job; echo "Cancelled Job $job."; done'
-alias scancelgrep=scancelgrep
-alias sfindpart=sfindpart
-alias sinteract='function _sinteract(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -X $(squeue -h -u ${USER} -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev); scancel $jobnum; };_sinteract'
-alias swatch='function _swatch(){ watch -n$1 "squeue -u ${USER} -o \"%.10i %.13P %.30j %.8u %.2t %.10M %.6D %R\" -S \"P,-t,-p\""; };_swatch'
-alias siwatch='function _siwatch(){ jobnum=$(echo $(salloc --no-shell -N 1 --exclusive -p $1 2>&1) | sed "s/.* allocation \([0-9]*\).*/\1/g"); ssh -t -X $(squeue -h -u ${USER} -j $jobnum -o %.100N | sed "s/\s\s\s*/ /g" | rev | cut -d" " -f1 | rev) "watch -n$2 \"squeue -u ${USER}\""; scancel $jobnum; };_siwatch'
+alias scancelgrep='_scancelgrep'
+alias sfindpart='_sfindpart'
+alias sinteract='_sinteract'
+alias swatch='_swatch'
+alias siwatch='_siwatch'
 alias scratch='cd /gss_gpfs_scratch/${USER}'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
 ```

@@ -175,11 +175,11 @@ def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch
             if j<len(endofdocs[i])-1: 
                 k=0;
                 while k<i:
-                    print "a";
-                    print docbatch[i];
-                    print "b";
-                    print docbatch [k];
-                    sys.stdout.flush();
+                    #print "a";
+                    #print docbatch[i];
+                    #print "b";
+                    #print docbatch [k];
+                    #sys.stdout.flush();
                     if all([docbatch[i][x]==docbatch[k][x] for x in allcollindexes[j]]):
                         docbatch=docbatch[:k]+docbatch[k+1:];
                         endofdocs=endofdocs[:k]+endofdocs[k+1:];
