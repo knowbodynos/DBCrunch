@@ -175,6 +175,11 @@ def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch
             if j<len(endofdocs[i])-1: 
                 k=0;
                 while k<i:
+                    print "a";
+                    print docbatch[i];
+                    print "b";
+                    print docbatch [k];
+                    sys.stdout.flush();
                     if all([docbatch[i][x]==docbatch[k][x] for x in allcollindexes[j]]):
                         docbatch=docbatch[:k]+docbatch[k+1:];
                         endofdocs=endofdocs[:k]+endofdocs[k+1:];
@@ -245,8 +250,10 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #sys.stdout.flush();
     thisiostream.close();
     newquerydoc={"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters};
-    newprojdoc=dict(queries[0][2].items()+[(x,1) for x in thiscollindexes]+[("_id",0)]);
+    newprojdoc=dict(queries[0][2].items()+[(x,1) for x in thiscollindexes]+[("_id",0)]);    
     thisquery=[queries[0][0],newquerydoc,newprojdoc];
+    #print thisquery;
+    #sys.stdout.flush();
     #print thisquery;
     #sys.stdout.flush();
     if timeleft()==True:
@@ -266,6 +273,8 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #if thisquery[0]=="POLY":
     #    print "thisquery: "+str(thisquery);
     #    print docs;
+    #print docs;
+    #sys.stdout.flush();
     i=0;
     while (i<len(docs)) and (timeleft()>0):
         doc=docs[i];

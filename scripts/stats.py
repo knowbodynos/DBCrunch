@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,subprocess,signal,json,mongolink;
+import sys,os,linecache,traceback,re,subprocess,signal,json,mongolink;
 
 #Misc. function definitions
 def PrintException():
@@ -117,6 +117,7 @@ try:
         print "MaxRSS: "+maxrss+" bytes";
         print "MaxVMSize: "+maxvmsize+" bytes";
         print "BSONSize: "+str(bsonsize)+" bytes";
+        os.remove(workpath+"/"+jobstepname+".stat");
     except IOError:
         print "File path \""+workpath+"/"+jobstepname+".log\" does not exist.";
     sys.stdout.flush();

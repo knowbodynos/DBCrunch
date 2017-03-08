@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "controller_gluegeometries_template"
+#SBATCH -J "controller_glueflops_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/gluegeometries/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/glueflops/template"
 #################
 #Job output file
-#SBATCH -o "controller_gluegeometries_template.out"
+#SBATCH -o "controller_glueflops_template.out"
 #################
 #Job error file
-#SBATCH -e "controller_gluegeometries_template.err"
+#SBATCH -e "controller_glueflops_template.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -34,7 +34,7 @@
 h11="template"
 
 #Input controller info
-modname="gluegeometries"
+modname="glueflops"
 controllername="${h11}"
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
@@ -49,12 +49,12 @@ scripttimelimit=""
 scriptbuffertime="00:05:00"
 
 #Input database info
-queries="[['POLY',{'H11':${h11},'NALLTRIANGS':{'\$exists':True},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'H11':1,'DRESVERTS':1,'RESCWS':1,'DTOJ':1,'NALLTRIANGS':1}]]"
+queries="[['POLY',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'H11':1,'DTOJ':1}]]"
 basecollection="POLY"
-nthreadsfield="NALLTRIANGS"
+nthreadsfield=""
 
 #Options
-blocking="False"
+blocking="True"
 dbpush="True"
 markdone="MARK"
 

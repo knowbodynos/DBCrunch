@@ -5,7 +5,7 @@ def bsonsize(doc):
     return len(bson.BSON.encode(doc));
 
 def pythonlist2mathematicalist(lst):
-    "Converts a Python list to a string depicting a list in Mathematica format."
+    "Converts a Python list to a string depicting a list in Mathematica format."    
     return str(lst).replace(" ","").replace("[","{").replace("]","}");
 
 def mathematicalist2pythonlist(lst):
@@ -42,19 +42,20 @@ def finddicts(nested,dictkeys=[],nondictkeys=[],orig=True):
 
 def stringform2expressionform(s):
     "Convert compressed value to expanded value."
-    if type(s) in [str,unicode]:
-        if s.replace(" ","").replace("{","").replace("}","").replace(",","").replace("-","").replace("/","").isnumeric():
-            result=eval(s.replace("{","[").replace("}","]"));
-        else:
-            if s.find("->")>=0:
-                t1='{';
-                t2='}';
-            else:
-                t1='[';
-                t2=']';
-            result=eval(re.sub('(['+t1+',:])(.*?)(?=(['+t2+',:]))',r'\1"\2"',s.replace(" ","").replace("{",t1).replace("}",t2).replace("->",":")));
+    if type(s)==str:
+        s1=unicode(s,'utf-8');
     else:
-        result=s;
+        s1=s;
+    if type(s1)==unicode:
+        if s1.replace(" ","").replace("{","").replace("}","").replace(",","").replace("-","").replace("/","").isnumeric():
+            result=eval(s1.replace("{","[").replace("}","]"));
+        else:
+            s1=s1.replace("{","[").replace("}","]");
+            while s1.count("->")>0:
+                s1=re.sub('\[([^\[,\]]*?)->([^\[,\]]*?)\]',r'{\1:\2}',s1);
+            result=re.sub('([\[{,:])([^\[\]{},:0-9]+.*?)(?=([\]},:]))',r'\1"\2"',s1);
+    else:
+        result=s1;
     return result;
 
 def expressionform2stringform(e):

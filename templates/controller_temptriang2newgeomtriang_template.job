@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "controller_gluegeometries_template"
+#SBATCH -J "controller_temptriang2newgeomtriang_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/gluegeometries/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/temptriang2newgeomtriang/template"
 #################
 #Job output file
-#SBATCH -o "controller_gluegeometries_template.out"
+#SBATCH -o "controller_temptriang2newgeomtriang_template.out"
 #################
 #Job error file
-#SBATCH -e "controller_gluegeometries_template.err"
+#SBATCH -e "controller_temptriang2newgeomtriang_template.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g"
+#SBATCH --partition="ser-par-10g-3"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -34,7 +34,7 @@
 h11="template"
 
 #Input controller info
-modname="gluegeometries"
+modname="temptriang2newgeomtriang"
 controllername="${h11}"
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
@@ -49,9 +49,9 @@ scripttimelimit=""
 scriptbuffertime="00:05:00"
 
 #Input database info
-queries="[['POLY',{'H11':${h11},'NALLTRIANGS':{'\$exists':True},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'H11':1,'DRESVERTS':1,'RESCWS':1,'DTOJ':1,'NALLTRIANGS':1}]]"
+queries="[['POLY',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'H11':1,'DTOJ':1}]]"
 basecollection="POLY"
-nthreadsfield="NALLTRIANGS"
+nthreadsfield=""
 
 #Options
 blocking="False"

@@ -298,6 +298,9 @@ def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,partition,memo
         print "Res"+submitcomm[1:]+" as "+jobname+" on partition "+partition+" with "+str(nnodes)+" nodes, "+str(ncores)+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
         submitcomm=submitcomm.replace("Submitted batch job ","With job step ");
         for i in range(len(jobstepnames)):
+            with open(jobpath+"/"+jobstepnames[i]+".stat","w") as statstream:
+                statstream.write(jobstepnames[i]+",-1:0,False\n");
+                statstream.flush();
             print "...."+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(nthreads[i])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
         print "";
         print "";
@@ -306,6 +309,9 @@ def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,partition,memo
         print submitcomm+" as "+jobname+" on partition "+partition+" with "+str(nnodes)+" nodes, "+str(ncores)+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
         submitcomm=submitcomm.replace("Submitted batch job ","With job step ");
         for i in range(len(jobstepnames)):
+            with open(jobpath+"/"+jobstepnames[i]+".stat","w") as statstream:
+                statstream.write(jobstepnames[i]+",-1:0,False\n");
+                statstream.flush();
             print "...."+submitcomm+"."+str(i)+" as "+jobstepnames[i]+" on partition "+partition+" with "+str(nthreads[i])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
         print "";
     sys.stdout.flush();
@@ -346,7 +352,7 @@ def reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,b
             tempstream.write(skippedheader);
             tempstream.flush();
             for line in skippedstream:
-                [skippedjob,exitcode,resubmitq]=line.rstrip("\n").split(",");
+                skippedjob,exitcode,resubmitq=line.rstrip("\n").split(",");
                 if eval(resubmitq):
                     skippedjobsplit=skippedjob.split("_");
                     if skippedjobsplit[:2]==[modname,controllername]:
@@ -361,17 +367,24 @@ def reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,b
         if len(skippedjobs)>0:
             querystatetierfilenames=subprocess.Popen("find "+controllerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
             for querystatetierfilename in querystatetierfilenames:
-                #if querystatetierfilename==querystatefilename+basecollection:
-                #    with open(controllerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
-                #        for i in range(len(skippedjobs)):
-                #            line=skippedjobs[i];
-                #            if i<len(skippedjobs)-1:
-                #                line+="\n";
-                #            querystatefilestream.write(line);
-                #            querystatefilestream.flush();
-                #else:
-                if querystatetierfilename!=querystatefilename+basecollection:
-                    try:
+                try:
+                    if querystatetierfilename==querystatefilename+basecollection:
+                        #with open(controllerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
+                        #    for i in range(len(skippedjobs)):
+                        #        line=skippedjobs[i];
+                        #        if i<len(skippedjobs)-1:
+                        #            line+="\n";
+                        #        querystatefilestream.write(line);
+                        #        querystatefilestream.flush();
+                        with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream:
+                            for line in querystatefilestream:
+                                linestrip=line.rstrip("\n");
+                                if not linestrip in skippedjobs:
+                                    tempstream.write(line);
+                                    tempstream.flush();
+                            os.rename(tempstream.name,querystatefilestream.name);
+                    else:
+                    #if querystatetierfilename!=querystatefilename+basecollection:
                         with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream:
                             for line in querystatefilestream:
                                 linestrip=line.rstrip("\n");
@@ -379,9 +392,9 @@ def reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,b
                                     tempstream.write(line);
                                     tempstream.flush();
                             os.rename(tempstream.name,querystatefilestream.name);
-                    except IOError:
-                        print "File path \""+controllerpath+"/"+querystatetierfilename+"\" does not exist.";
-                        sys.stdout.flush();
+                except IOError:
+                    print "File path \""+controllerpath+"/"+querystatetierfilename+"\" does not exist.";
+                    sys.stdout.flush();
     except IOError:
         print "File path \""+controllerpath+"/skippedstate\" does not exist.";
         sys.stdout.flush();
@@ -636,7 +649,8 @@ def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,con
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${dbpush}\" \"${SLURM_JOBID}.${i}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    else\n";
     #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${controllerpath}/hi\"\n";
-    jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" >> \"${controllerpath}/skippedstate\"\n";
+    #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" >> \"${controllerpath}/skippedstate\"\n";
+    jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" > \"${workpath}/${jobstepnames[${i}]}.stat\"\n";
     jobstring+="    fi\n";
     jobstring+="    sleep 0.1\n";
     jobstring+="    pids[${i}]=$!\n";
@@ -983,6 +997,7 @@ try:
     modulesstatefile=statepath+"/modules";
     softwarestatefile=statepath+"/software";
     mongourifile=statepath+"/mongouri";
+    custommaxjobsfile=statepath+"/maxjobs";
     counterstatefile=controllerpath+"/counterstate";
     statusstatefile=controllerpath+"/statusstate";
     querystatefilename="querystate";
@@ -991,6 +1006,19 @@ try:
     with open(statusstatefile,"w") as statusstream:
             statusstream.truncate(0);
             statusstream.write("Starting");
+
+    with open(custommaxjobsfile,"r") as custommaxjobsstream:
+        try:
+            custommaxjobsheader=custommaxjobsstream.readline();
+            custommaxjobcountstr,custommaxstepcountstr=custommaxjobsstream.readline().rstrip("\n").split(",");
+            if custommaxjobcountstr!="":
+                maxjobcount=min(maxjobcount,eval(custommaxjobcountstr));
+            if custommaxstepcountstr!="":
+                maxstepcount=min(maxstepcount,eval(custommaxstepcountstr));
+        except IOError:
+            print "Max jobs defined in \""+custommaxjobsfile+"\" must be a number.";
+            sys.stdout.flush();
+            raise;
 
     if scriptbuffertime=="":
         scriptbuffertime="00:00:00";
@@ -1075,9 +1103,8 @@ try:
         #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
         #        iostream.flush();
         #print "Next Run";
-        #print "";
+        #print "hi";
         #sys.stdout.flush();
-
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
         #print str(starttime)+" "+str(controllerbuffertimelimit);
         #sys.stdout.flush();
