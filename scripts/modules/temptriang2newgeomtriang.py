@@ -41,18 +41,23 @@ def match(itensXD_pair,c2Xnums_pair,eX_pair,mori_rows_pair):
         while (j<len(mori_rows_pair[1])) and flop:
             row1=mori_rows_pair[1][j];
             flopinds=[k for k in range(len(row0)) if (row0[k]==-row1[k]) and (row0[k]!=0)];
-            if all([row0[k]==row1[k] for k in range(len(row0)) if k not in flopinds]):
+            #Toric divisor indices whose intersection defines a singularity in the wall
+            if all([row0[k]==row1[k] for k in range(len(row0))]) or all([row0[k]==-row1[k] for k in range(len(row0))]):
+                #Two Kahler cones share a wall (they either overlap or are adjacent)
                 potentialflop=True;
                 if len(flopinds)>0:
+                    #There is a singularity in the wall
                     range0=[k for k in flopinds if row0[k]<0];
                     range1=[k for k in flopinds if row1[k]<0];
                     if (len(range0)>0) and (len(range1)>0):
+                        #The singularity is contained within some intersection of divisors in both Kahler cones
                         set0=Set(range0).subsets(min(len(range0),3)).list();
                         set1=Set(range1).subsets(min(len(range1),3)).list();
                         inums0=[mongolink.nestind(itensXD_pair[0],list(y)) for y in set0];
                         inums1=[mongolink.nestind(itensXD_pair[1],list(y)) for y in set1];
                         flop=flop and all([y==0 for y in flatten(inums0+inums1)]);
                     else:
+                        #The singularity is not contained in any intersection of divisors for at least one Kahler cone, so it cannot be checked the the CY avoids it
                         flop=False;
             j+=1;
         i+=1;
@@ -130,8 +135,8 @@ try:
     JtoDmat=triangdocs[0]['JTOD'];
     invbasis=triangdocs[0]['INVBASIS'];
     #Add new properties to base tier of JSON
-    print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'BASIS':basis,'EULER':int(eX_L[0]),'NGEOMS':len(to_glue_L),'JTOD':JtoDmat,'INVBASIS':invbasis},separators=(',',':'));
-    sys.stdout.flush();
+    #print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'BASIS':basis,'EULER':int(eX_L[0]),'NGEOMS':len(to_glue_L),'JTOD':JtoDmat,'INVBASIS':invbasis},separators=(',',':'));
+    #sys.stdout.flush();
     #Glue triangulations into their compositie geometries
     g_mori_rows_L=[];
     g_kahler_rows_L=[];
@@ -149,7 +154,7 @@ try:
         m=0;
         for k in to_glue_L[i]:
             print "+TRIANG."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':m+1},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':m+1,'ALLTRIANGN':triangdocs[k]['ALLTRIANGN'],'OLDGEOMN':triangdocs[k]['GEOMN'],'OLDTRIANGN':triangdocs[k]['TRIANGN'],'H11':h11,'TRIANG':triangdocs[k]['TRIANG'],'SRIDEAL':triangdocs[k]['SRIDEAL'],'CHERN2XD':triangdocs[k]['CHERN2XD'],'IPOLYAD':triangdocs[k]['IPOLYAD'],'ITENSAD':triangdocs[k]['ITENSAD'],'IPOLYXD':triangdocs[k]['IPOLYXD'],'ITENSXD':triangdocs[k]['ITENSXD'],'IPOLYAJ':triangdocs[k]['IPOLYAJ'],'ITENSAJ':triangdocs[k]['ITENSAJ'],'CHERNAD':triangdocs[k]['CHERNAD'],'CHERNAJ':triangdocs[k]['CHERNAJ'],'CHERN3XD':triangdocs[k]['CHERN3XD'],'CHERN3XJ':triangdocs[k]['CHERN3XJ'],'MORIMATP':triangdocs[k]['MORIMATP'],'KAHLERMATP':triangdocs[k]['KAHLERMATP']},separators=(',',':'));
-            print "-TRIANGtemp."+json.dumps({'POLYID':polyid,'GEOMN':triangdocs[k]['GEOMN'],'TRIANGN':triangdocs[k]['TRIANGN']},separators=(',',':'))+">"+json.dumps({},separators=(',',':'));
+            #print "-TRIANGtemp."+json.dumps({'POLYID':polyid,'GEOMN':triangdocs[k]['GEOMN'],'TRIANGN':triangdocs[k]['TRIANGN']},separators=(',',':'))+">"+json.dumps({},separators=(',',':'));
             sys.stdout.flush();
             m+=1;
 except Exception as e:

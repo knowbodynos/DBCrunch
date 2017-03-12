@@ -224,7 +224,7 @@ HodgeSplit[H11_,H21_,Invol_,Basis_,DResVerts_,ResCWS_,FormatString_:True]:=Modul
     SymJ=PolynomialReduce[JReduced,tIdeal,Join[TDivs,EpDivs,EmDivs]][[2]];
     SymJCoeffsVars=Transpose[Select[MapThread[{Coefficient[SymJ,#1],#2}&,{Join[TDivs,EpDivs],Join[TDivs,Plus@@@InvolGroups]}],#[[1]]=!=0&]];
     SymH11=Length[SymJCoeffsVars[[1]]];
-    SymH21=((H21-H11)/2)-SymH11;
+    SymH21=SymH11-((H11-H21)/2);
     H11Split={SymH11,H11-SymH11};
     H21Split={SymH21,H21-SymH21};
     If[FormatString,
@@ -263,7 +263,7 @@ TriangN="TRIANGN"/.Geometry;
 H11="H11"/.Geometry;
 H21="H21"/.Geometry;
 DResVerts="DRESVERTS"/.Geometry;
-ResCWS=Transpose["RESCWS"/.Geometry];
+ResCWS="RESCWS"/.Geometry;
 SRIdeal="SRIDEAL"/.Geometry;
 InvolN="INVOLN"/.Geometry;
 Invol="INVOL"/.Geometry;
@@ -319,5 +319,5 @@ WriteString[$Output,"+INVOL.{\"POLYID\":"<>ToString[PolyID]<>",\"GEOMN\":"<>ToSt
 WriteString[$Output,"\n"];
 (*WriteString[$Output,output<>"\n"];*)
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
-MongoDirac@close[];
+(*MongoDirac@close[];*)
 Exit[];

@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g"
+#SBATCH --partition="ser-par-10g-3"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -57,5 +57,7 @@ nthreadsfield=""
 blocking="False"
 dbpush="True"
 markdone="MARK"
+writestats="True"
+writestorage="True"
 
-python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}" "${writestats}" "${writestorage}"

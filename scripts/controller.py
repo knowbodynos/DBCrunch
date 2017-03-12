@@ -425,6 +425,13 @@ def orderpartitions(partitions):
     orderedpartitions=[x for x in mongolink.deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend+partitions) if x!=""];
     return orderedpartitions;
 
+def orderfreepartitions(partitions):
+    greppartitions="|".join(partitions);
+    partitionsidle=subprocess.Popen("sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'idle' | awk '$0=$1\" \"$2*$3\" \"$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
+    partitionscomp=subprocess.Popen("sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'comp' | awk '$0=$1\" \"$2*$3\" \"$4' | sort -k2,2nr | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
+    orderedfreepartitions=[x for x in mongolink.deldup(partitionsidle+partitionscomp) if x!=""];
+    return orderedfreepartitions;
+
 def getmaxmemorypernode(resourcesstatefile,partition):
     maxmemorypernode=0;
     try:
@@ -493,7 +500,7 @@ def distributeovernodes(resourcesstatefile,partition,scriptmemorylimit,nnodes,ma
     #    memoryperstep=maxmemorypernode;
     return [ncores,nsteps,maxmemorypernode];
 
-def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch):
+def writejobfile(modname,dbpush,markdone,writestats,writestorage,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatch):
     ndocs=len(docbatch);
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" || ".join(["\"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
@@ -548,6 +555,8 @@ def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,con
     jobstring+="modname=\""+modname+"\"\n";
     jobstring+="dbpush=\""+dbpush+"\"\n";
     jobstring+="markdone=\""+markdone+"\"\n";
+    jobstring+="writestats=\""+writestats+"\"\n";
+    jobstring+="writestorage=\""+writestorage+"\"\n";
     #jobstring+="outputlinemarkers=\""+",".join(outputlinemarkers)+"\"\n";
     #jobstring+="scripttimelimit=\""+str(scripttimelimit)+"\"\n";
     #jobstring+="scriptmemorylimit=\""+str(memoryperstep)+"\"\n";
@@ -597,90 +606,116 @@ def writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,con
         jobstring+="--time=\""+buffertimelimit+"\" ";
     jobstring+=scriptcommand+" "+scriptflags+" \"${modulescriptpath}/"+modname+scriptext+"\" \"${docs[${i}]}\" \"${workpath}\" \"${jobstepnames[${i}]}\" > \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
     jobstring+="    sleep 0.1\n";
-    jobstring+="    pids[${i}]=$!\n";
+    jobstring+="    pids1[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
-    jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
-    jobstring+="do\n";
-    jobstring+="    wait ${pids[${i}]}\n\n";
+    #jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
+    #jobstring+="do\n";
+    #jobstring+="    wait ${pids[${i}]}\n\n";
     #jobstring+="    stats=($(sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j ${SLURM_JOBID}.${i} | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g'))\n"
     #jobstring+="    echo \"CPUTime: ${stats[0]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxRSS: ${stats[1]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    echo \"MaxVMSize: ${stats[2]}\" >> ${jobstepnames[${i}]}.log\n"
     #jobstring+="    exitcode=$(sacct -n -j \"${SLURM_JOBID}.${i}\" -o 'ExitCode' | sed 's/\s*//g')\n";
-    jobstring+="    sleep 0.1\n";
-    jobstring+="    jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))\n";
-    jobstring+="    exitcode=${jobstepstats[0]}\n";
-    jobstring+="    cputime=${jobstepstats[1]}\n";
-    jobstring+="    maxrss=${jobstepstats[2]}\n";
-    jobstring+="    maxvmsize=${jobstepstats[3]}\n";
-    jobstring+="    while [ \"${exitcode}\" == \"\" ] || [ \"${cputime}\" == \"\" ] || [ \"${maxrss}\" == \"\" ] || [ \"${maxvmsize}\" == \"\" ]\n";
+    #jobstring+="    sleep 0.1\n";
+    jobstring+="j=0\n";
+    jobstring+="while [ ${#pids1[@]} -gt 0 ]\n";
+    jobstring+="do\n";
+    jobstring+="    for i in \"${!pids1[@]}\"\n";
     jobstring+="    do\n";
-    jobstring+="        sleep 0.1\n";
-    jobstring+="        jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))\n";
-    jobstring+="        exitcode=${jobstepstats[0]}\n";
-    jobstring+="        cputime=${jobstepstats[1]}\n";
-    jobstring+="        maxrss=${jobstepstats[2]}\n";
-    jobstring+="        maxvmsize=${jobstepstats[3]}\n";
-    jobstring+="    done\n";
+    jobstring+="        if ! kill -0 ${pids1[${i}]};\n";
+    jobstring+="        then\n";
+    jobstring+="            jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))\n";
+    jobstring+="            exitcode=${jobstepstats[0]}\n";
+    jobstring+="            cputime=${jobstepstats[1]}\n";
+    jobstring+="            maxrss=${jobstepstats[2]}\n";
+    jobstring+="            maxvmsize=${jobstepstats[3]}\n";
+    jobstring+="            while [ \"${exitcode}\" == \"\" ] || [ \"${cputime}\" == \"\" ] || [ \"${maxrss}\" == \"\" ] || [ \"${maxvmsize}\" == \"\" ]\n";
+    jobstring+="            do\n";
+    jobstring+="                sleep 0.1\n";
+    jobstring+="                jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))\n";
+    jobstring+="                exitcode=${jobstepstats[0]}\n";
+    jobstring+="                cputime=${jobstepstats[1]}\n";
+    jobstring+="                maxrss=${jobstepstats[2]}\n";
+    jobstring+="                maxvmsize=${jobstepstats[3]}\n";
+    jobstring+="            done\n";
     if scriptlanguage=="mathematica":
-        jobstring+="    perl -i -pe 's|^MathLink could not create temporary directory /tmp/MathLink: file exists.*\n$||g' \"${workpath}/${jobstepnames[${i}]}.log\"\n";
-        jobstring+="    perl -i -pe 's|^The program may not function correctly.*\n$||g' \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+        jobstring+="            perl -i -pe 's|^MathLink could not create temporary directory /tmp/MathLink: file exists.*\n$||g' \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+        jobstring+="            perl -i -pe 's|^The program may not function correctly.*\n$||g' \"${workpath}/${jobstepnames[${i}]}.log\"\n";
     #jobstring+="    exitcode=$(sacct -n -o 'ExitCode' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2)\n";
-    jobstring+="    skipped=false\n";
-    jobstring+="    if [ \"${exitcode}\" == \"0:0\" ] && test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
-    jobstring+="    then\n";
-    jobstring+="        while read line\n";
-    jobstring+="        do\n";
-    jobstring+="            if [[ ! \"$line\" =~ ^\+.* && ! \"$line\" =~ ^-.* && ! \"$line\" =~ ^None.* ]]\n";
+    jobstring+="            skipped=false\n";
+    jobstring+="            if [ \"${exitcode}\" == \"0:0\" ] && test -s \"${workpath}/${jobstepnames[${i}]}.log\"\n";
     jobstring+="            then\n";
+    jobstring+="                while read line\n";
+    jobstring+="                do\n";
+    jobstring+="                    if [[ ! \"$line\" =~ ^\+.* && ! \"$line\" =~ ^-.* && ! \"$line\" =~ ^None.* ]]\n";
+    jobstring+="                    then\n";
+    jobstring+="                        skipped=true\n";
+    jobstring+="                        break\n";
+    jobstring+="                    fi\n";
+    jobstring+="                done < \"${workpath}/${jobstepnames[${i}]}.log\"\n";
+    jobstring+="            else\n";
     jobstring+="                skipped=true\n";
-    jobstring+="                break\n";
     jobstring+="            fi\n";
-    jobstring+="        done < \"${workpath}/${jobstepnames[${i}]}.log\"\n";
-    jobstring+="    else\n";
-    jobstring+="        skipped=true\n";
-    jobstring+="    fi\n";
-    jobstring+="    \n";
-    jobstring+="    if ! ${skipped}\n";
-    jobstring+="    then\n";
+    jobstring+="            \n";
+    jobstring+="            if ! ${skipped}\n";
+    jobstring+="            then\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${SLURM_JOBID}.${i}\" \"${basecollection}\" \"${workpath}\" \"${outputlinemarkers}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
-    jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpush}\" \"${markdone}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
+    jobstring+="                srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${jobstepnames[${i}]}\" \"${dbpush}\" \"${markdone}\" \"${writestats}\" \"${writestorage}\" \"${cputime}\" \"${maxrss}\" \"${maxvmsize}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";# > ${workpath}/${jobname}.log\n";
     #jobstring+="        srun -N 1 -n 1 --exclusive -J \"stats_${jobstepnames[${i}]}\" --mem-per-cpu=\""+str(memoryperstep/1000000)+"M\" python \"${scriptpath}/stats.py\" \"${mongouri}\" \"${modname}\" \"${basecollection}\" \"${workpath}\" \"${dbpush}\" \"${SLURM_JOBID}.${i}\" \"${jobstepnames[${i}]}\" >> \"${workpath}/${jobstepnames[${i}]}.log\" &\n";
-    jobstring+="    else\n";
+    jobstring+="                pids2[${j}]=$!\n";
+    jobstring+="                j=$(($j+1))\n";
+    jobstring+="            else\n";
     #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode}\" >> \"${controllerpath}/hi\"\n";
     #jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" >> \"${controllerpath}/skippedstate\"\n";
-    jobstring+="        echo \"${jobstepnames[${i}]},${exitcode},False\" > \"${workpath}/${jobstepnames[${i}]}.stat\"\n";
-    jobstring+="    fi\n";
+    jobstring+="                echo \"${jobstepnames[${i}]},${exitcode},False\" > \"${workpath}/${jobstepnames[${i}]}.stat\"\n";
+    jobstring+="            fi\n";
+    jobstring+="            unset \"pids1[${i}]\"\n";
+    jobstring+="            break\n";
+    jobstring+="        fi\n";
+    jobstring+="    done\n";
     jobstring+="    sleep 0.1\n";
-    jobstring+="    pids[${i}]=$!\n";
     jobstring+="done\n";
     jobstring+="\n";
-    jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
+    #jobstring+="for i in {0.."+str(ndocs-1)+"}\n";
+    #jobstring+="do\n";
+    #jobstring+="    wait ${pids[${i}]}\n";
+    #jobstring+="done";
+    jobstring+="while [ ${#pids2[@]} -gt 0 ]\n";
     jobstring+="do\n";
-    jobstring+="    wait ${pids[${i}]}\n";
-    jobstring+="done";
+    jobstring+="    for i in \"${!pids2[@]}\"\n";
+    jobstring+="    do\n";
+    jobstring+="        if ! kill -0 ${pids2[${i}]};\n";
+    jobstring+="        then\n";
+    jobstring+="            unset \"pids2[${i}]\"\n";
+    jobstring+="            break\n";
+    jobstring+="        fi\n";
+    jobstring+="    done\n";
+    jobstring+="    sleep 0.1\n";
+    jobstring+="done\n";
     jobstream=open(controllerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
     jobstream.close();
 
-def waitforslots(licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime):
+def waitforslots(licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions):
     needslicense=(licensestream!=None);
     if needslicense:
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
         nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
         licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
-        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft):
+        orderedfreepartitions=orderfreepartitions(partitions);
+        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0)):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
                 statusstream.write("Waiting");
                 statusstream.flush();
-            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft):
+            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0)):
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
                 nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
                 licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
+                orderedfreepartitions=orderfreepartitions(partitions);
         #fcntl.flock(licensestream,fcntl.LOCK_EX);
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a+", so instead use bitwise OR with non-blocking and loop until lock is acquired.
         while (timeleft(starttime,controllerbuffertimelimit)>0):
@@ -695,7 +730,7 @@ def waitforslots(licensestream,username,maxjobcount,modlist,modulesdirpath,softw
         if not (timeleft(starttime,controllerbuffertimelimit)>0):
             #print "hi";
             #sys.stdout.flush();
-            return False;
+            return None;
         licensestream.seek(0,0);
         licenseheader=licensestream.readline();
         #print licenseheader;
@@ -707,44 +742,44 @@ def waitforslots(licensestream,username,maxjobcount,modlist,modulesdirpath,softw
         licensestream.flush();
     else:
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
-        if (timeleft(starttime,controllerbuffertimelimit)>0) and not jobslotsleft:
+        orderedfreepartitions=orderfreepartitions(partitions);
+        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0)):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
                 statusstream.write("Waiting");
                 statusstream.flush();
-            while (timeleft(starttime,controllerbuffertimelimit)>0) and not jobslotsleft:
+            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0)):
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
+                orderedfreepartitions=orderfreepartitions(partitions);
         if not (timeleft(starttime,controllerbuffertimelimit)>0):
-            return False;
+            return None;
 
-    with open(statusstatefile,"w") as statusstream:
-        statusstream.truncate(0);
-        statusstream.write("Running");
-        statusstream.flush();
+    releaseheldjobs(username,modname,controllername);
+    reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
 
-    return True;
+    return orderedfreepartitions;
 
-def doinput(docbatch,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount):
+def doinput(docbatch,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount):
     if (len(docbatch)>0) and (nthreadsfield!=""):
         maxthreads=docbatch[0][nthreadsfield];
     else:
         maxthreads=1;
-    waitresult=waitforslots(licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime)
-    if not waitresult:
+    orderedfreepartitions=waitforslots(licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions)
+    if orderedfreepartitions==None:
         return None;
-    orderedpartitions=orderpartitions(partitions);
+    #orderedfreepartitions=orderpartitions(partitions);
     nnodes=1;
     i=0;
-    while i<len(orderedpartitions):
-        partition=orderedpartitions[i];
+    while i<len(orderedfreepartitions):
+        partition=orderedfreepartitions[i];
         #nnodes=1;
         distribution=distributeovernodes(resourcesstatefile,partition,scriptmemorylimit,nnodes,maxstepcount);
         if distribution==None:
             i+=1;
         else:
             break;
-    if i==len(orderedpartitions):
+    if i==len(orderedfreepartitions):
         raise Exception("Memory requirement is too large for this cluster.");
     ncores,nsteps,maxmemorypernode=distribution;
     if len(docbatch)>0:
@@ -766,20 +801,20 @@ def doinput(docbatch,nthreadsfield,licensestream,username,maxjobcount,modlist,mo
                 maxthreads-=1;
         while maxthreads==0:
             nnodes+=1;
-            waitresult=waitforslots(licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime)
-            if not waitresult:
+            orderedfreepartitions=waitforslots(licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions)
+            if orderedfreepartitions==None:
                 return None;
-            orderedpartitions=orderpartitions(partitions);
+            #orderedfreepartitions=orderpartitions(partitions);
             i=0;
-            while i<len(orderedpartitions):
-                partition=orderedpartitions[i];
+            while i<len(orderedfreepartitions):
+                partition=orderedfreepartitions[i];
                 #nnodes=1;
                 distribution=distributeovernodes(resourcesstatefile,partition,scriptmemorylimit,nnodes,maxstepcount);
                 if distribution==None:
                     i+=1;
                 else:
                     break;
-            if i==len(orderedpartitions):
+            if i==len(orderedfreepartitions):
                 raise Exception("Memory requirement is too large for this cluster.");
             ncores,nsteps,maxmemorypernode=distribution;
             maxthreads=0;
@@ -802,7 +837,7 @@ def doinput(docbatch,nthreadsfield,licensestream,username,maxjobcount,modlist,mo
 
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"maxmemorypernode":maxmemorypernode};
 
-def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,basecollection):
+def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,writestats,writestorage,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,querystatefilename,basecollection):
     partition=inputdoc['partition'];
     nnodes=inputdoc['nnodes'];
     ncores=inputdoc['ncores'];
@@ -825,20 +860,20 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
             maxthreads-=1;
     while maxthreads==0:
         nnodes+=1;
-        waitresult=waitforslots(licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime)
-        if not waitresult:
+        orderedfreepartitions=waitforslots(licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions)
+        if orderedfreepartitions==None:
             return None;
-        orderedpartitions=orderpartitions(partitions);
+        #orderedfreepartitions=orderpartitions(partitions);
         i=0;
-        while i<len(orderedpartitions):
-            partition=orderedpartitions[i];
+        while i<len(orderedfreepartitions):
+            partition=orderedfreepartitions[i];
             #nnodes=1;
             distribution=distributeovernodes(resourcesstatefile,partition,scriptmemorylimit,nnodes,maxstepcount);
             if distribution==None:
                 i+=1;
             else:
                 break;
-        if i==len(orderedpartitions):
+        if i==len(orderedfreepartitions):
             raise Exception("Memory requirement is too large for this cluster.");
         ncores,nsteps,maxmemorypernode=distribution;
         maxthreads=0;
@@ -875,7 +910,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(partition,scripttimelimit,scriptbuffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(modname,dbpush,markdone,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatchwrite);
+    writejobfile(modname,dbpush,markdone,writestats,writestorage,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,ncores,memoryperstep,mongouri,scriptpath,scriptlanguage,scriptcommand,scriptflags,scriptext,basecollection,dbindexes,nthreadsfield,docbatchwrite);
     #Submit job file
     if nthreadsfield!="":
         nthreads=[x[nthreadsfield] for x in docbatchwrite];
@@ -899,8 +934,11 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
         #    pendlicensestream.write(str(npendlicenses+ndocs)+","+str(npendsublicenses+totnthreadsfield));
         #else:
         #    pendlicensestream.write(str(npendlicenses+ndocs));
-        
-    releaseheldjobs(username,modname,controllername);
+    with open(statusstatefile,"w") as statusstream:
+        statusstream.truncate(0);
+        statusstream.write("Running");
+        statusstream.flush();
+    #releaseheldjobs(username,modname,controllername);
     #print "End action";
     #sys.stdout.flush();
     #seekstream.write(querystream.tell());
@@ -963,6 +1001,8 @@ try:
     blocking=eval(sys.argv[15]);
     dbpush=sys.argv[16];
     markdone=sys.argv[17];
+    writestats=sys.argv[18];
+    writestorage=sys.argv[19];
     
     #Read seek position from file
     #with open(controllerpath+"/"+seekfile,"r") as seekstream:
@@ -1108,13 +1148,12 @@ try:
         reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
         #print str(starttime)+" "+str(controllerbuffertimelimit);
         #sys.stdout.flush();
-        [batchcounter,stepcounter]=mongolink.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),inputdoc=doinput([],nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),action=lambda w,x,y,z:doaction(w,x,y,z,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,basecollection),readform=lambda x:jobstepname2indexdoc(x,dbindexes),writeform=lambda x:indexdoc2jobstepname(x,modname,controllername,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
+        [batchcounter,stepcounter]=mongolink.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),inputdoc=doinput([],nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount),action=lambda w,x,y,z:doaction(w,x,y,z,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,writestats,writestorage,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,querystatefilename,basecollection),readform=lambda x:jobstepname2indexdoc(x,dbindexes),writeform=lambda x:indexdoc2jobstepname(x,modname,controllername,dbindexes),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=lambda x,y:docounterupdate(x,y,counterstatefile,counterheader),resetstatefile=False,toplevel=True);
         #print "bye";
         #firstrun=False;
+        releaseheldjobs(username,modname,controllername);
         if (timeleft(starttime,controllerbuffertimelimit)>0):
             firstlastrun=(not (prevcontrollersrunningq(username,prevmodlist,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun));
-            releaseheldjobs(username,modname,controllername);
-
     #while userjobsrunningq(username,modname,controllername) and (timeleft(starttime,controllerbuffertimelimit)>0):
     #    releaseheldjobs(username,modname,controllername);
     #    skippedjobs=skippedjobslist(username,modname,controllername,workpath);

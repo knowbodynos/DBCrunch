@@ -36,87 +36,128 @@ try:
     jobstepname=sys.argv[4];
     dbpush=eval(sys.argv[5]);
     markdone=sys.argv[6];
-    cputime=sys.argv[7];
-    maxrss=sys.argv[8];
-    maxvmsize=sys.argv[9];
+    writestats=eval(sys.argv[7]);
+    writestorage=eval(sys.argv[8]);
+    cputime=sys.argv[9];
+    maxrss=sys.argv[10];
+    maxvmsize=sys.argv[11];
 
-    packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
-    statepath=packagepath+"/state";
-    mongourifile=statepath+"/mongouri";
-    with open(mongourifile,"r") as mongouristream:
-        mongouri=mongouristream.readline().rstrip("\n");
-
-    #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
-    #if len(sacctstats)==3:
-    #    cputime,maxrss,maxvmsize=sacctstats;
-
-    mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
-    dbname=mongouri.split("/")[-1];
-    db=mongoclient[dbname];
-
-    dbindexes=mongolink.getintersectionindexes(db,basecollection);
-
-    indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
-
-    bsonsize=0;
     try:
-        with open(workpath+"/"+jobstepname+".log","r") as logstream:
-            for line in logstream:
-                #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
-                linehead=re.sub("^([-+].*?>|None).*",r"\1",line).rstrip("\n");
-                if linehead[0] in ["-","+"]:
-                    linemarker=linehead[0];
-                    newcollection,strindexdoc=linehead[1:-1].split(".");
-                    #print strindexdoc;
-                    #sys.stdout.flush();
-                    newindexdoc=json.loads(strindexdoc);
-                    linedoc=re.sub("^[-+].*?>","",line).rstrip("\n");
-                    #for x in outputlinemarkers:
-                    #    linedoc=linedoc.replace(x,"");
-                    #print doc;#.replace(" ","");
-                    #print linedoc;
-                    #sys.stdout.flush();
-                    doc=json.loads(linedoc);#.replace(" ",""));
-                    #fulldoc=merge_dicts(indexdoc,doc);
-                    #newcollection=mongolink.gettierfromdoc(db,fulldoc);
-                    #newindexdoc=dict([(x,fulldoc[x]) for x in mongolink.getintersectionindexes(db,newcollection)]);
-                    #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
-                    if linemarker=="+":
-                        bsonsize+=mongolink.bsonsize(doc);
-                        if dbpush:
-                            db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
-                    elif linemarker=="-":
-                        if len(doc)>0:
-                            bsonsize-=mongolink.bsonsize(doc);
-                            if dbpush:
-                                db[newcollection].update(newindexdoc,{"$unset":doc});
-                        else:
-                            #print mongolink.collectionfind(db,newcollection,newindexdoc,{},formatresult="expression");
+        if dbpush or writestorage or (markdone!=""):
+            packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+            statepath=packagepath+"/state";
+            mongourifile=statepath+"/mongouri";
+            with open(mongourifile,"r") as mongouristream:
+                mongouri=mongouristream.readline().rstrip("\n");
+
+            #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
+            #if len(sacctstats)==3:
+            #    cputime,maxrss,maxvmsize=sacctstats;
+
+            mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
+            dbname=mongouri.split("/")[-1];
+            db=mongoclient[dbname];
+
+            dbindexes=mongolink.getintersectionindexes(db,basecollection);
+
+            indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
+
+            statsset={};
+
+            if dbpush or writestorage:
+                bsonsize=0;
+                with open(workpath+"/"+jobstepname+".log","r") as logstream:
+                    for line in logstream:
+                        #print "a";
+                        #sys.stdout.flush();
+                        #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
+                        linehead=re.sub("^([-+].*?>|None).*",r"\1",line).rstrip("\n");
+                        if linehead[0] in ["-","+"]:
+                            linemarker=linehead[0];
+                            newcollection,strindexdoc=linehead[1:-1].split(".");
+                            #print strindexdoc;
                             #sys.stdout.flush();
-                            removedocs=list(db[newcollection].find(newindexdoc));
-                            for removedoc in removedocs:
-                                bsonsize-=mongolink.bsonsize(removedoc);
+                            newindexdoc=json.loads(strindexdoc);
+                            linedoc=re.sub("^[-+].*?>","",line).rstrip("\n");
+                            #for x in outputlinemarkers:
+                            #    linedoc=linedoc.replace(x,"");
+                            #print doc;#.replace(" ","");
+                            #print linedoc;
+                            #sys.stdout.flush();
+                            doc=json.loads(linedoc);#.replace(" ",""));
+                            #fulldoc=merge_dicts(indexdoc,doc);
+                            #newcollection=mongolink.gettierfromdoc(db,fulldoc);
+                            #newindexdoc=dict([(x,fulldoc[x]) for x in mongolink.getintersectionindexes(db,newcollection)]);
+                            #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
+                            #print "b";
+                            #sys.stdout.flush();
+                            if linemarker=="+":
+                                #print "c";
+                                #sys.stdout.flush();
+                                if writestorage:
+                                    bsonsize+=mongolink.bsonsize(doc);
+                                #print "d";
+                                #sys.stdout.flush();
                                 if dbpush:
-                                    db[newcollection].remove(removedoc);
-                    #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
-                    #sys.stdout.flush();
+                                    db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
+                            elif linemarker=="-":
+                                if len(doc)>0:
+                                    #print "e";
+                                    #sys.stdout.flush();
+                                    if writestorage:
+                                        bsonsize-=mongolink.bsonsize(doc);
+                                    #print "f";
+                                    #sys.stdout.flush();
+                                    if dbpush:
+                                        db[newcollection].update(newindexdoc,{"$unset":doc});
+                                else:
+                                    #print mongolink.collectionfind(db,newcollection,newindexdoc,{},formatresult="expression");
+                                    #sys.stdout.flush();
+                                    #print "g";
+                                    #sys.stdout.flush();
+                                    #removedocs=list(db[newcollection].find(newindexdoc));
+                                    #for removedoc in removedocs:
+                                    if writestorage:
+                                        removedoc=db[newcollection].find_one(newindexdoc);
+                                        #print "h";
+                                        #sys.stdout.flush();
+                                        bsonsize-=mongolink.bsonsize(removedoc);
+                                    #print "i";
+                                    #sys.stdout.flush();
+                                    if dbpush:
+                                        #db[newcollection].remove(removedoc);
+                                        db[newcollection].remove(newindexdoc,multi=False);
+                            #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
+                            #sys.stdout.flush();
+                #print "j";
+                #sys.stdout.flush();
+                if dbpush:
+                    stats={};
+                    if writestats:
+                        stats.update({"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize)});
+                    if writestorage:
+                        stats.update({"BSONSIZE":bsonsize});
+                    statsset.update({modname+"STATS":stats});
+                #print "k";
+                #sys.stdout.flush();
+            if markdone!="":
+                statsset.update({modname+markdone:True});
+            #print "l";
+            #sys.stdout.flush();
+            if len(statsset)>0:
+                db[basecollection].update(indexdoc,{"$set":statsset});
 
-        statsset={};
-        if dbpush:
-            statsset.update({modname+"STATS":{"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize),"BSONSIZE":bsonsize}});
-        if markdone!="":
-            statsset.update({modname+markdone:True});
-        if len(statsset)>0:
-            db[basecollection].update(indexdoc,{"$set":statsset});
-
-        #print "CPUTime: "+str(cputime)+" seconds";
-        #print "MaxRSS: "+str(maxrss)+" bytes";
-        #print "MaxVMSize: "+str(maxvmsize)+" bytes";
-        #print "BSONSize: "+str(bsonsize)+" bytes";
-        print "CPUTime: "+cputime+" seconds";
-        print "MaxRSS: "+maxrss+" bytes";
-        print "MaxVMSize: "+maxvmsize+" bytes";
-        print "BSONSize: "+str(bsonsize)+" bytes";
+            #print "CPUTime: "+str(cputime)+" seconds";
+            #print "MaxRSS: "+str(maxrss)+" bytes";
+            #print "MaxVMSize: "+str(maxvmsize)+" bytes";
+            #print "BSONSize: "+str(bsonsize)+" bytes";
+            if writestats:
+                print "CPUTime: "+cputime+" seconds";
+                print "MaxRSS: "+maxrss+" bytes";
+                print "MaxVMSize: "+maxvmsize+" bytes";
+            if writestorage:
+                print "BSONSize: "+str(bsonsize)+" bytes";
+            mongoclient.close();
         os.remove(workpath+"/"+jobstepname+".stat");
     except IOError:
         print "File path \""+workpath+"/"+jobstepname+".log\" does not exist.";
@@ -130,6 +171,5 @@ try:
     #    print "MaxRSS: N/A";
     #    print "MaxVMSize: N/A";
     #    print "BSONSize: N/A";
-    mongoclient.close();
 except Exception as e:
     PrintException();

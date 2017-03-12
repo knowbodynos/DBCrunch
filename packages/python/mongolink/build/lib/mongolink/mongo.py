@@ -1,4 +1,4 @@
-import sys,os,tempfile,signal;
+import sys,os,tempfile,signal,json;
 from contextlib import contextmanager
 from pymongo import MongoClient;
 from math import ceil;
@@ -40,9 +40,9 @@ def gettiers(db):
     "Return all tiers (i.e. collections) of database."
     return tools.deldup([x["TIER"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1})]);
 
-#def getindexes(db,collection="all"):
+#def getindexes(db,collection="$allFields"):
 #    "Return all indexes for a collection."
-#    if collection=="all":
+#    if collection=="$allFields":
 #        query={};
 #    else:
 #        query={"TIER":collection};
@@ -211,11 +211,13 @@ def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch
             querystatestream.close();
 
 def printasfunc(*args):
-    print list(args)[-1];
+    docbatch=list(args)[-1];
+    for doc in docbatch:
+        print json.dumps(doc,separators=(',',':'));
     sys.stdout.flush();
-    return [];
+    return len(docbatch);
 
-def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,timeleft=lambda:True,batchcounter=1,stepcounter=1,counterupdate=lambda x,y:None,resetstatefile=False,toplevel=True):
+def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,timeleft=lambda:1,batchcounter=1,stepcounter=1,counterupdate=lambda x,y:None,resetstatefile=False,toplevel=True):
     docbatch=[];
     docbatchfiltered=[];
     endofdocs=[];
@@ -228,7 +230,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             for x in queries:
                 querystatestream=open(statefilepath+"/"+statefilename+x[0],"w");
                 querystatestream.close();
-        allprojfields=[y[0] for x in queries for y in x[2].items() if y[1]==1];
+        #allprojfields=[y[0] for x in queries for y in x[2].items() if y[1]==1];
         allcollindexes=[getintersectionindexes(db,x[0]) for x in queries];
         thiscollindexes=allcollindexes[0];
     else:
@@ -250,13 +252,16 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #sys.stdout.flush();
     thisiostream.close();
     newquerydoc={"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters};
-    newprojdoc=dict(queries[0][2].items()+[(x,1) for x in thiscollindexes]+[("_id",0)]);    
+    if ("$allFields",1) in queries[0][2].items():
+        newprojdoc={};
+    else:
+        newprojdoc=dict(queries[0][2].items()+[(y,1) for y in thiscollindexes]+[("_id",0)]);    
     thisquery=[queries[0][0],newquerydoc,newprojdoc];
     #print thisquery;
     #sys.stdout.flush();
     #print thisquery;
     #sys.stdout.flush();
-    if timeleft()==True:
+    if timeleft()>0:
         docs=collectionfind(db,*thisquery);
     else:
         #print "hi";
@@ -275,9 +280,15 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #    print docs;
     #print docs;
     #sys.stdout.flush();
+    origprojfields=dict([x for x in queries[0][2].items() if (x[1]==1) and (x[0]!="$allFields")]);
+    projfields=origprojfields;
     i=0;
     while (i<len(docs)) and (timeleft()>0):
         doc=docs[i];
+        if ("_id" in doc.keys()) and (("_id",1) not in queries[0][2].items()):
+            del doc["_id"];
+        if ("$allFields",1) in queries[0][2].items():
+            projfields.update(dict([(x,1) for x in doc.keys()]));
         #if (thisquery[0]=="POLY") and (doc["POLYID"]==275):
         #    print "POLY POLYID: "+str(doc["POLYID"]);
         #if (thisquery[0]=="GEOM") and (doc["POLYID"]==275):
@@ -295,11 +306,11 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatchfiltered)});
             #print "g";
             #sys.stdout.flush();
-            skipsubdocs,endofsubdocs,subdocbatch=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,timeleft=timeleft,batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=counterupdate,resetstatefile=resetstatefile,toplevel=False);
+            subprojfields,skipsubdocs,endofsubdocs,subdocbatch=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,timeleft=timeleft,batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=counterupdate,resetstatefile=resetstatefile,toplevel=False);
         else:
             #print "h";
             #sys.stdout.flush();
-            skipsubdocs,endofsubdocs,subdocbatch=[[False],[[True]],[{}]];
+            subprojfields,skipsubdocs,endofsubdocs,subdocbatch=[{},[False],[[True]],[{}]];
         #print "i";
         #sys.stdout.flush();
         
@@ -316,12 +327,13 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
                 docbatch+=[dict(doc.items()+subdocbatch[j].items())];
                 endofdocs+=[endofsubdocs[j]];
                 skipdocs+=[skipsubdocs[j]];
+            projfields.update(subprojfields);
             if (len(docbatchfiltered)==inputdoc["nsteps"]) or not (timeleft()>0):
                 #print "docbatch: "+str([dict([(y,x[y]) for z in allcollindexes for y in z if y in x.keys()]) for x in docbatch]);
                 if (len(endofdocs)>0) and not endofdocs[-1][0]:
                     i-=1;
                 while len(docbatchfiltered)>0:
-                    docbatchfilteredprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatchfiltered];
+                    docbatchfilteredprojfields=[dict([y for y in x.items() if y[0] in projfields.keys()]) for x in docbatchfiltered];
                     #docbatchpass=action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
                     nextdocindfiltered=action(batchcounter,stepcounter,inputdoc,docbatchfilteredprojfields);
                     if nextdocindfiltered==None:#docbatchpass==None:
@@ -387,6 +399,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
                     updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                     docbatch=[];
                     endofdocs=[];
+                    projfields=origprojfields;
         else:
             #docbatch+=[dict(doc.items()+x.items()) for x in subdocbatch];
             #skipdocs+=skipsubdocs;
@@ -398,15 +411,16 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
                 docbatch+=[dict(doc.items()+subdocbatch[j].items())];
                 endofdocs+=[[all(endofsubdocs[j]) and (i==len(docs)-1)]+endofsubdocs[j]];
                 skipdocs+=[skipsubdocs[j]];
+            projfields.update(subprojfields);
             if (len(docbatchfiltered)==inputdoc["nsteps"]) or not (timeleft()>0):
-                return [skipdocs,endofdocs,docbatch];
+                return [projfields,skipdocs,endofdocs,docbatch];
         i+=1;
     #print "timeleft: "+str(timeleft());
     #sys.stdout.flush();
     if toplevel:
         #print "docbatch: "+str([dict([(y,x[y]) for z in allcollindexes for y in z if y in x.keys()]) for x in docbatch]);
         while len(docbatchfiltered)>0:
-            docbatchfilteredprojfields=[dict([y for y in x.items() if y[0] in allprojfields]) for x in docbatchfiltered];
+            docbatchfilteredprojfields=[dict([y for y in x.items() if y[0] in projfields.keys()]) for x in docbatchfiltered];
             #docbatchpass=action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
             nextdocindfiltered=action(batchcounter,stepcounter,inputdoc,docbatchfilteredprojfields);
             if nextdocindfiltered==None:#docbatchpass==None:
@@ -447,6 +461,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
             docbatch=[];
             endofdocs=[];
+            projfields=origprojfields;
         return [batchcounter,stepcounter];
     else:
         if len(docs)==0:
@@ -454,8 +469,9 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             skipdocs=[True];
             endofdocs=[[True for i in range(len(queries)+1)]];
             docbatch=[{}];
+            projfields={};
             #print "query: "+str(thisquery);
-        return [skipdocs,endofdocs,docbatch];
+        return [projfields,skipdocs,endofdocs,docbatch];
 
 '''
 username="frontend";

@@ -93,45 +93,32 @@ def symm_poly(poly, ai, pr):
     # Maybe will need this at some point?
     #ntuned = len(p_terms) - len(symm)
     symm_poly = pr(0)
-    cf = 1
     for i in range(len(symm)):
-        symm_poly += pr(cf*symm[i])
-        cf += 1
+        symm_poly += pr(symm[i])
     return symm_poly
 
 
-def sigma_list(lst, sigma):
-    lst2 = copy.deepcopy(lst)
-    for swap in sigma:
-        lst2[swap[0]] = lst[swap[1]]
-        lst2[swap[1]] = lst[swap[0]]
-    return lst2
-
-
-def symm_poly_swap(poly, sigma, pr):
+def symm_poly_swap(poly, invol, pr):
     """Determines the terms of the CY which are symmetric under the involution."""
+    pStr = str(poly)
+    pTerms = pStr.split('+')
+    for i in range(len(pTerms)):
+        pTerms[i] = pTerms[i].split('-')
+    pTerms = list(itertools.chain.from_iterable(pTerms))
+    pTerms = [p.strip() for p in pTerms]
+
+    pTerms = [pr(p) for p in pTerms]
+    n = len(pTerms)
+    symm = []
+    for i in range(n):
+        term = pTerms[i]
+        involTerm = pr(inv(invol, term, pr))
+        if involTerm in pTerms:
+            symm.append(term)
+
     symmPoly = pr(0)
-    used = []
-    cf = 1
-    polyKeys = [list(w) for w in poly.dict().keys()]
-    for key in polyKeys:
-        key = list(key)
-        skey = sigma_list(key, sigma)
-
-        if key in used or skey in used:
-            continue
-
-        if skey == key:
-            symmPoly += pr({tuple(key) : cf})
-            used.append(key)
-            cf += 1
-        elif skey in polyKeys:
-            symmPoly += pr({tuple(key) : cf})
-            symmPoly += pr({tuple(skey) : cf})
-            used.append(key)
-            used.append(skey)
-            cf += 1
-
+    for i in range(len(symm)):
+        symmPoly += pr(symm[i])
     return symmPoly
 
 
@@ -1351,6 +1338,7 @@ def poly_ytox(ypoly, polys, prx, pry, ni):
     return prx(ypoly(pt))
 
 
+
 def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
     n = pr.ngens()
     x = pr.gens()
@@ -1388,28 +1376,12 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
 
     bases = []
     secs = sectors(sr, pr)
-
-    # Add auxiliary variables
-    # Can comment out this block and change prZs to pr
-    # Also, adjust sectors!
-
-    # ns = max([len(w) for w in secs])
-    # zs = ['z' + str(w) for w in range(ns)]
-    # znames = list(pr.variable_names()) + zs
-    # prZs = PolynomialRing(base_ring=CC, names=znames)
-    # secs = [[prZs(sec[i])*prZs(zs[i])-1 for i in range(len(sec))] for sec in secs]
-    # print(secs)
-
     cyset = fsetx + [cypoly]
     for sec in secs:
         gset = cyset + sec
         ig = pr.ideal(gset)
-        # print(ig)
-        # print(ig.groebner_basis())
-        base = ig.groebner_basis()
-        bases.append(base)
-        #print(ig, base)
-        # print(ig.groebner_basis())
+        bases.append(ig.groebner_basis())
+        #print(ig.groebner_basis())
     
     prz = PolynomialRing(base_ring=ZZ, names=pr.variable_names())
     good = False
@@ -1420,7 +1392,7 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
             break
     if not good:
         return None, None
-    # print("=====")
+    #print("=====")
 
     dims = [len(base) for base in bases]
 
@@ -1435,8 +1407,6 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
                 gset = genset + sec
                 #print(gset)
                 igen = pr.ideal(gset)
-                #print(igen)
-                # print(igen.groebner_basis())
                 d = len(igen.groebner_basis())
                 if d != dims[i]:
                     test = False
@@ -1698,16 +1668,12 @@ def fixed_flip(rwold, ni, ai, polys, sr, rwmat):
             # That is, take into account the dependencies among the new coordinates
             # We ignore the set of the Groebner basis is [1]
             idGens = []
-            zset = ['z' + str(t) for t in range(n)]
-            names = normalize_names('x+', n0) + zset
-            prz = PolynomialRing(base_ring=CC, names=names)
             for k in range(n):
                 if k in comb and k in ni:
-                    gen = prz(x2[k])*prz(zset[k]) - 1
-                    idGens.append(prz(gen))
+                    idGens.append(pr1c(x2[k]-1))
                 elif k in z:
-                    idGens.append(prz(x2[k]))
-            idl = prz.ideal(idGens)
+                    idGens.append(pr1c(x2[k]))
+            idl = pr1c.ideal(idGens)
             gb = idl.groebner_basis()
             if gb == [1]:
                 continue
@@ -1991,7 +1957,7 @@ def read_JSON(string):
     return json.loads(string)
 
 #Hodge splitting
-def hodgesplit(h11, h21, invol, basisinds, dresverts):
+def hodgesplit(h11,h21,invol,basisinds,dresverts):
     R=PolynomialRing(QQ,['t'+str(i+1) for i in range(len(basisinds))]+['D'+str(i+1) for i in range(len(dresverts))]+['Ep'+str(i+1) for i in range(len(invol))]+['Em'+str(i+1) for i in range(len(invol))]+['J'+str(i+1) for i in range(len(basisinds))]);
     vars=R.gens_dict();
     Ilin=R.ideal([sum([dresverts[i][j]*vars['D'+str(i+1)] for i in range(len(dresverts))]) for j in range(len(dresverts[0]))]);
@@ -2013,18 +1979,13 @@ def hodgesplit(h11, h21, invol, basisinds, dresverts):
     h21split=[symh21,h21-symh21];
     return [h11split,h21split,symJcoefficients,asymJcoefficients];
     
-def allbaseshodgesplit(h11, h21, invol, basisinds, dresverts, rwmat):
+def allbaseshodgesplit(h11,h21,invol,basisinds,dresverts,rwmat):
     bases=[x for x in Combinations(range(len(dresverts)),matrix(rwmat).rank()).list() if matrix([rwmat[i] for i in x]).rank()==matrix(rwmat).rank()];
     result0=[hodgesplit(h11,h21,invol,x,dresverts,rwmat) for x in [basisinds]+bases];
     result1=[[x[0],x[1]] for x in result0];
     result=[all([x==result1[0] for x in result1])];
     result.extend([result0[0][0],result0[0][1],result0[0][2][1],result0[0][3][1]]);
     return result;
-
-def get_tjurina(coords, cypoly, oplane):
-    R = singular.ring(1500450271,str(coords),"dp")
-    I = singular.ideal([str(cypoly)]+[str(x) for x in oplane])
-    return I.tjurina()
 
 def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat):
     """Runs the entire routine for a single example."""
@@ -2139,17 +2100,15 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #else:
             #    other.append(fsetx)
             #    otherred.append(fr)
-            tjurina = get_tjurina(prx.gens(), cypoly, fsetx);
             if On in oplanes.keys():
-                oplanes[On].append([fsetx, tjurina])
+                oplanes[On].append(fsetx)
             else:
-                oplanes[On] = [[fsetx, tjurina]]
+                oplanes[On] = [fsetx]
 
-            tjurinared = get_tjurina(prx.gens(), cypoly, fr);
             if On in oplanesred.keys():
-                oplanesred[On].append([fr, tjurinared])
+                oplanesred[On].append(fr)
             else:
-                oplanesred[On] = [[fr, tjurinared]]
+                oplanesred[On] = [fr]
     else:
         pr = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
         ni = [w for b in invol for w in b]
@@ -2189,17 +2148,15 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #elif codim == 4:
             #    o1.append(fset)
             #    o1red.append(fr)
-            tjurina = get_tjurina(pr.gens(), cypoly, fset);
             if On in oplanes.keys():
-                oplanes[On].append([fset, tjurina])
+                oplanes[On].append(fset)
             else:
-                oplanes[On] = [[fset, tjurina]]
+                oplanes[On] = [fset]
 
-            tjurinared = get_tjurina(pr.gens(), cypoly, fr);
             if On in oplanesred.keys():
-                oplanesred[On].append([fr, tjurinared])
+                oplanesred[On].append(fr)
             else:
-                oplanesred[On] = [[fr, tjurinared]]
+                oplanesred[On] = [fr]
 
     # secs = sectors(sr, pr)
     # for sec in secs:
@@ -2259,7 +2216,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     output[symcyseckey] = nterms2
 
     # Reindex invol to match the database/Mathematica format
-    #invol = [[w+1 for w in f] for f in invol]
+    invol = [[w+1 for w in f] for f in invol]
 
     # print(o7red)
     # cgs = o7_charges(rwnFull, o7red, pry)
@@ -2267,7 +2224,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     # print(cgs)
     # print(general_poly(rwmat, cgs))
 
-    return [query, output]
+    return [query,output];
 
 
 def main_all(filename, tofile):
@@ -2308,11 +2265,7 @@ def main_all(filename, tofile):
             f.write('\n')
 
     print(o1s)
-
-#main_all("h114.txt", "h114-results-vF.txt")
-
-_ = singular.LIB("sing.lib")
-
+    
 involdoc = json.loads(sys.argv[1])
 polyid = involdoc['POLYID']
 geonum = involdoc['GEOMN']
@@ -2329,9 +2282,9 @@ rwmat = involdoc['RESCWS']
 invol = tools.deldup([sorted([y-1 for y in x]) for x in mat2py(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
 basisinds = [x-1 for x in tools.transpose_list(mat2py(re.sub("[JD]","",basis)))[1]]
 sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
-rwmat = np.array(mat2py(rwmat))
+rwmat = np.transpose(np.array(mat2py(rwmat)))
 
 query, output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
 
-print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(output,separators=(',',':'))
+print "+INVOL."+json.dumps(query)+">"+json.dumps(output)
 sys.stdout.flush()

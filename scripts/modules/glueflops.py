@@ -41,18 +41,23 @@ def match(itensXD_pair,c2Xnums_pair,eX_pair,mori_rows_pair):
         while (j<len(mori_rows_pair[1])) and flop:
             row1=mori_rows_pair[1][j];
             flopinds=[k for k in range(len(row0)) if (row0[k]==-row1[k]) and (row0[k]!=0)];
-            if all([row0[k]==row1[k] for k in range(len(row0)) if k not in flopinds]):
+            #Toric divisor indices whose intersection defines a singularity in the wall
+            if all([row0[k]==row1[k] for k in range(len(row0))]) or all([row0[k]==-row1[k] for k in range(len(row0))]):
+                #Two Kahler cones share a wall (they either overlap or are adjacent)
                 potentialflop=True;
                 if len(flopinds)>0:
+                    #There is a singularity in the wall
                     range0=[k for k in flopinds if row0[k]<0];
                     range1=[k for k in flopinds if row1[k]<0];
                     if (len(range0)>0) and (len(range1)>0):
+                        #The singularity is contained within some intersection of divisors in both Kahler cones
                         set0=Set(range0).subsets(min(len(range0),3)).list();
                         set1=Set(range1).subsets(min(len(range1),3)).list();
                         inums0=[mongolink.nestind(itensXD_pair[0],list(y)) for y in set0];
                         inums1=[mongolink.nestind(itensXD_pair[1],list(y)) for y in set1];
                         flop=flop and all([y==0 for y in flatten(inums0+inums1)]);
                     else:
+                        #The singularity is not contained in any intersection of divisors for at least one Kahler cone, so it cannot be checked the the CY avoids it
                         flop=False;
             j+=1;
         i+=1;

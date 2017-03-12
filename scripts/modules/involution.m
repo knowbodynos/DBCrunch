@@ -44,7 +44,7 @@ GeomN="GEOMN"/.Geometry;
 TriangN="TRIANGN"/.Geometry;
 H11="H11"/.Geometry;
 FundGp="FUNDGP"/.Geometry;
-ResCWS=Transpose["RESCWS"/.Geometry];
+ResCWS="RESCWS"/.Geometry;
 ITensXD="ITENSXD"/.Geometry;
 SRIdeal="SRIDEAL"/.Geometry;
 
@@ -101,5 +101,5 @@ Do[
 WriteString[$Output,"\n"];
 (*WriteString[$Output,output<>"\n"];*)
 (*DeleteDirectory[WorkingPath<>"/"<>IntermediateName,DeleteContents\[Rule]True];*)
-MongoDirac@close[];
+(*MongoDirac@close[];*)
 Exit[];

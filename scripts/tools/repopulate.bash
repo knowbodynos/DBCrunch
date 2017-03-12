@@ -2,6 +2,7 @@
 
 modname=$1
 controllername=$2
+isrunning=$3
 
 modpath="${SLURMONGO_ROOT}/modules/${modname}"
 
@@ -14,7 +15,12 @@ else
 	then
 	    echo "No directory \"${controllerpath}\"."
 	else
-		cat "${controllerpath}/jobs/*.stat" | sed 's/False/True/g' >> "${controllerpath}/skippedstate"
+		if [ "${isrunning}" -eq 1 ]
+		then
+		    cat "${controllerpath}/jobs/*.stat" | grep -v ",\-1\:0," | sed 's/False/True/g' >> "${controllerpath}/skippedstate"
+		else
+			cat "${controllerpath}/jobs/*.stat" | sed 's/False/True/g' >> "${controllerpath}/skippedstate"
+		fi
 		#sed -i 's/False/True/g' "${controllerpath}/skippedstate" 2>/dev/null
 		#jobfiles=$(find "${controllerpath}/jobs/" -maxdepth 1 -type f -name "*.job" 2>/dev/null)
 		#for jobfile in $jobfiles

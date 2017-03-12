@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "controller_temptriang2newgeomtriang_template"
+#SBATCH -J "controller_gaugegroups_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/temptriang2newgeomtriang/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/gaugegroups/template"
 #################
 #Job output file
-#SBATCH -o "controller_temptriang2newgeomtriang_template.out"
+#SBATCH -o "controller_gaugegroups_template.out"
 #################
 #Job error file
-#SBATCH -e "controller_temptriang2newgeomtriang_template.err"
+#SBATCH -e "controller_gaugegroups_template.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -34,7 +34,7 @@
 h11="template"
 
 #Input controller info
-modname="temptriang2newgeomtriang"
+modname="gaugegroups"
 controllername="${h11}"
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
@@ -49,15 +49,15 @@ scripttimelimit=""
 scriptbuffertime="00:05:00"
 
 #Input database info
-queries="[['POLY',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'H11':1,'DTOJ':1}]]"
-basecollection="POLY"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'RESCWS':1,'BASIS':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1}],['INVOL',{'H11':${h11},'O7':{'\$exists':True},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1,'O7':1}]]"
+basecollection="INVOL"
 nthreadsfield=""
 
 #Options
 blocking="False"
-dbpush="False"
+dbpush="True"
 markdone="MARK"
-writestats="False"
-writestorage="False"
+writestats="True"
+writestorage="True"
 
 python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}" "${writestats}" "${writestorage}"

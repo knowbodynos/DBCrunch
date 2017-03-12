@@ -127,23 +127,21 @@ def ToricSwissCheese(homogeneity_on,h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,i
                                     skconeflag=Cone([[mori_rows[i][r[0][1][j]] for j in range(len(r[0][1]))] for i in range(len(mori_rows)) if all([mori_rows[i][k]==0 for k in r[0][0]])]).is_strictly_convex();
                                     if skconeflag:
                                         #Large Cycle
-                                        lcflag=False;
+                                        #lcflag=False;
                                         for j in r[0][0]:
                                             for k in ra:
                                                 if (not any([itensXD[i][j][k]==0 for i in r[1][0]])):
                                                     lcflag=True;
-                                                if lcflag:
                                                     break;
                                             if lcflag:
                                                 break;
                                         if lcflag:
                                             #Homogeneity
                                             if homogeneity_on:
-                                                homflag=False;
+                                                #homflag=False;
                                                 for j in r[0][1]:
                                                     if(not any([itensXD[i][i][j]==0 for i in r[1][1]])):
                                                         homflag=True;
-                                                    if homflag:
                                                         break;
                                             else:
                                                 homflag=True;
@@ -261,12 +259,15 @@ if rank==0:
         posttoricswisscheese=[x for y in posttoricswisscheese_group for x in y];
         #posttoricswisscheese=mongolink.transpose_list(posttoricswisscheese_redist);
         #print posttoricswisscheese;
-        for toricswisscheese_NL in posttoricswisscheese:
-            if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
-                print "+SWISSCHEESE."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
-            else:
-                print "None";
-            sys.stdout.flush();
+        if len(posttoricswisscheese)==0:
+            print "None";
+        else:
+            for toricswisscheese_NL in posttoricswisscheese:
+                if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
+                    print "+SWISSCHEESE."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'H11':h11,'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
+                else:
+                    print "None";
+        sys.stdout.flush();
         #######################################################################################################################
         ##Recombine gathered chunks into a single list of rotation matrices for each geometry
         ##Loop over numbers of large cycles for current geometry
