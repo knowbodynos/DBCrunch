@@ -179,16 +179,24 @@ _sinteract(){
 _watchjobs() {
     jobs=$(squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" | tr '\n' '!' 2>/dev/null)
     njobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | wc -l)
-    nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " R " | wc -l)
-    npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
-    steps=$(sacct -o "JobID%30,JobName%130,State" --jobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | sed "s/\s\s*/ /g" | cut -d" " -f2 | tr '\n' ',' | head -c -1) 2>/dev/null | grep -v "stats_" | grep -E "\."  | tr '\n' '!' 2>/dev/null)
-    nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
-    pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
-    if [[ "${pendsteps}" == "" ]]
+    if [ "${njobs}" -gt 0 ]
     then
-        npendsteps=0
+        nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " R " | wc -l)
+        npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
+        steps=$(sacct -o "JobID%30,JobName%130,State" --jobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | sed "s/\s\s*/ /g" | cut -d" " -f2 | tr '\n' ',' | head -c -1) 2>/dev/null | grep -v "stats_" | grep -E "\."  | tr '\n' '!' 2>/dev/null)
+        nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
+        pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
+        if [[ "${pendsteps}" == "" ]]
+        then
+            npendsteps=0
+        else
+            npendsteps=$(echo "-(${pendsteps})" | bc)
+        fi
     else
-        npendsteps=$(echo "-(${pendsteps})" | bc)
+        nrunjobs=0
+        npendjobs=0
+        nrunsteps=0
+        npendsteps=0
     fi
     nsteps=$(($nrunsteps+$npendsteps))
     echo "# Jobs: ${njobs}   # Run Jobs: ${nrunjobs}   # Pend Jobs: ${npendjobs}"

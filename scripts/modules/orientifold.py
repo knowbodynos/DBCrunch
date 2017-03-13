@@ -2024,7 +2024,7 @@ def allbaseshodgesplit(h11, h21, invol, basisinds, dresverts, rwmat):
 def get_tjurina(coords, cypoly, oplane):
     R = singular.ring(1500450271,str(coords),"dp")
     I = singular.ideal([str(cypoly)]+[str(x) for x in oplane])
-    return I.tjurina()
+    return int(I.tjurina())
 
 def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat):
     """Runs the entire routine for a single example."""
@@ -2087,8 +2087,10 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     #o1red = []
     #otherred = []
 
-    oplanes = {};
-    oplanesred = {};
+    oplanes = {}
+    tjurinas = {}
+    oplanesred = {}
+    tjurinasred = {}
 
     # Split based on whether there are anti-invariant monomials or not
     q = len(polys)
@@ -2141,15 +2143,19 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #    otherred.append(fr)
             tjurina = get_tjurina(prx.gens(), cypoly, fsetx);
             if On in oplanes.keys():
-                oplanes[On].append([fsetx, tjurina])
+                oplanes[On].append(fsetx)
+                tjurinas[On+"TJURINA"].append(tjurina);
             else:
-                oplanes[On] = [[fsetx, tjurina]]
+                oplanes[On] = [fsetx]
+                tjurinas[On+"TJURINA"] = [tjurina];
 
             tjurinared = get_tjurina(prx.gens(), cypoly, fr);
             if On in oplanesred.keys():
                 oplanesred[On].append([fr, tjurinared])
+                tjurinasred[On+"TJURINA"].append(tjurinared);
             else:
-                oplanesred[On] = [[fr, tjurinared]]
+                oplanesred[On] = [fr]
+                tjurinasred[On+"TJURINA"] = [tjurinared];
     else:
         pr = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
         ni = [w for b in invol for w in b]
@@ -2191,15 +2197,19 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #    o1red.append(fr)
             tjurina = get_tjurina(pr.gens(), cypoly, fset);
             if On in oplanes.keys():
-                oplanes[On].append([fset, tjurina])
+                oplanes[On].append(fset)
+                tjurinas[On+"TJURINA"].append(tjurina);
             else:
-                oplanes[On] = [[fset, tjurina]]
+                oplanes[On] = [fset]
+                tjurinas[On+"TJURINA"] = [tjurina];
 
             tjurinared = get_tjurina(pr.gens(), cypoly, fr);
             if On in oplanesred.keys():
-                oplanesred[On].append([fr, tjurinared])
+                oplanesred[On].append(fr)
+                tjurinasred[On+"TJURINA"].append(tjurinared);
             else:
-                oplanesred[On] = [[fr, tjurinared]]
+                oplanesred[On] = [fr]
+                tjurinasred[On+"TJURINA"] = [tjurinared];
 
     # secs = sectors(sr, pr)
     # for sec in secs:
@@ -2218,7 +2228,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
                 w = prn(fset[j])
                 w = w(pt)
                 fset[j] = prn(w)
-            oplaneval[i] = fset
+            oplaneval[i] = py2mat(fset)
         oplanes.update({key:oplaneval})
 
     for key in oplanesred.keys():
@@ -2229,7 +2239,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
                 w = prn(fset[j])
                 w = w(pt)
                 fset[j] = prn(w)
-            oplaneredval[i] = fset
+            oplaneredval[i] = py2mat(fset)
         oplanesred.update({key:oplaneredval})
 
     #allbases,h11split,h21split,symbasis,asymbasis=allbaseshodgesplit(h11,h21,invol,basisinds,dresverts,np.transpose(rwmat).tolist())
@@ -2251,7 +2261,10 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     #    output[o1key] = py2mat(o1red)
     #if len(other)>0:
     #    output[otherkey] = py2mat(other)
-    output = dict([(x[0],py2mat(x[1])) for x in oplanesred.items()])
+    #output = dict([(x[0],py2mat(x[1])) for x in oplanesred.items()])
+    output = {}
+    output.update(oplanesred)
+    output.update(tjurinasred)
     #output[allbaseskey] = allbases
     output[h11splitkey] = py2mat(h11split)
     output[h21splitkey] = py2mat(h21split)

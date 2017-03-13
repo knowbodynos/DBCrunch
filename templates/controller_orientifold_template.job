@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g-2"
+#SBATCH --partition="ser-par-10g-3"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
