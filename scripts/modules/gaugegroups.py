@@ -2121,10 +2121,11 @@ def gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
     typekey = "GTYPE"
     degkey = "DEG"
     rankkey = "RANK"
-    monindkey = "MONOMIND"
-    monomskey = "MONOMIALS"
+    #monindkey = "MONOMIND"
+    #monomskey = "MONOMIALS"
+    monomkey = "MONOM"
     multkey = "MULT"
-    gpindkey = "GROUPIND"
+    #gpindkey = "GROUPIND"
     gpskey = "GGROUPS"
     fwkey = "FW"
     
@@ -2156,7 +2157,7 @@ def gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
 
     # print("FW divs:", fwDivisors)
 
-    mon = []
+    #mon = []
     ggList = []
     ggDictList = []
     for i in range(len(configs)):
@@ -2165,11 +2166,12 @@ def gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
         ggs = []
         config = configs[i]
         poly = str(pr({tuple(config) : 1}))
-        mon.append(poly)
+        #mon.append(poly)
 
         # Put the configuration-dependent information into the dictionary
         configDict = copy.deepcopy(idDict)
-        configDict[monindkey] = int(i+1)
+        #configDict[monindkey] = int(i+1)
+        configDict[monomkey] = str(poly_index_raiser(poly, pr))
 
         # See if the Freed-Witten condition is satisfied
         sconfig = sigma_list(config, sigma)
@@ -2225,17 +2227,18 @@ def gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
             ggDict[typekey] = str(gtype)
             ggDict[multkey] = int(mult)
             ggDict[degkey] = int(num)
-            ggDict[gpindkey] = int(ggList.index(grp))
+            #ggDict[gpindkey] = int(ggList.index(grp))
             ggDict[rankkey] = int(gprank(gtype, num))
 	    #ggDict = json.dumps(ggDict,separators=(',',':'))
         ggDictList.append(ggDict)
 
-    mon = [str(poly_index_raiser(w, pr)) for w in mon]
-    monDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum}
-    monDict[monomskey] = mon
-    monDict[gpskey] = ggList
+    #mon = [str(poly_index_raiser(w, pr)) for w in mon]
+    #monDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum}
+    #monDict[monomskey] = mon
+    #monDict[gpskey] = ggList
 
-    return monDict, ggDictList
+    #return monDict, ggDictList
+    return ggDictList
 
 
 def gprank(type, n):
@@ -2469,9 +2472,12 @@ def gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s,
     typekey = "GTYPE"
     degkey = "DEG"
     rankkey = "RANK"
-    monindkey = "MONOMIND"
+    #monindkey = "MONOMIND"
+    #monomskey = "MONOMIALS"
+    monomkey = "MONOM"
     multkey = "MULT"
-    gpindkey = "GROUPIND"
+    #gpindkey = "GROUPIND"
+    gpskey = "GGROUPS"
     fwkey = "FW"
 
     # Put the ID numbers into a dictionary
@@ -2480,18 +2486,19 @@ def gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s,
     # Need to put in Freed-Witten
 
     ggDictList = []
-    mon = []
+    #mon = []
     for i in range(len(configs)):
         gtypes = []
         nums = []
         ggs = []
         config = configs[i]
         poly = str(pr({tuple(config) : 1}))
-        mon.append(poly)
+        #mon.append(poly)
 
         # Put the configuration-dependent information into the dictionary
         configDict = copy.deepcopy(idDict)
-        configDict[monindkey] = str(i+1)
+        #configDict[monindkey] = int(i+1)
+        configDict[monomkey] = poly
 
         # Need to add Freed-Witten check
 
@@ -2534,7 +2541,7 @@ def gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s,
             ggDict[multkey] = mult
             ggDict[degkey] = num
             ggDict[rankkey] = gprank(gtype, num)
-            ggDict[gpindkey] = gpind
+            #ggDict[gpindkey] = gpind
             ggDictList.append(ggDict)
 
     # Now convert the monomials into x form
@@ -2546,11 +2553,15 @@ def gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s,
             polyConv['y' + str(j)] = '(' + str(ylist[j]) + ')'
         else:
             polyConv['y' + str(j)] = str(ylist[j])
-    for i in range(len(mon)):
+    #for i in range(len(mon)):
+    #    for key in polyConv.keys():
+    #        mon[i] = mon[i].replace(key, polyConv[key])
+    for i in range(len(ggDictList)):
         for key in polyConv.keys():
-            mon[i] = mon[i].replace(key, polyConv[key])
+            ggDictList[i][monomkey] = ggDictList[i][monomkey].replace(key, polyConv[key])
 
-    return mon, ggDictList
+    #return mon, ggDictList
+    return ggDictList
 
 
 
@@ -3227,7 +3238,9 @@ def gauge_groups_one(involdoc):
     # Read in the query return as a JSON dictionary and get the necessary data in string form
     rwmkey = "RESCWS"
     sigmakey = "INVOL"
-    o7key = "O7"
+    oplaneskey = "OPLANES"
+    odimkey = "ODIM"
+    oidealkey = "OIDEAL"
     bikey = "BASIS"
     polyidkey = "POLYID"
     geokey = "GEOMN"
@@ -3237,7 +3250,7 @@ def gauge_groups_one(involdoc):
     involdoc = json.loads(involdoc)
     rwmat = str(involdoc[rwmkey])
     sigma = str(involdoc[sigmakey])
-    o7s = str(involdoc[o7key])
+    o7s = [x[oidealkey] for x in involdoc[oplaneskey] if x[odimkey]==7]
     bi = str(involdoc[bikey])
     polyid = int(involdoc[polyidkey])
     geonum = int(involdoc[geokey])
@@ -3251,7 +3264,8 @@ def gauge_groups_one(involdoc):
     bi = bi_m2p(bi)
     (m, n) = rwmat.shape
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names('x+',n+1))
-    o7s = oplanes_m2p(o7s, pr)
+    #o7s = oplanes_m2p(o7s, pr)
+    o7s = [[pr(y) for y in x] for x in o7s]
 
     # Reindex
     sigma = [[w-1 for w in x] for x in sigma]
@@ -3265,16 +3279,19 @@ def gauge_groups_one(involdoc):
     query[involkey] = involnum
     
     # Find the gauge groups
-    mons, GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
+    #mons, GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
+    GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
     #GGsI = gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
     #GGsC = gauge_groups_combined(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi, False)
-    return query, mons, GGsT
+    #return query, mons, GGsT
+    return query, GGsT
 
 involdoc = sys.argv[1]
 
-query, monDict, GGsX = gauge_groups_one(involdoc)
+#query, monDict, GGsX = gauge_groups_one(involdoc)
+query, GGsX = gauge_groups_one(involdoc)
 
-print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(monDict,separators=(',',':'))
+#print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(monDict,separators=(',',':'))
 for i in range(len(GGsX)):
     gaugeDict = GGsX[i]
     gaugeDict["GAUGEN"] = i+1

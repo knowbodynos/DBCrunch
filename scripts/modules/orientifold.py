@@ -2034,16 +2034,24 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     trikey = "TRIANGN"
     geokey = "GEOMN"
     invkey = "INVOLN"
-    origcyseckey = "ORIGCYSECTIONS"
-    symcyseckey = "SYMCYSECTIONS"
+    origcyseckey = "NCYTERMS"
+    symcyseckey = "NSYMCYTERMS"
+    oplaneskey = "OPLANES"
+    odimkey = "ODIM"
+    oidealkey = "OIDEAL"
+    tjurinakey = "OTJURINA"
     #o7key = "O7"
     #o5key = "O5"
     #o3key = "O3"
     #o1key = "O1"
     #otherkey = "OTHER"
-    allbaseskey = "ALLBASES"
-    h11splitkey = "H11SPLIT"
-    h21splitkey = "H21SPLIT"
+    #allbaseskey = "ALLBASES"
+    h11pluskey = "H11+"
+    h21pluskey = "H21+"
+    h11minuskey = "H11-"
+    h21minuskey = "H21-"
+    #h11splitkey = "H11SPLIT"
+    #h21splitkey = "H21SPLIT"
 
     # # # First off, we need to reformat the SR ideal, the RWM, and the basis into the appropriate forms
     # # # Let's start with the SR ideal
@@ -2087,10 +2095,8 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     #o1red = []
     #otherred = []
 
-    oplanes = {}
-    tjurinas = {}
-    oplanesred = {}
-    tjurinasred = {}
+    oplanes = []
+    oplanesred = []
 
     # Split based on whether there are anti-invariant monomials or not
     q = len(polys)
@@ -2125,7 +2131,8 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
                 continue
 
             codim = len(fr)
-            On = 'O'+str(9-(2*codim))
+            #On = 'O'+str(9-(2*codim))
+            odim = 9-(2*codim)
             #if codim == 1:
             #    o7.append(fsetx)
             #    o7red.append(fr)
@@ -2142,20 +2149,20 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #    other.append(fsetx)
             #    otherred.append(fr)
             tjurina = get_tjurina(prx.gens(), cypoly, fsetx);
-            if On in oplanes.keys():
-                oplanes[On].append(fsetx)
-                tjurinas[On+"TJURINA"].append(tjurina);
-            else:
-                oplanes[On] = [fsetx]
-                tjurinas[On+"TJURINA"] = [tjurina];
+            oplane = {odimkey:odim, oidealkey:fsetx, tjurinakey:tjurina}
+            oplanes.append(oplane)
+            #if On in oplanes.keys():
+            #    oplanes[On].append({oidealkey:fsetx,tjurinakey:tjurina})
+            #else:
+            #    oplanes[On] = [{oidealkey:fsetx,tjurinakey:tjurina}]
 
             tjurinared = get_tjurina(prx.gens(), cypoly, fr);
-            if On in oplanesred.keys():
-                oplanesred[On].append([fr, tjurinared])
-                tjurinasred[On+"TJURINA"].append(tjurinared);
-            else:
-                oplanesred[On] = [fr]
-                tjurinasred[On+"TJURINA"] = [tjurinared];
+            oplanered = {odimkey:odim, oidealkey:fr, tjurinakey:tjurinared}
+            oplanesred.append(oplanered)
+            #if On in oplanesred.keys():
+            #    oplanesred[On].append({oidealkey:fr,tjurinakey:tjurinared})
+            #else:
+            #    oplanesred[On] = [{oidealkey:fr,tjurinakey:tjurinared}]
     else:
         pr = PolynomialRing(base_ring=CC, names=normalize_names('x+', n))
         ni = [w for b in invol for w in b]
@@ -2182,7 +2189,8 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
                 continue
 
             codim = len(fr)
-            On = 'O'+str(9-(2*codim))
+            #On = 'O'+str(9-(2*codim))
+            odim = 9-(2*codim)
             #if codim == 1:
             #    o7.append(fset)
             #    o7red.append(fr)
@@ -2196,20 +2204,20 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #    o1.append(fset)
             #    o1red.append(fr)
             tjurina = get_tjurina(pr.gens(), cypoly, fset);
-            if On in oplanes.keys():
-                oplanes[On].append(fset)
-                tjurinas[On+"TJURINA"].append(tjurina);
-            else:
-                oplanes[On] = [fset]
-                tjurinas[On+"TJURINA"] = [tjurina];
+            oplane = {odimkey:odim, oidealkey:fset, tjurinakey:tjurina}
+            oplanes.append(oplane)
+            #if On in oplanes.keys():
+            #    oplanes[On].append({oidealkey:fset,tjurinakey:tjurina})
+            #else:
+            #    oplanes[On] = [{oidealkey:fset,tjurinakey:tjurina}]
 
             tjurinared = get_tjurina(pr.gens(), cypoly, fr);
-            if On in oplanesred.keys():
-                oplanesred[On].append(fr)
-                tjurinasred[On+"TJURINA"].append(tjurinared);
-            else:
-                oplanesred[On] = [fr]
-                tjurinasred[On+"TJURINA"] = [tjurinared];
+            oplanered = {odimkey:odim, oidealkey:fr, tjurinakey:tjurinared}
+            oplanesred.append(oplanered)
+            #if On in oplanesred.keys():
+            #    oplanesred[On].append({oidealkey:fr,tjurinakey:tjurinared})
+            #else:
+            #    oplanesred[On] = [{oidealkey:fr,tjurinakey:tjurinared}]
 
     # secs = sectors(sr, pr)
     # for sec in secs:
@@ -2220,27 +2228,33 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     prn = PolynomialRing(base_ring=CC, names=newnames)
     pt = [prn(w) for w in newnames[1:]] + [0]
     #oplanes = [o1,o3,o5,o7]
-    for key in oplanes.keys():
-        oplaneval = oplanes[key]
-        for i in range(len(oplaneval)):
-            fset = oplaneval[i]
-            for j in range(len(fset)):
-                w = prn(fset[j])
-                w = w(pt)
-                fset[j] = prn(w)
-            oplaneval[i] = py2mat(fset)
-        oplanes.update({key:oplaneval})
+    #for key in oplanes.keys():
+    #    oplaneval = oplanes[key]
+    #    for i in range(len(oplaneval)):
+    #      fset = oplaneval[i][oidealkey]
+    for i in range(len(oplanes)):
+        fset = oplanes[i][oidealkey]
+        for j in range(len(fset)):
+            w = prn(fset[j])
+            w = w(pt)
+            fset[j] = py2mat(prn(w))
+        oplanes[i][oidealkey] = fset
+            #oplaneval[i][oidealkey] = fset
+        #oplanes.update({key:oplaneval})
 
-    for key in oplanesred.keys():
-        oplaneredval = oplanesred[key]
-        for i in range(len(oplaneredval)):
-            fset = oplaneredval[i]
-            for j in range(len(fset)):
-                w = prn(fset[j])
-                w = w(pt)
-                fset[j] = prn(w)
-            oplaneredval[i] = py2mat(fset)
-        oplanesred.update({key:oplaneredval})
+    #for key in oplanesred.keys():
+    #    oplaneredval = oplanesred[key]
+    #    for i in range(len(oplaneredval)):
+    #        fset = oplaneredval[i][oidealkey]
+    for i in range(len(oplanesred)):
+        fset = oplanesred[i][oidealkey]
+        for j in range(len(fset)):
+            w = prn(fset[j])
+            w = w(pt)
+            fset[j] = py2mat(prn(w))
+        oplanesred[i][oidealkey] = fset
+    #        oplaneredval[i][oidealkey] = fset
+    #    oplanesred.update({key:oplaneredval})
 
     #allbases,h11split,h21split,symbasis,asymbasis=allbaseshodgesplit(h11,h21,invol,basisinds,dresverts,np.transpose(rwmat).tolist())
     h11split,h21split,symJcoeffs,asymJcoeffs=hodgesplit(h11,h21,invol,basisinds,dresverts)
@@ -2262,12 +2276,12 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     #if len(other)>0:
     #    output[otherkey] = py2mat(other)
     #output = dict([(x[0],py2mat(x[1])) for x in oplanesred.items()])
-    output = {}
-    output.update(oplanesred)
-    output.update(tjurinasred)
+    output = {oplaneskey:oplanesred}
     #output[allbaseskey] = allbases
-    output[h11splitkey] = py2mat(h11split)
-    output[h21splitkey] = py2mat(h21split)
+    #output[h11splitkey] = py2mat(h11split)
+    #output[h21splitkey] = py2mat(h21split)
+    output[h11pluskey], output[h11minuskey] = h11split
+    output[h21pluskey], output[h21minuskey] = h21split
     output[origcyseckey] = nterms1
     output[symcyseckey] = nterms2
 

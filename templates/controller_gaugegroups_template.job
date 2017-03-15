@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g"
+#SBATCH --partition="ser-par-10g-2"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -49,7 +49,7 @@ scripttimelimit=""
 scriptbuffertime="00:05:00"
 
 #Input database info
-queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'RESCWS':1,'BASIS':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1}],['INVOL',{'H11':${h11},'O7':{'\$exists':True},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1,'O7':1}]]"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'RESCWS':1,'BASIS':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1}],['INVOL',{'H11':${h11},'OPLANES':{'\$elemMatch':{'ODIM':7}},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1,'OPLANES':1}]]"
 basecollection="INVOL"
 nthreadsfield=""
 

@@ -242,7 +242,7 @@ def licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,sc
     return nlicensesplit;
 
 def clusterjobslotsleft(username,maxjobcount):
-    njobs=eval(subprocess.Popen("squeue -h -r -u "+username+" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+    njobs=eval(subprocess.Popen("squeue -h -r -u "+username+" | grep -v \" CG \" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
     jobsleft=(njobs<maxjobcount);
     return jobsleft;
 
