@@ -705,6 +705,7 @@ def waitforslots(licensestream,username,modname,controllername,controllerpath,qu
         nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
         licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
         orderedfreepartitions=orderfreepartitions(partitions);
+        releaseheldjobs(username,modname,controllername);
         if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0)):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
@@ -716,6 +717,7 @@ def waitforslots(licensestream,username,modname,controllername,controllerpath,qu
                 nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
                 licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
                 orderedfreepartitions=orderfreepartitions(partitions);
+                releaseheldjobs(username,modname,controllername);
         #fcntl.flock(licensestream,fcntl.LOCK_EX);
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a+", so instead use bitwise OR with non-blocking and loop until lock is acquired.
         while (timeleft(starttime,controllerbuffertimelimit)>0):
@@ -743,6 +745,7 @@ def waitforslots(licensestream,username,modname,controllername,controllerpath,qu
     else:
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
         orderedfreepartitions=orderfreepartitions(partitions);
+        releaseheldjobs(username,modname,controllername);
         if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0)):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
@@ -752,10 +755,10 @@ def waitforslots(licensestream,username,modname,controllername,controllerpath,qu
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
                 orderedfreepartitions=orderfreepartitions(partitions);
+                releaseheldjobs(username,modname,controllername);
         if not (timeleft(starttime,controllerbuffertimelimit)>0):
             return None;
 
-    releaseheldjobs(username,modname,controllername);
     reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,basecollection);
 
     return orderedfreepartitions;
