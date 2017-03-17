@@ -623,7 +623,7 @@ def writejobfile(modname,dbpush,markdone,writestats,writestorage,jobname,jobstep
     jobstring+="do\n";
     jobstring+="    for i in \"${!pids1[@]}\"\n";
     jobstring+="    do\n";
-    jobstring+="        if ! kill -0 ${pids1[${i}]};\n";
+    jobstring+="        if ! kill -0 ${pids1[${i}]} 2>/dev/null\n";
     jobstring+="        then\n";
     jobstring+="            jobstepstats=($(sacct -n -o 'ExitCode,CPUTimeRAW,MaxRSS,MaxVMSize' -j \"${SLURM_JOBID}.${i}\" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2))\n";
     jobstring+="            exitcode=${jobstepstats[0]}\n";
@@ -685,7 +685,7 @@ def writejobfile(modname,dbpush,markdone,writestats,writestorage,jobname,jobstep
     jobstring+="do\n";
     jobstring+="    for i in \"${!pids2[@]}\"\n";
     jobstring+="    do\n";
-    jobstring+="        if ! kill -0 ${pids2[${i}]};\n";
+    jobstring+="        if ! kill -0 ${pids2[${i}]} 2>/dev/null\n";
     jobstring+="        then\n";
     jobstring+="            unset \"pids2[${i}]\"\n";
     jobstring+="            break\n";
