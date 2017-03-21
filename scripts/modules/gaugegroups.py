@@ -2079,7 +2079,8 @@ def gauge_group_config(rwmat, sigma, o7Charges, fsets, config):
     return 'x'.join(gg)
 
 
-def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
+#def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
+def gauge_groups_torics(rwmat, sigma, o7s, bi):
     """Computes the gauge groups."""
     (m, n) = rwmat.shape
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names('x+', n))
@@ -2114,11 +2115,11 @@ def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s
     numCase = [1,2,2]
 
     # The dictionary keys
-    polyidkey = "POLYID"
-    geokey = "GEOMN"
-    trikey = "TRIANGN"
-    involkey = "INVOLN"
-    h11key = "H11"
+    #polyidkey = "POLYID"
+    #geokey = "GEOMN"
+    #trikey = "TRIANGN"
+    #involkey = "INVOLN"
+    #h11key = "H11"
     typekey = "GTYPE"
     degkey = "DEG"
     rankkey = "RANK"
@@ -2131,7 +2132,8 @@ def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s
     fwkey = "FW"
     
     # Put the ID numbers into a dictionary
-    idDict = {polyidkey : int(polyid), geokey : int(geonum), trikey : int(trinum), involkey : int(involnum), h11key : int(h11)}
+    #idDict = {polyidkey : int(polyid), geokey : int(geonum), trikey : int(trinum), involkey : int(involnum), h11key : int(h11)}
+    idDict = {}
 
     # Some calculations for the Freed-Witten check
     # These two values are the same across the entire involution, so cheaper to only have to calculate them once
@@ -2433,7 +2435,8 @@ def partition_set(a):
     return partitions2
 
 
-def gauge_groups_invariants(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
+#def gauge_groups_invariants(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
+def gauge_groups_invariants(rwmat, sigma, o7s, bi):
     """Computes the gauge groups."""
     o7Charges = o7_charges(rwmat, o7s)
     ddCharges = [4*w for w in o7Charges]
@@ -2466,11 +2469,11 @@ def gauge_groups_invariants(polyid, geonum, trinum, involnum, h11, rwmat, sigma,
     numCase = [1,2,2]
 
     # The dictionary keys
-    polyidkey = "POLYID"
-    geokey = "GEOMN"
-    trikey = "TRIANGN"
-    involkey = "INVOLN"
-    h11key = "H11"
+    #polyidkey = "POLYID"
+    #geokey = "GEOMN"
+    #trikey = "TRIANGN"
+    #involkey = "INVOLN"
+    #h11key = "H11"
     typekey = "GTYPE"
     degkey = "DEG"
     rankkey = "RANK"
@@ -2483,7 +2486,8 @@ def gauge_groups_invariants(polyid, geonum, trinum, involnum, h11, rwmat, sigma,
     fwkey = "FW"
 
     # Put the ID numbers into a dictionary
-    idDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum, h11key : h11}
+    #idDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum, h11key : h11}
+    idDict = {}
 
     # Need to put in Freed-Witten
 
@@ -3238,7 +3242,7 @@ def gauge_groups_one(involdoc):
     """Computes the gauge groups for one example."""
 
     # Read in the query return as a JSON dictionary and get the necessary data in string form
-    h11key = "H11"
+    #h11key = "H11"
     rwmkey = "RESCWS"
     sigmakey = "INVOL"
     oplaneskey = "OPLANES"
@@ -3251,7 +3255,7 @@ def gauge_groups_one(involdoc):
     involkey = "INVOLN"
 
     involdoc = json.loads(involdoc)
-    h11 = involdoc[h11key]
+    #h11 = involdoc[h11key]
     rwmat = str(involdoc[rwmkey])
     sigma = str(involdoc[sigmakey])
     o7s = [x[oidealkey] for x in involdoc[oplaneskey] if x[odimkey]==7]
@@ -3284,7 +3288,8 @@ def gauge_groups_one(involdoc):
     
     # Find the gauge groups
     #mons, GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
-    GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi)
+    #GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi)
+    GGsT = gauge_groups_torics(rwmat, sigma, o7s, bi)
     #GGsI = gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
     #GGsC = gauge_groups_combined(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi, False)
     #return query, mons, GGsT
@@ -3297,8 +3302,7 @@ query, GGsX = gauge_groups_one(involdoc)
 
 #print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(monDict,separators=(',',':'))
 for i in range(len(GGsX)):
-    gaugeDict = GGsX[i]
-    gaugeDict["GAUGEN"] = i+1
-    query["GAUGEN"] = i+1
-    print "+GAUGE."+json.dumps(query,separators=(',',':'))+">"+json.dumps(gaugeDict,separators=(',',':'))
+    GGsX[i]["GAUGEN"] = i+1
+gaugeDict = {"GAUGE":GGsX}
+print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(gaugeDict,separators=(',',':'))
 sys.stdout.flush()
