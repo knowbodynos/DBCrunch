@@ -3299,5 +3299,6 @@ query, GGsX = gauge_groups_one(involdoc)
 for i in range(len(GGsX)):
     gaugeDict = GGsX[i]
     gaugeDict["GAUGEN"] = i+1
+    query["GAUGEN"] = i+1
     print "+GAUGE."+json.dumps(query,separators=(',',':'))+">"+json.dumps(gaugeDict,separators=(',',':'))
 sys.stdout.flush()
