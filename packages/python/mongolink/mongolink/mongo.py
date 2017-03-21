@@ -217,7 +217,7 @@ def printasfunc(*args):
     sys.stdout.flush();
     return len(docbatch);
 
-def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,timeleft=lambda:1,batchcounter=1,stepcounter=1,counterupdate=lambda x,y:None,resetstatefile=False,toplevel=True):
+def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,readform=lambda x:eval(x),writeform=lambda x:x,timeleft=lambda:1,batchcounter=1,stepcounter=1,counterupdate=lambda x,y:None,resetstatefile=False,limit=None,toplevel=True):
     docbatch=[];
     docbatchfiltered=[];
     endofdocs=[];
@@ -261,7 +261,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #sys.stdout.flush();
     #print thisquery;
     #sys.stdout.flush();
-    if timeleft()>0:
+    if (timeleft()>0) and ((limit==None) or (stepcounter<=limit)):
         docs=collectionfind(db,*thisquery);
     else:
         #print "hi";
@@ -283,7 +283,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     origprojfields=dict([x for x in queries[0][2].items() if (x[1]==1) and (x[0]!="$allFields")]);
     projfields=origprojfields;
     i=0;
-    while (i<len(docs)) and (timeleft()>0):
+    while (i<len(docs)) and (timeleft()>0) and ((limit==None) or (stepcounter<=limit)):
         doc=docs[i];
         if ("_id" in doc.keys()) and (("_id",1) not in queries[0][2].items()):
             del doc["_id"];
@@ -306,7 +306,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             newinputdoc.update({"nsteps":inputdoc["nsteps"]-len(docbatchfiltered)});
             #print "g";
             #sys.stdout.flush();
-            subprojfields,skipsubdocs,endofsubdocs,subdocbatch=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,timeleft=timeleft,batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=counterupdate,resetstatefile=resetstatefile,toplevel=False);
+            subprojfields,skipsubdocs,endofsubdocs,subdocbatch=dbcrawl(db,nextqueries,statefilepath,statefilename=statefilename,inputfunc=inputfunc,inputdoc=newinputdoc,action=action,readform=readform,writeform=writeform,timeleft=timeleft,batchcounter=batchcounter,stepcounter=stepcounter,counterupdate=counterupdate,resetstatefile=resetstatefile,limit=limit,toplevel=False);
         else:
             #print "h";
             #sys.stdout.flush();
@@ -330,6 +330,8 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             projfields.update(subprojfields);
             if (len(docbatchfiltered)==inputdoc["nsteps"]) or not (timeleft()>0):
                 #print "docbatch: "+str([dict([(y,x[y]) for z in allcollindexes for y in z if y in x.keys()]) for x in docbatch]);
+                if (limit!=None) and (stepcounter+len(docbatchfiltered)>limit):
+                    docbatchfiltered=docbatchfiltered[:limit-stepcounter+1];
                 if (len(endofdocs)>0) and not endofdocs[-1][0]:
                     i-=1;
                 while len(docbatchfiltered)>0:
@@ -420,6 +422,8 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     if toplevel:
         #print "docbatch: "+str([dict([(y,x[y]) for z in allcollindexes for y in z if y in x.keys()]) for x in docbatch]);
         while len(docbatchfiltered)>0:
+            if (limit!=None) and (stepcounter+len(docbatchfiltered)>limit):
+                docbatchfiltered=docbatchfiltered[:limit-stepcounter+1];
             docbatchfilteredprojfields=[dict([y for y in x.items() if y[0] in projfields.keys()]) for x in docbatchfiltered];
             #docbatchpass=action(batchcounter,stepcounter,inputdoc,docbatchprojfields);
             nextdocindfiltered=action(batchcounter,stepcounter,inputdoc,docbatchfilteredprojfields);
