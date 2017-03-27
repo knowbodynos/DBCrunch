@@ -83,7 +83,7 @@ If[Length[result]==0,
 ,
     SwissCheeseDoc=StringRulestoJSON[Join[result,SwissCheeseIDField]];
     WriteString[$Output,"+SWISSCHEESE.{\"POLYID\":"<>ToString[PolyID]<>",\"GEOMN\":"<>ToString[GeomN]<>"}>"<>SwissCheeseDoc];
-    WriteString[$Output,"\n"];
 ]
+WriteString[$Output,"\n"];
 
 Exit[];
