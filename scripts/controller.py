@@ -1047,8 +1047,8 @@ try:
     #querystatefile=controllerpath+"/querystate";
 
     with open(statusstatefile,"w") as statusstream:
-            statusstream.truncate(0);
-            statusstream.write("Starting");
+        statusstream.truncate(0);
+        statusstream.write("Starting");
 
     with open(custommaxjobsfile,"r") as custommaxjobsstream:
         try:

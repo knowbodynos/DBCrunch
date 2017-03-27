@@ -19,8 +19,8 @@ import re
 import bson
 import sys
 from collections import Counter
-from mongolink.parse import pythonlist2mathematicalist as py2mat
-from mongolink.parse import mathematicalist2pythonlist as mat2py
+# from mongolink.parse import pythonlist2mathematicalist as py2mat
+# from mongolink.parse import mathematicalist2pythonlist as mat2py
 
 ### FORMAT CONVERTERS ###
 
@@ -147,6 +147,13 @@ def oplanes_p2m(op):
     op = op.replace("]", "}")
     op = re.sub(" ", "", op)
     return op
+
+
+def itens_m2p(itens):
+    itens = itens.replace("{", "[")
+    itens = itens.replace("}", "]")
+    itens = eval(itens)
+    return itens
 
 
 ### CONVERTERS END HERE ###
@@ -2080,7 +2087,7 @@ def gauge_group_config(rwmat, sigma, o7Charges, fsets, config):
 
 
 #def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
-def gauge_groups_torics(rwmat, sigma, o7s, bi):
+def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
     """Computes the gauge groups."""
     (m, n) = rwmat.shape
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names('x+', n))
@@ -2148,15 +2155,15 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi):
     # print("c:",c)
     # print("config:", configs[0])
 
-    # Now, let's calculate which toric divisors satisfy the Freed-Witten condition
+    # Now, let's calculate which toric divisors need fluxes
     # For the extremal/maximal brane case, this will be enough, since every brane will be wrapped on a toric divisor
     fws = []
     zeros = [0 for j in range(n)]
     for j in range(n):
         a = copy.deepcopy(zeros)
         a[j] = 1
-        fws.append(freed_witten(a, bi, rwmat))
-    fwDivisors = [j for j in range(n) if fws[j]]
+        fws.append(freed_witten(a, bi, rwmat, itens))
+    fwDivisors = [j for j in range(n) if not fws[j]] # The divisors that need fluxes
 
     # print("FW divs:", fwDivisors)
 
@@ -2180,10 +2187,8 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi):
         sconfig = sigma_list(config, sigma)
         nzi = [int(w) for w in np.nonzero(config)[0]]
         snz =[int(w) for w in np.nonzero(sconfig)[0]]
-        if sublist_of(nzi, fwDivisors) and sublist_of(snz, fwDivisors):
-            configDict[fwkey] = True
-        else:
-            configDict[fwkey] = False
+        fw = [x for x in fwDivisors if (x in nzi or x in snz)] # The divisors in the configuration (or its orientifold image) that need fluxes
+        configDict[fwkey] = fw
 
         # Do the first loop to get the data for each brane in the configuration
         # This loop is done first so we can get the multiplicities
@@ -2253,7 +2258,7 @@ def gprank(type, n):
         return int(n)
 
 
-def freed_witten(a, bi, rwmat):
+def freed_witten(a, bi, rwmat, itens):
     """Checks whether or not the the divisor defined by D = a_i * D_i satisfies the Freed-Witten condition without fluxes."""
     # b is the basis decomposition of X, the Calabi-Yau
     # c is the matrix that gives the basis decomposition of the toric divisors
@@ -2268,11 +2273,72 @@ def freed_witten(a, bi, rwmat):
         DCharges.append(v)
 
     # Decompose on the basis
-    a = basis_decomposition(rwmat, bi, DCharges)
+    b = basis_decomposition(rwmat, bi, DCharges)
+    #print("Original decomp", b)
+
+    # We now need to check a few subtleties
+    # First, check for any basis divisors that don't intersect a_i * D_i = b_i * J_i. We don't need to consider their coefficients.
+
+    # Construct the intersection numbers for our divisor b_i * J_i
+    h11 = len(bi)
+    itensArrs = [np.array(w) for w in itens]
+    divItens = np.zeros(shape=itensArrs[0].shape, dtype=int)
+    for j in range(h11):
+        toAdd = np.multiply(b[j], itensArrs[j])
+        divItens = np.add(toAdd, divItens)
+    #print("This div:", divItens)
+
+    # Check which divisors don't intersect it
+    dontIntersect = []
+    for i in range(h11):
+        if not is_nonzero(divItens[i,:]):
+            dontIntersect.append(i)
+    #print("Don't intersect", dontIntersect)
+
+    # Set their coefficients to zero (which won't affect the integrality when divided by 2)
+    for j in dontIntersect:
+        b[j] = 0
+    #print("New decomp:", b)
+
+    # Now let's check for basis divisors that are numerically equivalent on D
+    equiv = [[0]]
+    for i in range(1, h11):
+        inSomeList = False
+        for j in range(len(equiv)):
+            inlst = True
+            for p in range(len(divItens[i,:])):
+                k = equiv[j][0]
+                if divItens[i,p] != divItens[k, p]:
+                    inlst = False
+                    break
+
+            # for k in equiv[j]:
+            #     compCheck = True
+            #     for p in range(len(divItens[i,:])):
+            #         if divItens[i,p] != divItens[k,p]:
+            #             compCheck = False
+            #             break
+            #     if not compCheck:
+            #         inlst = False
+            #         break
+
+            if inlst:
+                equiv[j].append(i)
+                inSomeList = True
+
+        if not inSomeList:
+            equiv.append([i])
+    #print("Equiv", equiv)
+
+    # Combine the coefficients of any divisors that are numerically equivalent
+    b2 = []
+    for i in range(len(equiv)):
+        b2.append(sum([b[k] for k in equiv[i]]))
+    #print("Final decomp:", b2)
 
     # Check the Freed-Witten condition that the first Chern class of D is integral
-    for i in range(len(a)):
-        if (a[i] % 2) != 0:
+    for i in range(len(b2)):
+        if (b2[i] % 2) != 0:
             return False
     return True
 
@@ -3253,6 +3319,7 @@ def gauge_groups_one(involdoc):
     geokey = "GEOMN"
     trikey = "TRIANGN"
     involkey = "INVOLN"
+    itenskey = "ITENSXJ"
 
     involdoc = json.loads(involdoc)
     #h11 = involdoc[h11key]
@@ -3264,7 +3331,7 @@ def gauge_groups_one(involdoc):
     geonum = int(involdoc[geokey])
     trinum = int(involdoc[trikey])
     involnum = int(involdoc[involkey])
-
+    itens = str(involdoc[itenskey])
 
     # Convert to Python format and extract the relevant information
     rwmat = rwmat_m2p(rwmat)
@@ -3274,6 +3341,7 @@ def gauge_groups_one(involdoc):
     pr = PolynomialRing(base_ring=ZZ, names=normalize_names('x+',n+1))
     #o7s = oplanes_m2p(o7s, pr)
     o7s = [[pr(y) for y in x] for x in o7s]
+    itens = itens_m2p(itens)
 
     # Reindex
     sigma = [[w-1 for w in x] for x in sigma]
@@ -3289,11 +3357,13 @@ def gauge_groups_one(involdoc):
     # Find the gauge groups
     #mons, GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
     #GGsT = gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi)
-    GGsT = gauge_groups_torics(rwmat, sigma, o7s, bi)
+    GGsT = gauge_groups_torics(rwmat, sigma, o7s, bi, itens)
     #GGsI = gauge_groups_invariants(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi)
     #GGsC = gauge_groups_combined(polyid, geonum, trinum, involnum, rwmat, sigma, o7s, bi, False)
     #return query, mons, GGsT
     return query, GGsT
+
+
 
 involdoc = sys.argv[1]
 
@@ -3306,3 +3376,17 @@ for i in range(len(GGsX)):
 gaugeDict = {"GAUGE":GGsX}
 print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(gaugeDict,separators=(',',':'))
 sys.stdout.flush()
+
+
+# a = [0,1,2,0,0,0,0]
+# bi = [1,4,6]
+# rwmat = np.transpose(rwmat_m2p('{{0,0,0,1,0,1,1},{0,0,1,0,1,0,0},{1,1,0,2,0,2,0}}'))
+# #Original
+# #itens = itens_m2p('{{{0,0,0},{0,0,3},{0,3,2}},{{0,0,3},{0,0,0},{3,0,-6}},{{0,3,2},{3,0,-6},{2,-6,-8}}}')
+# #Modified
+# itens = itens_m2p('{{{0,0,9},{1,0,1},{0,3,2}},{{1,0,1},{0,0,3},{3,0,-6}},{{0,3,2},{3,0,-6},{2,-6,-8}}}')
+# print(rwmat)
+# print(itens)
+
+# fw = freed_witten(a, bi, rwmat, itens)
+# print(fw)
