@@ -23,7 +23,7 @@ Involutions[FundGp_,ResCWS_,ITensXD_,SRIdeal_,FormatString_:True]:=Module[{TDivs
     SRInvols=Select[DisjointInvols,Intersection[SRIdeal,SRIdeal/.#]==Union[SRIdeal,SRIdeal/.#]&];
     (*SRInvolCohoms=Map[Table[Cohoms[[First[Flatten[Position[TDivs,#[[i,1]]]]]]],{i,1,Length[#],2}]&,SRInvols];*)
     If[FormatString,
-        Result={"DIVCOHOM"->ToString[DivCohom,InputForm],"INVOLLIST"->MapIndexed[{"INVOLN"->#2[[1]],"INVOL"->ToString[#1,InputForm]}&,SRInvols]};
+        Result={"DIVCOHOM"->Map[ToString[#,InputForm]&,DivCohom],"INVOLLIST"->MapIndexed[{"INVOLN"->#2[[1]],"INVOL"->ToString[#1,InputForm]}&,SRInvols]};
     ,
         Result={"DIVCOHOM"->DivCohom,"INVOLLIST"->MapIndexed[{"INVOLN"->#2[[1]],"INVOL"->#1}&,SRInvols]};
     ];

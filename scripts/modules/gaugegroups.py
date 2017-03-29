@@ -2169,7 +2169,8 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
 
     #mon = []
     ggList = []
-    ggDictList = []
+    #ggDictList = []
+    groupDictList = []
     for i in range(len(configs)):
         gtypes = []
         nums = []
@@ -2187,7 +2188,7 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
         sconfig = sigma_list(config, sigma)
         nzi = [int(w) for w in np.nonzero(config)[0]]
         snz =[int(w) for w in np.nonzero(sconfig)[0]]
-        fw = [x for x in fwDivisors if (x in nzi or x in snz)] # The divisors in the configuration (or its orientifold image) that need fluxes
+        fw = [x+1 for x in fwDivisors if (x in nzi or x in snz)] # The divisors in the configuration (or its orientifold image) that need fluxes
         configDict[fwkey] = fw
 
         # Do the first loop to get the data for each brane in the configuration
@@ -2227,18 +2228,22 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
                 ggList.append(grp)
 
         ggList = sorted(ggList)
-
+        
         # Now create a dictionary for each factor group in the configuration
+        ggDictList = []
         for j in range(len(ggsList)):
-            ggDict = copy.deepcopy(configDict)
+            ggDict = {}
             [gtype, num, mult, grp] = ggsList[j]
             ggDict[typekey] = str(gtype)
             ggDict[multkey] = int(mult)
             ggDict[degkey] = int(num)
             #ggDict[gpindkey] = int(ggList.index(grp))
             ggDict[rankkey] = int(gprank(gtype, num))
-	    #ggDict = json.dumps(ggDict,separators=(',',':'))
-        ggDictList.append(ggDict)
+	        #ggDict = json.dumps(ggDict,separators=(',',':'))
+            ggDictList.append(ggDict)
+        groupsDict = copy.deepcopy(configDict)
+        groupsDict[gpskey] = ggDictList
+        groupDictList.append(groupsDict)
 
     #mon = [str(poly_index_raiser(w, pr)) for w in mon]
     #monDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum}
@@ -2246,7 +2251,7 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
     #monDict[gpskey] = ggList
 
     #return monDict, ggDictList
-    return ggDictList
+    return groupDictList
 
 
 def gprank(type, n):
@@ -2274,7 +2279,7 @@ def freed_witten(a, bi, rwmat, itens):
 
     # Decompose on the basis
     b = basis_decomposition(rwmat, bi, DCharges)
-    #print("Original decomp", b)
+    print("Original decomp", b)
 
     # We now need to check a few subtleties
     # First, check for any basis divisors that don't intersect a_i * D_i = b_i * J_i. We don't need to consider their coefficients.
@@ -2286,19 +2291,19 @@ def freed_witten(a, bi, rwmat, itens):
     for j in range(h11):
         toAdd = np.multiply(b[j], itensArrs[j])
         divItens = np.add(toAdd, divItens)
-    #print("This div:", divItens)
+    print("This div:", divItens)
 
     # Check which divisors don't intersect it
     dontIntersect = []
     for i in range(h11):
         if not is_nonzero(divItens[i,:]):
             dontIntersect.append(i)
-    #print("Don't intersect", dontIntersect)
+    print("Don't intersect", dontIntersect)
 
     # Set their coefficients to zero (which won't affect the integrality when divided by 2)
     for j in dontIntersect:
         b[j] = 0
-    #print("New decomp:", b)
+    print("New decomp:", b)
 
     # Now let's check for basis divisors that are numerically equivalent on D
     equiv = [[0]]
@@ -2328,13 +2333,13 @@ def freed_witten(a, bi, rwmat, itens):
 
         if not inSomeList:
             equiv.append([i])
-    #print("Equiv", equiv)
+    print("Equiv", equiv)
 
     # Combine the coefficients of any divisors that are numerically equivalent
     b2 = []
     for i in range(len(equiv)):
         b2.append(sum([b[k] for k in equiv[i]]))
-    #print("Final decomp:", b2)
+    print("Final decomp:", b2)
 
     # Check the Freed-Witten condition that the first Chern class of D is integral
     for i in range(len(b2)):
@@ -3186,7 +3191,7 @@ def run_gauge_groups_local(datafile, resultsfile, outfile, problems):
     gaugeGroups = []
     ct = 0
     with open(outfile, 'w') as f:
-        for i in range(num):
+        for i in range(1):
             print(i)
 
             if i in problems:
@@ -3288,19 +3293,19 @@ def run_gauge_groups_local(datafile, resultsfile, outfile, problems):
 
             # Otherwise, do the gauge group calculation
             else:
-                monDict, GGsX = gauge_groups_torics(polyid, geonum, trinum, 1, rwmat, sigma, o7, bi)
+                itens = "{{{0,0,0,0},{0,0,2,0},{0,2,0,0},{0,0,0,-2}},{{0,0,2,0},{0,0,4,0},{2,4,4,0},{0,0,0,0}},{{0,2,0,0},{2,4,4,0},{0,4,0,0},{0,0,0,0}},{{0,0,0,-2},{0,0,0,0},{0,0,0,0},{-2,0,0,8}}}"
+                itens = itens_m2p(itens)
+                GGsX = gauge_groups_torics(rwmat, sigma, o7, bi, itens)
                 #ggTuneX = toric_tuning(1, 1, 1, 1, rwmat, sigma, o7)
                 #GGsX = gauge_groups_invariants(1, 1, 1, 1, rwmat, sigma, o7, bi)
                 #GGsX = gauge_groups_combined(1, 1, 1, 1, rwmat, sigma, o7, bi, False)
                 gaugeGroups.append(GGsX)
 
                 # Write the gauge group dictionary to the output file
-                print(monDict)
                 print(GGsX)
-                f.write(str(json.dumps(monDict)))
-                f.write('\n')
-                f.write(str(GGsX))
-                f.write('\n')
+                for gg in GGsX:
+                    f.write(str(gg))
+                    f.write('\n')
             ct += 1
 
 
@@ -3378,6 +3383,7 @@ print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(gaugeDict,
 sys.stdout.flush()
 
 
+# TESTING FREED WITTEN
 # a = [0,1,2,0,0,0,0]
 # bi = [1,4,6]
 # rwmat = np.transpose(rwmat_m2p('{{0,0,0,1,0,1,1},{0,0,1,0,1,0,0},{1,1,0,2,0,2,0}}'))
@@ -3390,3 +3396,6 @@ sys.stdout.flush()
 
 # fw = freed_witten(a, bi, rwmat, itens)
 # print(fw)
+
+# LOCAL TEST
+#run_gauge_groups_local("h114-reduced.txt", "h114-results.txt", "newJSONexample.txt", [])
