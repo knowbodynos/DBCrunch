@@ -2279,7 +2279,7 @@ def freed_witten(a, bi, rwmat, itens):
 
     # Decompose on the basis
     b = basis_decomposition(rwmat, bi, DCharges)
-    print("Original decomp", b)
+    #print("Original decomp", b)
 
     # We now need to check a few subtleties
     # First, check for any basis divisors that don't intersect a_i * D_i = b_i * J_i. We don't need to consider their coefficients.
@@ -2291,19 +2291,19 @@ def freed_witten(a, bi, rwmat, itens):
     for j in range(h11):
         toAdd = np.multiply(b[j], itensArrs[j])
         divItens = np.add(toAdd, divItens)
-    print("This div:", divItens)
+    #print("This div:", divItens)
 
     # Check which divisors don't intersect it
     dontIntersect = []
     for i in range(h11):
         if not is_nonzero(divItens[i,:]):
             dontIntersect.append(i)
-    print("Don't intersect", dontIntersect)
+    #print("Don't intersect", dontIntersect)
 
     # Set their coefficients to zero (which won't affect the integrality when divided by 2)
     for j in dontIntersect:
         b[j] = 0
-    print("New decomp:", b)
+    #print("New decomp:", b)
 
     # Now let's check for basis divisors that are numerically equivalent on D
     equiv = [[0]]
@@ -2333,13 +2333,13 @@ def freed_witten(a, bi, rwmat, itens):
 
         if not inSomeList:
             equiv.append([i])
-    print("Equiv", equiv)
+    #print("Equiv", equiv)
 
     # Combine the coefficients of any divisors that are numerically equivalent
     b2 = []
     for i in range(len(equiv)):
         b2.append(sum([b[k] for k in equiv[i]]))
-    print("Final decomp:", b2)
+    #print("Final decomp:", b2)
 
     # Check the Freed-Witten condition that the first Chern class of D is integral
     for i in range(len(b2)):

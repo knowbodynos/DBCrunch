@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,linecache,traceback,re,subrocess,signal,json,mongolink;
+import sys,linecache,traceback,re,subprocess,signal,json,mongolink;
 
 #Misc. function definitions
 def PrintException():
@@ -35,7 +35,9 @@ try:
     workpath=sys.argv[3];
     jobstepname=sys.argv[4];
     #dbpush=eval(sys.argv[6]);
-    #markdone=sys.argv[7];
+    markdone=sys.argv[5];
+    writestats=eval(sys.argv[6]);
+    writestorage=eval(sys.argv[7]);
     
     cputime="";
     maxrss="";
@@ -60,7 +62,10 @@ try:
 
     indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
 
+    statsset={};
+
     try:
+        bsonsize=0;
         with open(workpath+"/"+jobstepname+".log","r") as logstream:
             for line in logstream:
                 #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
@@ -84,20 +89,41 @@ try:
                     #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
                     #if dbpush:
                     if linemarker=="+":
-                        bsonsize+=mongolink.bsonsize(doc);
-                        if dbpush:
-                            db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
+                        #print "c";
+                        #sys.stdout.flush();
+                        if writestorage:
+                            bsonsize+=mongolink.bsonsize(doc);
+                        #print "d";
+                        #sys.stdout.flush();
+                        #if dbpush:
+                        db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
                     elif linemarker=="-":
                         if len(doc)>0:
-                            bsonsize-=mongolink.bsonsize(doc);
-                            if dbpush:
-                                db[newcollection].update(newindexdoc,{"$unset":doc});
+                            #print "e";
+                            #sys.stdout.flush();
+                            if writestorage:
+                                bsonsize-=mongolink.bsonsize(doc);
+                            #print "f";
+                            #sys.stdout.flush();
+                            #if dbpush:
+                            db[newcollection].update(newindexdoc,{"$unset":doc});
                         else:
-                            removedocs=list(db[newcollection].find(newindexdoc));
-                            for removedoc in removedocs:
+                            #print mongolink.collectionfind(db,newcollection,newindexdoc,{},formatresult="expression");
+                            #sys.stdout.flush();
+                            #print "g";
+                            #sys.stdout.flush();
+                            #removedocs=list(db[newcollection].find(newindexdoc));
+                            #for removedoc in removedocs:
+                            if writestorage:
+                                removedoc=db[newcollection].find_one(newindexdoc);
+                                #print "h";
+                                #sys.stdout.flush();
                                 bsonsize-=mongolink.bsonsize(removedoc);
-                                if dbpush:
-                                    db[newcollection].remove(removedoc);
+                            #print "i";
+                            #sys.stdout.flush();
+                            #if dbpush:
+                                #db[newcollection].remove(removedoc);
+                            db[newcollection].remove(newindexdoc,multi=False);
                     #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
                     #sys.stdout.flush();
                 elif linehead=="CPUTime: ":
@@ -106,10 +132,23 @@ try:
                     maxrss=eval(line[len(linehead):].split(" ")[0]);
                 elif linehead=="MaxVMSize: ":
                     maxvmsize=eval(line[len(linehead):].split(" ")[0]);
-                elif linehead=="BSONSize: ":
-                    bsonsize=eval(line[len(linehead):].split(" ")[0]);
+                #elif linehead=="BSONSize: ":
+                #    bsonsize=eval(line[len(linehead):].split(" ")[0]);
 
-        db[basecollection].update(indexdoc,{"$set":{modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}}});
+        stats={};
+        if writestats:
+            stats.update({"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize});
+        if writestorage:
+            stats.update({"BSONSIZE":bsonsize});
+        statsset.update({modname+"STATS":stats});
+        #print "k";
+        #sys.stdout.flush();
+        if markdone!="":
+            statsset.update({modname+markdone:True});
+        #print "l";
+        #sys.stdout.flush();
+        if len(statsset)>0:
+            db[basecollection].update(indexdoc,{"$set":statsset});
 
         #print "CPUTime: "+str(cputime)+" seconds";
         #print "MaxRSS: "+str(maxrss)+" bytes";
@@ -121,7 +160,7 @@ try:
         #print "BSONSize: "+str(bsonsize)+" bytes";
     except IOError:
         print "File path \""+workpath+"/"+jobstepname+".log\" does not exist.";
-    #sys.stdout.flush();
+    sys.stdout.flush();
     #else:
     #    #print subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0];#,preexec_fn=default_sigpipe).communicate()[0];
     #    #print jobstepid;
