@@ -2097,6 +2097,26 @@ def gauge_group_config(rwmat, sigma, o7Charges, fsets, config):
     return 'x'.join(gg)
 
 
+def sigma_reduce(lst, sigma):
+
+    # Half the values of the sigma-invariant entries
+    for i in range(len(lst)):
+        insig = False
+        for swap in sigma:
+            if i in swap:
+                insig = True
+            break
+        if insig:
+            continue
+
+        lst[i] = int(lst[i]/2)
+
+    # Remove one of the entries from each swap
+    for swap in sigma:
+        lst[swap[0]] = 0
+    return lst
+    
+
 #def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
 def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
     """Computes the gauge groups."""
@@ -2129,7 +2149,7 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
     configs = configs2
 
     # Second redundancy removal - remove configurations that may not be orientifold image pairs, but which lead to the same overall configuration
-    configs2 = []
+    #configs2 = []
     sumConfigs = []
     for cf in configs:
         scf = sigma_list(cf, sigma)
@@ -2137,9 +2157,10 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
         if sumConfig in sumConfigs:
             continue
         else:
-            configs2.append(cf)
+            #configs2.append(cf)
             sumConfigs.append(sumConfig)
-    configs = configs2
+    configs = sumConfigs
+    configs = [sigma_reduce(w, sigma) for w in configs]
 
 
     # The possible gauge groups and number multipliers
@@ -2230,7 +2251,7 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
                 gtypes.append(gtype)
                 nums.append(num)
                 ggs.append(gtype + '(' + str(num) + ')')
-                toricdivs.append(j+1)
+                toricdivs.append(j)
 
         # Get the multiplicities
         ggCount = Counter(ggs)
@@ -2246,24 +2267,27 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
         for k in range(len(ggs)):
             div = toricdivs[k]
             sdiv = sigma_value(div, sigma)
+
             # Skip if this gauge group has already been covered
             if ggs[k] in used:
-                ggDivs[ggs[k]] = ggDivs[ggs[k]] + [div, sdiv]
+                ggDivs[ggs[k]] = ggDivs[ggs[k]] + [div+1, sdiv+1]
                 continue
+
             ggsList.append([gtypes[k], nums[k], mults[k], ggs[k]])
-            ggDivs[ggs[k]] = [div, sdiv]
+            ggDivs[ggs[k]] = [div+1, sdiv+1]
             w += 1
             used.append(ggs[k])
 
         for key in ggDivs.keys():
             ggDivs[key] = sorted(list(set(ggDivs[key])))
 
-        # Add these gauge groups to the overall list, if necessary
-        for grp in used:
-            if grp not in ggList:
-                ggList.append(grp)
 
-        ggList = sorted(ggList)
+        # # Add these gauge groups to the overall list, if necessary
+        # for grp in used:
+        #     if grp not in ggList:
+        #         ggList.append(grp)
+
+        # ggList = sorted(ggList)
         
         # Now create a dictionary for each factor group in the configuration
         ggDictList = []
@@ -2281,6 +2305,10 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
         groupsDict = copy.deepcopy(configDict)
         groupsDict[gpskey] = ggDictList
         groupDictList.append(groupsDict)
+
+        #print(ggDictList)
+        #print(groupsDict)
+        #print("====")
 
     #mon = [str(poly_index_raiser(w, pr)) for w in mon]
     #monDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum}
@@ -3435,4 +3463,4 @@ sys.stdout.flush()
 # print(fw)
 
 # LOCAL TEST
-# run_gauge_groups_local("h114-reduced.txt", "h114-results.txt", "newJSONexample.txt", [])
+#run_gauge_groups_local("h114-reduced.txt", "h114-results.txt", "_GGtest.txt", [])
