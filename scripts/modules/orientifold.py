@@ -112,8 +112,8 @@ def symm_poly_swap(poly, sigma, pr):
     """Determines the terms of the CY which are symmetric under the involution."""
     symmPoly = pr(0)
     used = []
-    cf = 1
     polyKeys = [list(w) for w in poly.dict().keys()]
+    nterms = len(polyKeys)
     for key in polyKeys:
         key = list(key)
         skey = sigma_list(key, sigma)
@@ -121,16 +121,15 @@ def symm_poly_swap(poly, sigma, pr):
         if key in used or skey in used:
             continue
 
+        cf = int(ZZ.random_element(-2*nterms, 2*nterms))
         if skey == key:
             symmPoly += pr({tuple(key) : cf})
             used.append(key)
-            cf += 1
         elif skey in polyKeys:
             symmPoly += pr({tuple(key) : cf})
             symmPoly += pr({tuple(skey) : cf})
             used.append(key)
             used.append(skey)
-            cf += 1
 
     return symmPoly
 
@@ -1001,7 +1000,7 @@ def sectors(sr, pr):
         sector = sorted(sector)
         pgens = []
         for num in sector:
-            pgens.append(pr(x[num] - 1))
+            pgens.append(pr(x[num] - int(1)))
         gensets.append(pgens)
 
     return gensets
@@ -2021,11 +2020,6 @@ def allbaseshodgesplit(h11, h21, invol, basisinds, dresverts, rwmat):
     result.extend([result0[0][0],result0[0][1],result0[0][2][1],result0[0][3][1]]);
     return result;
 
-def get_tjurina(coords, cypoly, oplane):
-    R = singular.ring(1500450271,str(coords),"dp")
-    I = singular.ideal([str(cypoly)]+[str(x) for x in oplane])
-    return int(I.tjurina())
-
 def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat):
     """Runs the entire routine for a single example."""
 
@@ -2034,12 +2028,13 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     trikey = "TRIANGN"
     geokey = "GEOMN"
     invkey = "INVOLN"
-    origcyseckey = "NCYTERMS"
-    symcyseckey = "NSYMCYTERMS"
+    norigcykey = "NCYTERMS"
+    nsymcykey = "NSYMCYTERMS"
+    origcykey = "CYPOLY"
+    symcykey = "SYMCYPOLY"
     oplaneskey = "OPLANES"
     odimkey = "ODIM"
     oidealkey = "OIDEAL"
-    tjurinakey = "OTJURINA"
     #o7key = "O7"
     #o5key = "O5"
     #o3key = "O3"
@@ -2115,17 +2110,19 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
         # cypoly = general_poly(rwn, charges, pr=pry)
         # cypoly = symm_poly(cypoly, ai, pry)
         # cypoly = poly_ytox(cypoly, polys, prx, pry, ni)
-        cypoly = general_poly(rwmat, charges, pr=prx)
-        nterms1 = len(cypoly.dict().keys())
-        cypoly = symm_poly_swap(cypoly, invol, prx)
-        nterms2 = len(cypoly.dict().keys())
+        origcypoly = general_poly(rwmat, charges, pr=prx)
+        origcypolyterms=origcypoly.monomials()
+        norigcypolyterms = len(origcypolyterms)
+        symcypoly = symm_poly_swap(origcypoly, invol, prx)
+        symcypolyterms = symcypoly.monomials()
+        nsymcypolyterms = len(symcypolyterms)
         pr = prx
 
         # Sort the fixed sets into O7, O5, O3, O1 by finding the codimension
         for i in range(len(fsets)):
             fset = fsets[i]
             fsetx = fsetsx[i]
-            fset, fr = fset_reduced(prx, fset, sr, cypoly, polys, ni, rwn)
+            fset, fr = fset_reduced(prx, fset, sr, symcypoly, polys, ni, rwn)
 
             if (fset, fr) == (None, None):
                 continue
@@ -2148,16 +2145,14 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #else:
             #    other.append(fsetx)
             #    otherred.append(fr)
-            tjurina = get_tjurina(prx.gens(), cypoly, fsetx);
-            oplane = {odimkey:odim, oidealkey:fsetx, tjurinakey:tjurina}
+            oplane = {odimkey:odim, oidealkey:fsetx}
             oplanes.append(oplane)
             #if On in oplanes.keys():
             #    oplanes[On].append({oidealkey:fsetx,tjurinakey:tjurina})
             #else:
             #    oplanes[On] = [{oidealkey:fsetx,tjurinakey:tjurina}]
 
-            tjurinared = get_tjurina(prx.gens(), cypoly, fr);
-            oplanered = {odimkey:odim, oidealkey:fr, tjurinakey:tjurinared}
+            oplanered = {odimkey:odim, oidealkey:fr}
             oplanesred.append(oplanered)
             #if On in oplanesred.keys():
             #    oplanesred[On].append({oidealkey:fr,tjurinakey:tjurinared})
@@ -2171,10 +2166,12 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
         rwmat = np.matrix(rwmat)
 
         # Use the most general poly for now
-        cypoly = general_poly(rwmat, charges, pr=pr)
-        nterms1 = len(cypoly.dict().keys())
-        cypoly = symm_poly_swap(cypoly, invol, pr)
-        nterms2 = len(cypoly.dict().keys())
+        origcypoly = general_poly(rwmat, charges, pr=pr)
+        origcypolyterms=origcypoly.monomials()
+        norigcypolyterms = len(origcypolyterms)
+        symcypoly = symm_poly_swap(origcypoly, invol, pr)
+        symcypolyterms = symcypoly.monomials()
+        nsymcypolyterms = len(symcypolyterms)
         #print(cypoly1)
         #print(cypoly)
         #print(cypoly1 - cypoly)
@@ -2183,7 +2180,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
 
         # Sort the fixed sets into O7, O5, O3, O1 by finding the codimension
         for fset in fsets:
-            fset, fr = fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn)
+            fset, fr = fset_reduced(pr, fset, sr, symcypoly, polys, ni, rwn)
 
             if (fset, fr) == (None, None):
                 continue
@@ -2203,16 +2200,14 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #elif codim == 4:
             #    o1.append(fset)
             #    o1red.append(fr)
-            tjurina = get_tjurina(pr.gens(), cypoly, fset);
-            oplane = {odimkey:odim, oidealkey:fset, tjurinakey:tjurina}
+            oplane = {odimkey:odim, oidealkey:fset}
             oplanes.append(oplane)
             #if On in oplanes.keys():
             #    oplanes[On].append({oidealkey:fset,tjurinakey:tjurina})
             #else:
             #    oplanes[On] = [{oidealkey:fset,tjurinakey:tjurina}]
 
-            tjurinared = get_tjurina(pr.gens(), cypoly, fr);
-            oplanered = {odimkey:odim, oidealkey:fr, tjurinakey:tjurinared}
+            oplanered = {odimkey:odim, oidealkey:fr}
             oplanesred.append(oplanered)
             #if On in oplanesred.keys():
             #    oplanesred[On].append({oidealkey:fr,tjurinakey:tjurinared})
@@ -2227,6 +2222,20 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     newnames = ['x' + str(i) for i in range(n+1)]
     prn = PolynomialRing(base_ring=CC, names=newnames)
     pt = [prn(w) for w in newnames[1:]] + [0]
+
+    temporigcypolyterms=[];
+    for origcyterm in origcypolyterms:
+        w = prn(origcyterm)
+        w = w(pt)
+        temporigcypolyterms += [py2mat(prn(w))]
+    origcypolyterms = temporigcypolyterms
+
+    tempsymcypolyterms=[];
+    for symcyterm in symcypolyterms:
+        w = prn(symcyterm)
+        w = w(pt)
+        tempsymcypolyterms += [py2mat(prn(w))]
+    symcypolyterms = tempsymcypolyterms
     #oplanes = [o1,o3,o5,o7]
     #for key in oplanes.keys():
     #    oplaneval = oplanes[key]
@@ -2282,8 +2291,10 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     #output[h21splitkey] = py2mat(h21split)
     output[h11pluskey], output[h11minuskey] = h11split
     output[h21pluskey], output[h21minuskey] = h21split
-    output[origcyseckey] = nterms1
-    output[symcyseckey] = nterms2
+    output[origcykey] = origcypolyterms
+    output[norigcykey] = norigcypolyterms
+    output[symcykey] = symcypolyterms
+    output[nsymcykey] = nsymcypolyterms
 
     # Reindex invol to match the database/Mathematica format
     #invol = [[w+1 for w in f] for f in invol]
@@ -2295,6 +2306,24 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     # print(general_poly(rwmat, cgs))
 
     return [query, output]
+
+
+def main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat):
+    oplaneskey = "OPLANES"  
+    [query1, results1] = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
+    [query2, results2] = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
+    oplanes1  = results1[oplaneskey]
+    oplanes2 = results2[oplaneskey]
+
+    if oplanes1 == oplanes2:
+        return [query1, results1]
+    else:
+        [query3, results3] = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
+        oplanes3 = results3[oplaneskey]
+        if oplanes3 == oplanes1:
+            return [query1, results1]
+        else:
+            return [query2, results2]
 
 
 def main_all(filename, tofile):
@@ -2338,7 +2367,7 @@ def main_all(filename, tofile):
 
 #main_all("h114.txt", "h114-results-vF.txt")
 
-_ = singular.LIB("sing.lib")
+#_ = singular.LIB("sing.lib")
 
 involdoc = json.loads(sys.argv[1])
 polyid = involdoc['POLYID']
@@ -2358,7 +2387,7 @@ basisinds = [x-1 for x in tools.transpose_list(mat2py(re.sub("[JD]","",basis)))[
 sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
 rwmat = np.array(mat2py(rwmat))
 
-query, output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
+query, output = main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
 
 print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(output,separators=(',',':'))
 sys.stdout.flush()
