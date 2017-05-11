@@ -721,6 +721,7 @@ def waitforslots(licensestream,username,modname,controllername,controllerpath,qu
         #fcntl.flock(licensestream,fcntl.LOCK_EX);
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a+", so instead use bitwise OR with non-blocking and loop until lock is acquired.
         while (timeleft(starttime,controllerbuffertimelimit)>0):
+            releaseheldjobs(username,modname,controllername);
             try:
                 fcntl.flock(licensestream,fcntl.LOCK_EX | fcntl.LOCK_NB);
                 break;
@@ -948,6 +949,7 @@ def doaction(batchcounter,stepcounter,inputdoc,docbatch,nthreadsfield,licensestr
     #seekstream.flush();
     #seekstream.seek(0);
     #doc=querystream.readline();
+    releaseheldjobs(username,modname,controllername);
     return nextdocind;#docbatchpass;
 
 def docounterupdate(batchcounter,stepcounter,counterstatefile,counterheader):
@@ -1017,7 +1019,7 @@ try:
     #If first submission, read from database
     #if seekpos==-1:
     #Open connection to remote database
-
+    #sys.stdout.flush();
     controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition%30,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
     while len(controllerstats)<4:
         time.sleep(sleeptime);

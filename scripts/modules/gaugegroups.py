@@ -2098,23 +2098,18 @@ def gauge_group_config(rwmat, sigma, o7Charges, fsets, config):
 
 
 def sigma_reduce(lst, sigma):
-
-    # Half the values of the sigma-invariant entries
-    for i in range(len(lst)):
-        insig = False
-        for swap in sigma:
-            if i in swap:
-                insig = True
-            break
-        if insig:
-            continue
-
-        lst[i] = int(lst[i]/2)
-
-    # Remove one of the entries from each swap
+    lst2 = copy.deepcopy(lst)
+    # Remove one value from each of the orientifold pair indices
     for swap in sigma:
-        lst[swap[0]] = 0
-    return lst
+        lst2[swap[0]] = 0
+
+    # Cut the orientifold-invariant values in half
+    si = [w for b in sigma for w in b]
+    for i in range(len(lst)):
+        if i not in si:
+            lst2[i] = int(lst[i]/2)
+
+    return lst2
     
 
 #def gauge_groups_torics(polyid, geonum, trinum, involnum, h11, rwmat, sigma, o7s, bi):
@@ -2159,9 +2154,9 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
         else:
             #configs2.append(cf)
             sumConfigs.append(sumConfig)
-    configs = sumConfigs
-    configs = [sigma_reduce(w, sigma) for w in configs]
 
+    configs = copy.deepcopy(sumConfigs)
+    configs = [sigma_reduce(x, sigma) for x in configs]
 
     # The possible gauge groups and number multipliers
     ggTypes = ['U', 'SP', 'SO']
@@ -2306,9 +2301,9 @@ def gauge_groups_torics(rwmat, sigma, o7s, bi, itens):
         groupsDict[gpskey] = ggDictList
         groupDictList.append(groupsDict)
 
-        #print(ggDictList)
-        #print(groupsDict)
-        #print("====")
+        # print(ggDictList)
+        # print(groupsDict)
+        # print("====")
 
     #mon = [str(poly_index_raiser(w, pr)) for w in mon]
     #monDict = {polyidkey : polyid, geokey : geonum, trikey : trinum, involkey : involnum}
@@ -3256,14 +3251,14 @@ def run_gauge_groups_local(datafile, resultsfile, outfile, problems):
     gaugeGroups = []
     ct = 0
     with open(outfile, 'w') as f:
-        for i in range(1):
+        for i in range(2,3):
             print(i)
 
             if i in problems:
                 continue
 
             [polyid, geonum, bi, rwmat, trinum, sr, sigma] = data[i]
-            result = read_JSON(results[ct])
+            result = read_JSON(results[i])
             sigma = eval(result[sigmakey])
             sr = eval(result[srkey])
             rwmat = np.array(eval(result[rwmkey]))
@@ -3368,6 +3363,7 @@ def run_gauge_groups_local(datafile, resultsfile, outfile, problems):
 
                 # Write the gauge group dictionary to the output file
                 print(GGsX)
+                print(rwmat)
                 for gg in GGsX:
                     f.write(str(gg))
                     f.write('\n')
@@ -3446,21 +3442,3 @@ for i in range(len(GGsX)):
 gaugeDict = {"GAUGE":GGsX}
 print "+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(gaugeDict,separators=(',',':'))
 sys.stdout.flush()
-
-
-# TESTING FREED WITTEN
-# a = [0,1,2,0,0,0,0]
-# bi = [1,4,6]
-# rwmat = np.transpose(rwmat_m2p('{{0,0,0,1,0,1,1},{0,0,1,0,1,0,0},{1,1,0,2,0,2,0}}'))
-# #Original
-# #itens = itens_m2p('{{{0,0,0},{0,0,3},{0,3,2}},{{0,0,3},{0,0,0},{3,0,-6}},{{0,3,2},{3,0,-6},{2,-6,-8}}}')
-# #Modified
-# itens = itens_m2p('{{{0,0,9},{1,0,1},{0,3,2}},{{1,0,1},{0,0,3},{3,0,-6}},{{0,3,2},{3,0,-6},{2,-6,-8}}}')
-# print(rwmat)
-# print(itens)
-
-# fw = freed_witten(a, bi, rwmat, itens)
-# print(fw)
-
-# LOCAL TEST
-#run_gauge_groups_local("h114-reduced.txt", "h114-results.txt", "_GGtest.txt", [])

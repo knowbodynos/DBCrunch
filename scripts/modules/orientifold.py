@@ -1359,7 +1359,7 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
     k = len(fset)
     q = len(sr)
 
-    if rwn != None:
+    if type(rwn) != type(None):
         # Convert the fixed set (given in terms of the ys) into expressions in terms of x
         fstrs = [positive_order(w).strip() for w in fset]
         fsetx = []
@@ -1373,19 +1373,20 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
     else:
         fsetx = fset
 
-    # Check to see whether or not each element of the fixed set is trivially redundant
-    for i in range(k):
-        p = fsetx[i]
-        idp = pr.ideal(p)
-        if cypoly.reduce(idp) == 0:
-            fset2 = copy.deepcopy(fset)
-            fset2.pop(i)
-            return fset_reduced(pr, fset2, sr, cypoly, polys, ni, rwn)
+    # # Check to see whether or not each element of the fixed set is trivially redundant
+    # for i in range(k):
+    #     p = fsetx[i]
+    #     idp = pr.ideal(p)
+    #     if cypoly.reduce(idp) == 0:
+    #         fset2 = copy.deepcopy(fset)
+    #         fset2.pop(i)
+    #         return fset_reduced(pr, fset2, sr, cypoly, polys, ni, rwn)
 
     # if k < 2:
     #     return fsetx, fset
 
-    bases = []
+    #bases = []
+    dims = []
     secs = sectors(sr, pr)
 
     # Add auxiliary variables
@@ -1405,15 +1406,22 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
         ig = pr.ideal(gset)
         # print(ig)
         # print(ig.groebner_basis())
-        base = ig.groebner_basis()
-        bases.append(base)
+        #base = ig.groebner_basis()
+        #bases.append(base)
+        d = ig.dimension()
+        dims.append(d)
         #print(ig, base)
         # print(ig.groebner_basis())
     
     prz = PolynomialRing(base_ring=ZZ, names=pr.variable_names())
     good = False
-    for base in bases:
-        if base != [pr(1)]:
+    #for base in bases:
+    #    if base != [pr(1)]:
+    #        good = True
+    #        #print("not 1")
+    #        break
+    for dim in dims:
+        if dim > -1:
             good = True
             #print("not 1")
             break
@@ -1421,7 +1429,7 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
         return None, None
     # print("=====")
 
-    dims = [len(base) for base in bases]
+    #dims = [len(base) for base in bases]
 
     for i in range(k):
         lst = list(itertools.combinations(fsetx, i))
@@ -1436,7 +1444,8 @@ def fset_reduced(pr, fset, sr, cypoly, polys, ni, rwn=None):
                 igen = pr.ideal(gset)
                 #print(igen)
                 # print(igen.groebner_basis())
-                d = len(igen.groebner_basis())
+                #d = len(igen.groebner_basis())
+                d = igen.dimension()
                 if d != dims[i]:
                     test = False
                     break
@@ -1673,7 +1682,11 @@ def fixed_flip(rwold, ni, ai, polys, sr, rwmat):
             u += rwmat[i,j]
         ub.append(u)
 
-    rwcols = [rwmat[:,j].tolist()[0] for j in range(n)]
+    rwcols = []
+    for j in range(n):
+        col = rwmat[:,j].tolist()
+        col = [w[0] for w in col]
+        rwcols.append(col)
     zi = [ai] # The trivial fixed set
     nf = []
 
@@ -2119,12 +2132,36 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
         pr = prx
 
         # Sort the fixed sets into O7, O5, O3, O1 by finding the codimension
+        #print("Unreduced fsets", fsets)
+        frs = []
+        fsets2 = []
         for i in range(len(fsets)):
             fset = fsets[i]
+            #print(fset)
             fsetx = fsetsx[i]
             fset, fr = fset_reduced(prx, fset, sr, symcypoly, polys, ni, rwn)
+            fsets2.append(fset)
+            frs.append(fr)
 
-            if (fset, fr) == (None, None):
+        # Remove redundant fixed sets
+        remove = []
+        for p1 in range(len(frs)):
+            if frs[p1] == None:
+                continue
+            for p2 in range(len(frs)):
+                if frs[p2] == None:
+                    continue
+                if sublist_of(frs[p1], frs[p2]) and p1 != p2:
+                    remove.append(p2)
+        fsets2 = [fsets2[w] for w in range(len(fsets2)) if w not in remove]
+        frs = [frs[w] for w in range(len(frs)) if w not in remove]
+
+        for i in range(len(frs)):
+            fr = frs[i]
+            fset = fsets2[i]
+            fsetx = copy.deepcopy(fsets2[i])
+
+            if (fsetx, fr) == (None, None):
                 continue
 
             codim = len(fr)
@@ -2179,8 +2216,32 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
         rwnFull = rwmat
 
         # Sort the fixed sets into O7, O5, O3, O1 by finding the codimension
-        for fset in fsets:
+        #print("Unreduced fsets", fsets)
+        frs = []
+        fsets2 = []
+        for i in range(len(fsets)):
+            fset = fsets[i]
+            #print(fset)
             fset, fr = fset_reduced(pr, fset, sr, symcypoly, polys, ni, rwn)
+            fsets2.append(fset)
+            frs.append(fr)
+
+        # Remove redundant fixed sets
+        remove = []
+        for p1 in range(len(frs)):
+            if frs[p1] == None:
+                continue
+            for p2 in range(len(frs)):
+                if frs[p2] == None:
+                    continue
+                if sublist_of(frs[p1], frs[p2]) and p1 != p2:
+                    remove.append(p2)
+        fsets2 = [fsets2[w] for w in range(len(fsets2)) if w not in remove]
+        frs = [frs[w] for w in range(len(frs)) if w not in remove]
+
+        for i in range(len(frs)):
+            fr = frs[i]
+            fset = fsets2[i]
 
             if (fset, fr) == (None, None):
                 continue
@@ -2308,6 +2369,15 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
     return [query, output]
 
 
+def read_JSON(string):
+    """Reads in results as a JSON string, returns a dict of which the properties are the values."""
+    string.replace("{","[")
+    string.replace("}","]")
+    string = string.split('\'')
+    string = '\"'.join(string)
+    return json.loads(string)
+
+
 def main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat):
     oplaneskey = "OPLANES"  
     [query1, results1] = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat)
@@ -2368,6 +2438,11 @@ def main_all(filename, tofile):
 #main_all("h114.txt", "h114-results-vF.txt")
 
 #_ = singular.LIB("sing.lib")
+
+# FOR LOCAL TEST
+#involdoc = {"DRESVERTS":"{{-1,-1,-1,0},{-1,-1,-1,1},{-1,-1,0,0},{-1,0,-1,1},{0,-1,0,0},{0,0,-1,0},{2,2,2,-1}}","TRIANGN":1,"POLYID":87,"H11":3,"BASIS":"{{J1,D5},{J2,D6},{J3,D7}}","H21":72,"RESCWS":"{{0,1,1},{1,0,1},{1,0,0},{0,1,0},{0,1,0},{1,0,0},{1,1,1}}","INVOLN":1,"GEOMN":1,"SRIDEAL":"{D3*D6,D4*D5,D1*D2*D7}","INVOL":"{D1->D2,D2->D1}"}
+#involdoc = {"DRESVERTS":"{{-1,0,0,0},{-1,0,0,1},{-1,0,2,0},{-1,4,-2,-1},{1,-1,0,0},{-1,0,1,0},{-1,2,-1,0}}","TRIANGN":1,"POLYID":147,"H11":3,"BASIS":"{{J1,D3},{J2,D4},{J3,D7}}","H21":83,"RESCWS":"{{0,0,1},{0,1,1},{0,0,1},{0,1,1},{2,4,4},{1,2,0},{1,0,0}}","INVOLN":2,"GEOMN":1,"SRIDEAL":"{D1*D3,D2*D4,D5*D6*D7}","INVOL":"{D1->D2,D2->D1,D3->D4,D4->D3}"}
+#involdoc = read_JSON(str(involdoc))
 
 involdoc = json.loads(sys.argv[1])
 polyid = involdoc['POLYID']
