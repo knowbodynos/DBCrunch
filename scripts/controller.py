@@ -400,11 +400,11 @@ def reloadskippedjobs(modname,controllername,controllerpath,querystatefilename,b
         sys.stdout.flush();
 
 def releaseheldjobs(username,modname,controllername):
-    subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
+    subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%j %A %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
     #print "releaseheldjobs";
     #print "for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done";
     #print "";
-    #sys.stdout.flush();
+    sys.stdout.flush();
 
 def orderpartitions(partitions):
     greppartitions="|".join(partitions);
