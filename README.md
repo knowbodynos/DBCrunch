@@ -254,4 +254,5 @@ alias siwatch='_siwatch'
 alias scratch='cd /gss_gpfs_scratch/${USER}'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
 alias step2job='_step2job'
+alias statreset='cat *.stat | sed "s/False/True/g" >> ../skippedstate'
 ```
