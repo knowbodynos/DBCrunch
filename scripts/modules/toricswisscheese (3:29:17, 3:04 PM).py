@@ -59,7 +59,7 @@ def groupabsetpairs(origsetpairs,NL,h11,ab=0):
     else:
         return groupabsetpairs(unionsetpairs,NL,h11,ab);
 
-def ToricSwissCheese(h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,itensXD):
+def ToricSwissCheese(homogeneity_on,h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,itensXD):
     "Solves for the rotation matrices of a Toric Swiss Cheese solution."
     if fav:
         mori_cols=mongolink.transpose_list(mori_rows);
@@ -73,14 +73,12 @@ def ToricSwissCheese(h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,itensXD):
         #Take (NL,h11-NL) subsets that satisfy the small cycle condition
         RaLbsgroups=groupabsetpairs(RaLbssetpairs,NL,h11);
         #Check for orthogonality (required for a basis) and basis change conditions
-        #Rabgroups=[];
-        #Tab=[];
-        result=[];
-        homresult=[];
-        #rind=0;
-        #ind=0;
-        #int_basis_a=False;
-        #int_basis_b=False;
+        Rabgroups=[];
+        Tab=[];
+        rind=0;
+        ind=0;
+        int_basis_a=False;
+        int_basis_b=False;
         doneflag=False;
         for group in RaLbsgroups:
             aspossset=Set([z for z in range(ndivsD) if z not in group[0]]).subsets(h11-NL).list();
@@ -139,59 +137,48 @@ def ToricSwissCheese(h11,NL,dresverts,fgp,fav,JtoDmat,mori_rows,itensXD):
                                                 break;
                                         if lcflag:
                                             #Homogeneity
-                                            #if homogeneity_on:
+                                            if homogeneity_on:
                                                 #homflag=False;
-                                            for j in r[0][1]:
-                                                if(not any([itensXD[i][i][j]==0 for i in r[1][1]])):
-                                                    homflag=True;
-                                                    break;
-                                            #else:
-                                            #    homflag=True;
-                            if (volflag and lkconeflag and skconeflag and lcflag):# and homflag):
+                                                for j in r[0][1]:
+                                                    if(not any([itensXD[i][i][j]==0 for i in r[1][1]])):
+                                                        homflag=True;
+                                                        break;
+                                            else:
+                                                homflag=True;
+                            if (volflag and lkconeflag and skconeflag and lcflag and homflag):
                                 #Convert to rotation matrices
                                 Ta=[JtoDmat[j] for j in r[0][0]+r[0][1]];
                                 Tb=[JtoDmat[j] for j in r[1][0]+r[1][1]];
-                                #Rabgroups+=[r];
-                                #Tab+=[[Ta,Tb]];
+                                Rabgroups+=[r];
+                                Tab+=[[Ta,Tb]];
                                 #Check for integer bases
                                 a_integer=simpvol([dresverts[m] for m in range(ndivsD) if m not in r[0][0]+r[0][1]])==fgp;
                                 b_integer=simpvol([dresverts[m] for m in range(ndivsD) if m not in r[1][0]+r[1][1]])==fgp;
-                                result+=[[NL,[Ta,Tb],a_integer,b_integer,homflag]];
-                                if homflag:
-                                    homresult+=[[NL,[Ta,Tb],a_integer,b_integer,homflag]];
-                                    if a_integer and b_integer:
-                                        #int_basis_a=True;
-                                        #int_basis_b=True;
-                                        #ind=rind;
-                                        doneflag=True;
-                                        break;
-                                #elif a_integer and (not b_integer) and not (int_basis_a or int_basis_b):
-                                #    int_basis_a=True;
-                                #    int_basis_b=False;
-                                #    ind=rind;
-                                #elif (not a_integer) and b_integer and not (int_basis_a or int_basis_b):
-                                #    int_basis_a=False;
-                                #    int_basis_b=True;
-                                #    ind=rind;
-                                #rind+=1;
+                                if a_integer and b_integer:
+                                    int_basis_a=True;
+                                    int_basis_b=True;
+                                    ind=rind;
+                                    doneflag=True;
+                                    break;
+                                elif a_integer and (not b_integer) and not (int_basis_a or int_basis_b):
+                                    int_basis_a=True;
+                                    int_basis_b=False;
+                                    ind=rind;
+                                elif (not a_integer) and b_integer and not (int_basis_a or int_basis_b):
+                                    int_basis_a=False;
+                                    int_basis_b=True;
+                                    ind=rind;
+                                rind+=1;
                 if doneflag:
                     break;
             if doneflag:
                 break;                        
-        #if len(Tab)==0:
-        #    return [NL,[],int_basis_a,int_basis_b];
-        #else:
-        #    return [NL,Tab[ind],int_basis_a,int_basis_b];
-        if doneflag:
-            return [NL,[Ta,Tb],a_integer,b_integer,homflag];
-        elif len(homresult)>0:
-            return homresult[0];
-        elif len(result)>0:
-            return result[0];
+        if len(Tab)==0:
+            return [NL,[],int_basis_a,int_basis_b];
         else:
-            return [NL,[],False,False,False];
+            return [NL,Tab[ind],int_basis_a,int_basis_b];
     else:
-        return [NL,"unfav",False,False,False];
+        return [NL,"unfav",0,0];
 
 #################################################################################
 #Main body
@@ -235,53 +222,21 @@ if rank==0:
             #Loop over each triangulation with the current number of large cycles
             for x in triangdata_chunk:
                 #Get swiss cheese rotation matrices for this triangulation
-                toricswisscheese_chunk=ToricSwissCheese(h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
-                #If both rotation matrices rotate the basis into another integer basis and the homogeneity condition is satisfied, use them and skip to the next triangulation. Else add them to a list 
+                toricswisscheese_chunk=ToricSwissCheese(False,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
+                #If both rotation matrices rotate the basis into another integer basis, use them and skip to the next triangulation. Else add them to a list 
                 int_basis_a=toricswisscheese_chunk[2];
                 int_basis_b=toricswisscheese_chunk[3];
-                homflag=toricswisscheese_chunk[4];
-                if (int_basis_a and int_basis_b and homflag):
+                if (int_basis_a and int_basis_b):
                     gath+=[toricswisscheese_chunk];
                     scflag=True;
                     break;
                 toricswisscheese_NL_chunk+=[toricswisscheese_chunk];
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list both of them rotate into an integer basis but the homogeneity condition is not satisfied, then use them and skip to the next NL
+            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis, then use them and skip to the next NL
             if not scflag:
                 for toricswisscheese_chunk in toricswisscheese_NL_chunk:
                     int_basis_a=toricswisscheese_chunk[2];
                     int_basis_b=toricswisscheese_chunk[3];
-                    homflag=toricswisscheese_chunk[4];
-                    if (int_basis_a and int_basis_b):
-                        gath+=[toricswisscheese_chunk];
-                        scflag=True;
-                        break;
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis and the homogeneity condition is satisfied, then use them and skip to the next NL
-            if not scflag:
-                for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                    int_basis_a=toricswisscheese_chunk[2];
-                    int_basis_b=toricswisscheese_chunk[3];
-                    homflag=toricswisscheese_chunk[4];
-                    if ((int_basis_a or int_basis_b) and homflag):
-                        gath+=[toricswisscheese_chunk];
-                        scflag=True;
-                        break;
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis but the homogeneity condition is not satisfied, then use them and skip to the next NL
-            if not scflag:
-                for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                    int_basis_a=toricswisscheese_chunk[2];
-                    int_basis_b=toricswisscheese_chunk[3];
-                    homflag=toricswisscheese_chunk[4];
                     if (int_basis_a or int_basis_b):
-                        gath+=[toricswisscheese_chunk];
-                        scflag=True;
-                        break;
-            #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list the homogeneity condition is satisfied, then use them and skip to the next NL
-            if not scflag:
-                for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                    int_basis_a=toricswisscheese_chunk[2];
-                    int_basis_b=toricswisscheese_chunk[3];
-                    homflag=toricswisscheese_chunk[4];
-                    if homflag:
                         gath+=[toricswisscheese_chunk];
                         scflag=True;
                         break;
@@ -309,7 +264,7 @@ if rank==0:
         else:
             for toricswisscheese_NL in posttoricswisscheese:
                 if len(toricswisscheese_NL[1])>0 and toricswisscheese_NL[1]!="unfav":
-                    print "+SWISSCHEESE."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'H11':h11,'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3]),'HOM':bool(toricswisscheese_NL[4])},separators=(',',':'));
+                    print "+SWISSCHEESE."+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0]},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':geomn,'NLARGE':toricswisscheese_NL[0],'H11':h11,'RMAT2CYCLE':py2mat(toricswisscheese_NL[1][0]),'RMAT4CYCLE':py2mat(toricswisscheese_NL[1][1]),'INTBASIS2CYCLE':bool(toricswisscheese_NL[2]),'INTBASIS4CYCLE':bool(toricswisscheese_NL[3])},separators=(',',':'));
                 else:
                     print "None";
         sys.stdout.flush();
@@ -374,60 +329,28 @@ else:
                     #Loop over each triangulation with the current number of large cycles
                     for x in triangdata_chunk:
                         #Get swiss cheese rotation matrices for this triangulation
-                        toricswisscheese_chunk=ToricSwissCheese(h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
-                        #If both rotation matrices rotate the basis into another integer basis and the homogeneity condition is satisfied, use them and skip to the next triangulation. Else add them to a list 
-                        int_basis_a=toricswisscheese_chunk[2];
-                        int_basis_b=toricswisscheese_chunk[3];
-                        homflag=toricswisscheese_chunk[4];
-                        if (int_basis_a and int_basis_b and homflag):
+                        toricswisscheese_chunk=ToricSwissCheese(False,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
+                        #If both rotation matrices rotate the basis into another integer basis, use them and skip to the next triangulation. Else add them to a list 
+                        int_basis_a=toricswisscheese_chunk[1];
+                        int_basis_b=toricswisscheese_chunk[2];
+                        if (int_basis_a and int_basis_b):
                             gath+=[toricswisscheese_chunk];
                             scflag=True;
                             break;
                         toricswisscheese_NL_chunk+=[toricswisscheese_chunk];
-                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list both of them rotate into an integer basis but the homogeneity condition is not satisfied, then use them and skip to the next NL
+                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis, then use them and skip to the next NL
                     if not scflag:
                         for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                            int_basis_a=toricswisscheese_chunk[2];
-                            int_basis_b=toricswisscheese_chunk[3];
-                            homflag=toricswisscheese_chunk[4];
-                            if (int_basis_a and int_basis_b):
-                                gath+=[toricswisscheese_chunk];
-                                scflag=True;
-                                break;
-                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis and the homogeneity condition is satisfied, then use them and skip to the next NL
-                    if not scflag:
-                        for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                            int_basis_a=toricswisscheese_chunk[2];
-                            int_basis_b=toricswisscheese_chunk[3];
-                            homflag=toricswisscheese_chunk[4];
-                            if ((int_basis_a or int_basis_b) and homflag):
-                                gath+=[toricswisscheese_chunk];
-                                scflag=True;
-                                break;
-                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list only one of them rotates into an integer basis but the homogeneity condition is not satisfied, then use them and skip to the next NL
-                    if not scflag:
-                        for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                            int_basis_a=toricswisscheese_chunk[2];
-                            int_basis_b=toricswisscheese_chunk[3];
-                            homflag=toricswisscheese_chunk[4];
+                            int_basis_a=toricswisscheese_chunk[1];
+                            int_basis_b=toricswisscheese_chunk[2];
                             if (int_basis_a or int_basis_b):
-                                gath+=[toricswisscheese_chunk];
-                                scflag=True;
-                                break;
-                    #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list the homogeneity condition is satisfied, then use them and skip to the next NL
-                    if not scflag:
-                        for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                            int_basis_a=toricswisscheese_chunk[2];
-                            int_basis_b=toricswisscheese_chunk[3];
-                            homflag=toricswisscheese_chunk[4];
-                            if homflag:
                                 gath+=[toricswisscheese_chunk];
                                 scflag=True;
                                 break;
                     #If we have not already chosen a swiss cheese solution for this NL, check if for any pair of rotation matrices from the list one of them exists and is favorable, then use them and skip to the next NL
                     if not scflag:
                         for toricswisscheese_chunk in toricswisscheese_NL_chunk:
-                            if len(toricswisscheese_chunk[1])>0 and toricswisscheese_chunk[1]!="unfav":
+                            if toricswisscheese_chunk[0]!=[] and toricswisscheese_chunk[0]!="unfav":
                                 gath+=[toricswisscheese_chunk];
                                 scflag=True;
                                 break;

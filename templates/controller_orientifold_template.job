@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g-3"
+#SBATCH --partition="ser-par-10g-2"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -45,8 +45,8 @@ scriptlanguage="sage"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 writemode="truncate"
 scriptmemorylimit="500000000"
-scripttimelimit=""
-scriptbuffertime="00:05:00"
+scripttimelimit="00:15:00"
+scriptbuffertime="00:01:00"
 
 #Input database info
 queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'H21':1,'DRESVERTS':1,'RESCWS':1,'BASIS':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1,'SRIDEAL':1}],['INVOL',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1}]]"

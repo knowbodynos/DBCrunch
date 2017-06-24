@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "controller_explicit_template"
+#SBATCH -J "controller_divhodge_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/explicit/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/divhodge/template"
 #################
 #Job output file
-#SBATCH -o "controller_explicit_template.out"
+#SBATCH -o "controller_divhodge_template.out"
 #################
 #Job error file
-#SBATCH -e "controller_explicit_template.err"
+#SBATCH -e "controller_divhodge_template.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -34,7 +34,7 @@
 h11="template"
 
 #Input controller info
-modname="explicit"
+modname="divhodge"
 controllername="${h11}"
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
@@ -45,12 +45,12 @@ scriptlanguage="mathematica"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 writemode="truncate"
 scriptmemorylimit="1000000000"
-scripttimelimit="00:05:00"
-scriptbuffertime="00:01:00"
+scripttimelimit=""
+scriptbuffertime="00:05:00"
 
 #Input database info
-queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1}],['GEOM',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'GEOMN':1,'ITENSXJ':1,'KAHLERMAT':1}]]"
-basecollection="GEOM"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11}},{'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1}],['INVOL',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'INVOLN':1,'INVOL':1}]]"
+basecollection="INVOL"
 nthreadsfield=""
 
 #Options

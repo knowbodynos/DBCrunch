@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g-3"
+#SBATCH --partition="ser-par-10g-2"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -44,12 +44,12 @@ sleeptime="1"
 scriptlanguage="mathematica"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 writemode="truncate"
-scriptmemorylimit="1000000000"
+scriptmemorylimit="500000000"
 scripttimelimit=""
-scriptbuffertime="00:05:00"
+scriptbuffertime="00:01:00"
 
 #Input database info
-queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1}]]"
+queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'TRIANGN':1,'SRIDEAL':1,'IPOLYXD':1,'DIVCOHOM':1}]]"
 basecollection="TRIANG"
 nthreadsfield=""
 

@@ -12,9 +12,14 @@ involution
 orientifoldMat
 orientifold
 orientifold1
-gaugegroups
 orientifoldtest
+smoothness
+gaugegroups
+divhodge
+divhodgetriang
+cypoly
 explicit
+explicit2
 involutionfast
 mlearn
 facetntriangs

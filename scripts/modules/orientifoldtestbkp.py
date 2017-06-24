@@ -2159,9 +2159,8 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
         for i in range(len(frs)):
             fr = frs[i]
             fset = fsets2[i]
-            fsetx = copy.deepcopy(fsets2[i])
 
-            if (fsetx, fr) == (None, None):
+            if (fset, fr) == (None, None):
                 continue
 
             codim = len(fr)
@@ -2182,7 +2181,7 @@ def main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresver
             #else:
             #    other.append(fsetx)
             #    otherred.append(fr)
-            oplane = {odimkey:odim, oidealkey:fsetx}
+            oplane = {odimkey:odim, oidealkey:fset}
             oplanes.append(oplane)
             #if On in oplanes.keys():
             #    oplanes[On].append({oidealkey:fsetx,tjurinakey:tjurina})

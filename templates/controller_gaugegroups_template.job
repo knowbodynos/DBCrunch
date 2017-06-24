@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g-4"
+#SBATCH --partition="ser-par-10g-3"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -42,7 +42,7 @@ sleeptime="1"
 
 #Input script info
 scriptlanguage="sage"
-partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+partitions="ser-par-10g,ser-par-10g-3,ser-par-10g-4"
 writemode="truncate"
 scriptmemorylimit="500000000"
 scripttimelimit=""
