@@ -1,4 +1,4 @@
-#!/shared/apps/sage/sage-5.12/spkg/bin/sage -python
+#!/shared/apps/sage-7.4/local/bin/sage -python
 
 #Created by
 #Ross Altman
@@ -28,7 +28,8 @@ def PrintException():
     line=linecache.getline(filename, lineno, f.f_globals);
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename,lineno,line.strip(),exc_obj);
     print "More info: ",traceback.format_exc();
-
+    
+'''
 #Module-specific function definitions
 def indep_rows(mat,vect=[]):
     "Returns a matrix containing only the linearly independent rows of mat."
@@ -192,6 +193,18 @@ def favorable(ndivsJ,h11):
     "Check if the polytope is favorable."
     return (h11==ndivsJ);
 
+def FSRT_facet_from_resolved_verts(resverts,facet):
+    pc=PointConfiguration(facet);
+    pretriangs=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).triangulations_list();
+    triangs+=[list([list([resverts.index(facet[z]) for z in y]) for y in x]) for x in pretriangs];
+    return triangs;
+'''
+
+def n_FSRT_facet_from_resolved_verts(label,facet):
+    pc=PointConfiguration(facet);
+    pretriangs=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).triangulations_list();
+    return [label,len(pretriangs)];
+
 #################################################################################
 #Main body
 if rank==0:
@@ -201,82 +214,60 @@ if rank==0:
         #Read in pertinent fields from JSON
         polyid=polydoc['POLYID'];
         nverts=mat2py(polydoc['NVERTS']);
-        h11=polydoc['H11'];
-        h21=polydoc['H21'];
-        #Compute initial information corresponding to polytope
-        lp=Polyhedron(vertices=nverts);
-        sorted_dverts=[vector(x) for x in sorted([vector([y/gcd(x) for y in x]) for x in lp.polar().vertices()])];
-        dlp=Polyhedron(vertices=sorted_dverts);
-        dverts=[list(x) for x in sorted_dverts];
-        cws=LP2CWS(sorted_dverts);
-        max_cones=[Cone([x.vector() for x in list(lp.Hrepresentation(i).incident())]) for i in range(lp.n_Hrepresentation())];
-        max_dcones=[Cone([x.vector() for x in list(dlp.Hrepresentation(i).incident())]) for i in range(dlp.n_Hrepresentation())];
-        lp_pts=copy(lp.integral_points(threshold=1e10));
-        dlp_pts=copy(dlp.integral_points(threshold=1e10));
-        h11,h21=hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones);
-        batyh11,batyh21=hodge_CY(lp_pts,dlp_pts,max_cones,max_dcones);
-        if (batyh11!=h11 or batyh21!=h21):
-            raise ValueError('Computed Hodge pair ('+str(batyh11)+','+str(batyh21)+') does not match KS database ('+str(h11)+','+str(h21)+').');
-        conepts=bndry_pts_cones(dlp,dlp_pts,max_dcones);
-        origin=vector([0,0,0,0]);
-        unsorted_dresverts=tools.deldup([x for y in conepts for x in y if x!=origin]);
-        extra_dresverts=sorted([x for x in unsorted_dresverts if x not in sorted_dverts]);
-        dresverts=[list(x) for x in sorted_dverts+extra_dresverts];
-        fgp,basisinds=dcbase(dresverts);
-        dresverts_vecs=sorted_dverts+extra_dresverts+[origin];
-        originind=len(dresverts_vecs)-1;
+        lp=LatticePolytope(nverts);
+        dlp=lp.polar();
+
+        dverts=[list(x) for x in dlp.normal_form().column_matrix().columns()];
+
+        dlp_facets=dlp.faces_lp(codim=1);
+        dlp_facetpts=[[list(y) for y in x.boundary_points()] for x in dlp_facets];
+        dlp_maxcone_normalform_dup=[[list(y) for y in LatticePolytope(x.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()] for x in dlp_facets];
+
+        dlp_noninterpts_dup=[y for x in dlp_facetpts for y in x];
+        dlp_noninterpts=[dlp_noninterpts_dup[i] for i in range(len(dlp_noninterpts_dup)) if dlp_noninterpts_dup[i] not in dlp_noninterpts_dup[:i]];
+
         ######################## Begin parallel MPI scatter/gather of triangulation information ###############################
-        scatt=[[dresverts_vecs]+x for x in tools.distribcores(conepts,size)];
+        #scatt=[[dlp_noninterpts]+x for x in tools.distribcores(dlp_facetpts,size)];
+        label_dlp_facetpts=[[i,dlp_facetpts[i]] for i in range(len(dlp_facetpts))];
+        scatt=tools.distribcores(label_dlp_facetpts,size);
         #If fewer cores are required than are available, pass extraneous cores no information
         if len(scatt)<size:
             scatt+=[-2 for x in range(len(scatt),size)];
         #Scatter and define rank-independent input variables
-        cones=comm.scatter(scatt,root=0);
+        facets=comm.scatter(scatt,root=0);
         #For each chunk of information assigned to this rank, do the following
         gath=[];
-        for c in cones[1:]:
+        #cpu_dlp_noninterpts=facets[0];
+        #for facet in facets[1:]:
+        for facet in facets:
             #Triangulate cone c and relabel vertices according to full polytope
-            newconetriang0=FSRT_cone_from_resolved_verts(c);
-            newconetriang=[[[cones[0].index(c[z]) for z in y] for y in x] for x in newconetriang0];
+            #newfacettriang=FSRT_facet_from_resolved_verts(cpu_dlp_noninterpts,facet);
+            newfacetntriangs=n_FSRT_facet_from_resolved_verts(*facet);
             #Gather information into a list and pass it back to main rank
-            gath+=[newconetriang];
-        conetriangs_group=comm.gather(gath,root=0);
+            gath+=[newfacetntriangs];
+        facetntriangs_group=comm.gather(gath,root=0);
         #Signal ranks to exit current process (if there are no other processes, then exit other ranks)
         scatt=[-1 for j in range(size)];
         comm.scatter(scatt,root=0);
         #Reorganize gathered information into a serial form
-        conetriangs=[x for y in conetriangs_group for x in y];
-        poten_triangs0=list(itertools.product(*conetriangs));
-        poten_triangs=[[sorted([sorted(x) for x in y]) for y in z] for z in poten_triangs0];
-        #######################################################################################################################
-        #Perform Gale transform and knit triangulated cones back together such that they form a fine, star, regular triangulation of the full polytope
-        gdresverts=PointConfiguration(dresverts_vecs).Gale_transform();
-        unsorted_triangs=[];
-        for x in poten_triangs:
-            knitted=knit_cones(dresverts_vecs,gdresverts,conepts,x);
-            if len(knitted)>0:
-                unsorted_triangs+=[sorted([[y for y in x if y!=originind] for x in knitted])];
-        #Sort triangulations
-        triangs=sorted(tools.deldup(unsorted_triangs));
-        #Compute the resolved weight matrix and set the number of basis divisors
-        rescws=LP2CWS(dresverts);
-        rescws_mat=matrix(rescws);
-        rescws_cols=rescws_mat.columns();
-        ndivsJ=rescws_mat.rank();
-        #Check if the polytope is favorable
-        fav=favorable(ndivsJ,h11);
-        #Create the pseudo-Chow polynomial ring
-        C=PolynomialRing(QQ,names=['t']+['D'+str(i+1) for i in range(len(dresverts))]+['J'+str(i+1) for i in range(ndivsJ)]);
-        DD=list(C.gens()[1:-ndivsJ]);
-        JJ=list(C.gens()[-ndivsJ:]);
-        #Define the matrix the converts toric divisors to basis divisors
-        DtoJmat=[[1 if i==j else 0 for i in range(len(DD))] for j in basisinds];
-        #Determine the number of triangulations corresponding to the polytope
-        nalltriangs=len(triangs);
+        #facettriangs=[x for y in facettriangs_group for x in y];
+        label_facetntriangs=[x for y in facetntriangs_group for x in y];
+        labels=[x[0] for x in label_facetntriangs];
+        facetntriangs=[x[1] for x in label_facetntriangs];
+        dlp_facetpts=[dlp_facetpts[i] for i in labels];
+        dlp_maxcone_normalform_dup=[dlp_maxcone_normalform_dup[i] for i in labels];
+        dlp_maxcone_normalform_inds=[i for i in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[i] not in dlp_maxcone_normalform_dup[:i]];
+        #poten_triangs0=list(itertools.product(*facettriangs));
+        #poten_triangs=[[sorted([sorted(x) for x in y]) for y in z] for z in poten_triangs0];
         #Add new properties to the base tier of the JSON
-        print "+POLY1."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts),'DRESVERTS':py2mat(dresverts),'CWS':py2mat(cws),'RESCWS':py2mat(rescws),'FAV':fav,'DTOJ':py2mat(DtoJmat),'FUNDGP':fgp,'NALLTRIANGS':nalltriangs},separators=(',',':'));
-        for i in range(nalltriangs):
-            print "+TRIANG1."+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1},separators=(',',':'))+">"+json.dumps({'POLYID':polyid,'GEOMN':i+1,'TRIANGN':1,'H11':h11,'TRIANG':py2mat(triangs[i])},separators=(',',':'));
+        print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'FACETNINTPTS':py2mat(dlp_facetpts),'FACETNTRIANGS':py2mat(facetntriangs),'MAXCONENORMALS':[py2mat(x) for x in dlp_maxcone_normalform_dup]},separators=(',',':'));
+        for i in dlp_maxcone_normalform_inds:
+            maxcone=dlp_maxcone_normalform_dup[i];
+            facetntriang=facetntriangs[i];
+            ninstances=dlp_maxcone_normalform_dup.count(maxcone);
+            samentriang=all([facetntriangs[j]==facetntriang for j in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[j]==maxcone]);
+            print "&MAXCONES."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances,'SAMENTRIANG':samentriang},'FACETNTRIANGLIST':facetntriang},separators=(',',':'));
+            print "+MAXCONES."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':'));
         sys.stdout.flush();
     except Exception as e:
         PrintException();
@@ -285,21 +276,23 @@ else:
         #While rank is not signalled to close
         while True:
             scatt=None;
-            cones=comm.scatter(scatt,root=0);
-            if cones==-1:
+            facets=comm.scatter(scatt,root=0);
+            if facets==-1:
                 #Rank has been signalled to close
                 break;
-            elif cones==-2:
+            elif facets==-2:
                 #Rank is extraneous and no information is being passed
                 gath=[];
             else:
                 gath=[];
-                for c in cones[1:]:
+                #cpu_dlp_noninterpts=facets[0];
+                #for facet in facets[1:]:
+                for facet in facets:
                     #Triangulate cone c and relabel vertices according to full polytope
-                    newconetriang0=FSRT_cone_from_resolved_verts(c);
-                    newconetriang=[[[cones[0].index(c[z]) for z in y] for y in x] for x in newconetriang0];
+                    #newfacettriang=FSRT_facet_from_resolved_verts(cpu_dlp_noninterpts,facet);
+                    newfacetntriangs=n_FSRT_facet_from_resolved_verts(*facet);
                     #Gather information into a list and pass it back to main rank
-                    gath+=[newconetriang];
-                conetriangs_group=comm.gather(gath,root=0);
+                    gath+=[newfacetntriangs];
+                facetntriangs_group=comm.gather(gath,root=0);
     except Exception as e:
         PrintException();

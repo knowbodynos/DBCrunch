@@ -505,6 +505,7 @@ def writejobfile(modname,dbpush,markdone,writestats,writestorage,jobname,jobstep
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" || ".join(["\"$line\" =~ ^"+re.sub(r"([\]\[\(\)\\\.\^\$\?\*\+ ])",r"\\\1",x)+".*" for x in outputlinemarkers])+" ]]";
     #outputlinemarkertest="[[ "+" && ".join(["! \"$line\" =~ ^"+x+".*" for x in outputlinemarkers])+" ]]";
+    outputlinemarkers=["\+","-","\&","None"];
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
     jobstring+="#Created "+str(datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"))+"\n";
@@ -648,7 +649,8 @@ def writejobfile(modname,dbpush,markdone,writestats,writestorage,jobname,jobstep
     jobstring+="            then\n";
     jobstring+="                while read line\n";
     jobstring+="                do\n";
-    jobstring+="                    if [[ ! \"$line\" =~ ^\+.* && ! \"$line\" =~ ^-.* && ! \"$line\" =~ ^None.* ]]\n";
+    #jobstring+="                    if [[ ! \"$line\" =~ ^\+.* && ! \"$line\" =~ ^-.* && ! \"$line\" =~ ^None.* ]]\n";
+    jobstring+="                    if [[ "+" && ".join(["! \"$line\" =~ ^"+x+".*" for x in outputlinemarkers])+" ]]\n";
     jobstring+="                    then\n";
     jobstring+="                        skipped=true\n";
     jobstring+="                        break\n";

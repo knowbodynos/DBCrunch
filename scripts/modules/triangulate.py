@@ -6,7 +6,7 @@
 
 from sage.all_cmdline import *;
 
-import sys,os,fcntl,errno,linecache,traceback,time,re,itertools,json;
+import sys,os,fcntl,errno,operator,linecache,traceback,time,re,itertools,json;
 from mongolink.parse import pythonlist2mathematicalist as py2mat;
 from mongolink.parse import mathematicalist2pythonlist as mat2py;
 import mongolink.tools as tools;

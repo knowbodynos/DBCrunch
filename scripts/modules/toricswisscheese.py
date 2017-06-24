@@ -222,7 +222,7 @@ if rank==0:
             #Loop over each triangulation with the current number of large cycles
             for x in triangdata_chunk:
                 #Get swiss cheese rotation matrices for this triangulation
-                toricswisscheese_chunk=ToricSwissCheese(True,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
+                toricswisscheese_chunk=ToricSwissCheese(False,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
                 #If both rotation matrices rotate the basis into another integer basis, use them and skip to the next triangulation. Else add them to a list 
                 int_basis_a=toricswisscheese_chunk[2];
                 int_basis_b=toricswisscheese_chunk[3];
@@ -329,7 +329,7 @@ else:
                     #Loop over each triangulation with the current number of large cycles
                     for x in triangdata_chunk:
                         #Get swiss cheese rotation matrices for this triangulation
-                        toricswisscheese_chunk=ToricSwissCheese(True,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
+                        toricswisscheese_chunk=ToricSwissCheese(False,h11_chunk,NL,dresverts_chunk,fgp_chunk,fav_chunk,JtoDmat_chunk,x['MORIMATP'],x['ITENSXD']);
                         #If both rotation matrices rotate the basis into another integer basis, use them and skip to the next triangulation. Else add them to a list 
                         int_basis_a=toricswisscheese_chunk[1];
                         int_basis_b=toricswisscheese_chunk[2];

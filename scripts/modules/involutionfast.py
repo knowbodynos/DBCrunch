@@ -1,0 +1,72 @@
+#!/shared/apps/sage/sage-5.12/spkg/bin/sage -python
+
+import sys,operator,itertools,json,mongolink;
+from copy import deepcopy;
+from mongolink.parse import pythonlist2mathematicalist as py2mat;
+from mongolink.parse import mathematicalist2pythonlist as mat2py;
+
+triangdoc=json.loads(sys.argv[1]);
+
+rescws=mat2py(triangdoc['RESCWS']);
+divcohom=mat2py(triangdoc['DIVCOHOM']);
+itensXD=mat2py(triangdoc['ITENSXD']);
+SRideal=triangdoc['SRIDEAL'];
+SRsets=sorted([[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in SRideal.lstrip("{").rstrip("}").split(",")],key=lambda x:(len(x),operator.itemgetter(*range(len(x)))(x)));
+itensXDsets=[];
+for i in range(len(rescws)):
+    for j in range(i,len(rescws)):
+        for k in range(j,len(rescws)):
+            itensXDsets+=[[[i,j,k],itensXD[i][j][k]]];
+itensXDsets=sorted(itensXDsets,key=lambda x:(len(x[0]),operator.itemgetter(*range(len(x[0])))(x[0])));
+
+newdivcohom=[py2mat(x) for x in divcohom];
+
+NIDpairs=[];
+for i in range(len(rescws)):
+    for j in range(i+1,len(rescws)):
+        if (divcohom[i]==divcohom[j]) and (rescws[i]!=rescws[j]):
+            NIDpairs+=[[i,j]];
+disjointsets=[];
+for i in range(len(NIDpairs)):
+    combs=list(itertools.combinations(NIDpairs,i+1));
+    for comb in combs:
+        if all([not any([k in y for k in comb[j] for y in comb[:j]+comb[j+1:]]) for j in range(len(comb))]):
+            disjointsets+=[list(comb)];
+
+allowedinvols=[];
+involn=1;
+for invol in disjointsets:
+    newSRsets=[];
+    for SRset in SRsets:
+        newSRset=SRset;
+        for x in invol:
+            newSRset=[-x[1] if y==x[0] else -x[0] if y==x[1] else y for y in newSRset];
+        newSRset=sorted([abs(x) for x in newSRset]);
+        newSRsets+=[newSRset];
+    newSRsets=sorted(newSRsets,key=lambda x:(len(x),operator.itemgetter(*range(len(x)))(x)));
+    
+    newitensXDsets=[];
+    for itensXDset in itensXDsets:
+        newitensXDset=itensXDset[0];
+        for x in invol:
+            newitensXDset=[-x[1] if y==x[0] else -x[0] if y==x[1] else y for y in newitensXDset];
+        newitensXDset=[sorted([abs(x) for x in newitensXDset]),itensXDset[1]];
+        newitensXDsets+=[newitensXDset];
+    newitensXDsets=sorted(newitensXDsets,key=lambda x:(len(x[0]),operator.itemgetter(*range(len(x[0])))(x[0])));
+    
+    if (newSRsets==SRsets) or (newitensXDsets==itensXDsets):
+        matinvol="{"+",".join([",".join(["D"+str(x[0]+1)+"->D"+str(x[1]+1),"D"+str(x[1]+1)+"->D"+str(x[0]+1)]) for x in invol])+"}";
+        SRinvol=(newSRsets==SRsets);
+        itensXDinvol=(newitensXDsets==itensXDsets);
+        involquery={"POLYID":triangdoc['POLYID'],"GEOMN":triangdoc['GEOMN'],"TRIANGN":triangdoc['TRIANGN'],"INVOLN":involn};
+        newinvolout={"H11":triangdoc['H11'],"POLYID":triangdoc['POLYID'],"GEOMN":triangdoc['GEOMN'],"TRIANGN":triangdoc['TRIANGN'],"INVOLN":involn,"INVOL":matinvol,"INVOLDIVCOHOM":[py2mat(divcohom[x[0]]) for x in invol],"SRINVOL":SRinvol,"ITENSXDINVOL":itensXDinvol};
+        print "+INVOL."+json.dumps(involquery,separators=(',',':'))+">"+json.dumps(newinvolout,separators=(',',':'));
+        sys.stdout.flush();
+        involn+=1;
+involn-=1;
+
+triangquery={"POLYID":triangdoc['POLYID'],"GEOMN":triangdoc['GEOMN'],"TRIANGN":triangdoc['TRIANGN']};
+newtriangoutput={"DIVCOHOM1":newdivcohom,"NINVOL":involn};
+
+print "+TRIANG."+json.dumps(triangquery,separators=(',',':'))+">"+json.dumps(newtriangoutput,separators=(',',':'))
+sys.stdout.flush()

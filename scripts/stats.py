@@ -71,14 +71,14 @@ try:
                         #print "a";
                         #sys.stdout.flush();
                         #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
-                        linehead=re.sub("^([-+].*?>|None).*",r"\1",line).rstrip("\n");
-                        if linehead[0] in ["-","+"]:
+                        linehead=re.sub("^([-+&].*?>|None).*",r"\1",line).rstrip("\n");
+                        if linehead[0] in ["-","+","&"]:
                             linemarker=linehead[0];
                             newcollection,strindexdoc=linehead[1:-1].split(".");
                             #print strindexdoc;
                             #sys.stdout.flush();
                             newindexdoc=json.loads(strindexdoc);
-                            linedoc=re.sub("^[-+].*?>","",line).rstrip("\n");
+                            linedoc=re.sub("^[-+&].*?>","",line).rstrip("\n");
                             #for x in outputlinemarkers:
                             #    linedoc=linedoc.replace(x,"");
                             #print doc;#.replace(" ","");
@@ -100,6 +100,15 @@ try:
                                 #sys.stdout.flush();
                                 if dbpush:
                                     db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
+                            if linemarker=="&":
+                                #print "c";
+                                #sys.stdout.flush();
+                                if writestorage:
+                                    bsonsize+=mongolink.bsonsize(doc);
+                                #print "d";
+                                #sys.stdout.flush();
+                                if dbpush:
+                                    db[newcollection].update(newindexdoc,{"$push":doc},upsert=True);
                             elif linemarker=="-":
                                 if len(doc)>0:
                                     #print "e";
