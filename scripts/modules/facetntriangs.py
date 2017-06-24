@@ -215,9 +215,9 @@ if rank==0:
         polyid=polydoc['POLYID'];
         nverts=mat2py(polydoc['NVERTS']);
         lp=LatticePolytope(nverts);
-        dlp=lp.polar();
+        dlp=LatticePolytope(lp.polar().normal_form());
 
-        dverts=[list(x) for x in dlp.normal_form().column_matrix().columns()];
+        dverts=[list(x) for x in dlp.vertices().column_matrix().columns()];
 
         dlp_facets=dlp.faces_lp(codim=1);
         dlp_facetpts=[[list(y) for y in x.boundary_points()] for x in dlp_facets];
