@@ -1,9 +1,28 @@
-#!/shared/apps/sage/sage-5.12/spkg/bin/sage -python
+#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
 import sys,operator,itertools,json,mongolink;
 from copy import deepcopy;
 from mongolink.parse import pythonlist2mathematicalist as py2mat;
 from mongolink.parse import mathematicalist2pythonlist as mat2py;
+
+def disjointNIDs(NIDpairs,swaplist=[]):
+    if len(NIDpairs)==0:
+        return swaplist;
+    fullswaplist=[];
+    firstflag=True;
+    for NIDpair in NIDpairs:
+        newNIDpairs=[x for x in NIDpairs if (x[0]>min(NIDpair)) and (x[1]>min(NIDpair)) and all([i not in x for i in NIDpair])];
+        if len(swaplist)==0:
+            newswaplist=[[NIDpair]];
+        else:
+            newswaplist=[swaplist[-1]+[NIDpair]];
+        if firstflag:
+            newswaplist=swaplist+newswaplist;
+        fullswaplist+=disjointNIDs(newNIDpairs,newswaplist);
+        firstflag=False;
+    if len(swaplist)==0:
+        fullswaplist=sorted(fullswaplist,key=lambda x:(len(x),x[0]));
+    return fullswaplist;
 
 triangdoc=json.loads(sys.argv[1]);
 
@@ -26,12 +45,15 @@ for i in range(len(rescws)):
     for j in range(i+1,len(rescws)):
         if (divcohom[i]==divcohom[j]) and (rescws[i]!=rescws[j]):
             NIDpairs+=[[i,j]];
-disjointsets=[];
-for i in range(len(NIDpairs)):
-    combs=list(itertools.combinations(NIDpairs,i+1));
-    for comb in combs:
-        if all([not any([k in y for k in comb[j] for y in comb[:j]+comb[j+1:]]) for j in range(len(comb))]):
-            disjointsets+=[list(comb)];
+
+#disjointsets=[];
+#for i in range(len(NIDpairs)):
+#    combs=list(itertools.combinations(NIDpairs,i+1));
+#    for comb in combs:
+#        if all([not any([k in y for k in comb[j] for y in comb[:j]+comb[j+1:]]) for j in range(len(comb))]):
+#            disjointsets+=[list(comb)];
+
+disjointsets=disjointNIDs(NIDpairs);
 
 allowedinvols=[];
 involn=1;
@@ -40,8 +62,8 @@ for invol in disjointsets:
     for SRset in SRsets:
         newSRset=SRset;
         for x in invol:
-            newSRset=[-x[1] if y==x[0] else -x[0] if y==x[1] else y for y in newSRset];
-        newSRset=sorted([abs(x) for x in newSRset]);
+            newSRset=[x[1] if y==x[0] else x[0] if y==x[1] else y for y in newSRset];
+        newSRset=sorted(newSRset);
         newSRsets+=[newSRset];
     newSRsets=sorted(newSRsets,key=lambda x:(len(x),operator.itemgetter(*range(len(x)))(x)));
     
@@ -49,8 +71,8 @@ for invol in disjointsets:
     for itensXDset in itensXDsets:
         newitensXDset=itensXDset[0];
         for x in invol:
-            newitensXDset=[-x[1] if y==x[0] else -x[0] if y==x[1] else y for y in newitensXDset];
-        newitensXDset=[sorted([abs(x) for x in newitensXDset]),itensXDset[1]];
+            newitensXDset=[x[1] if y==x[0] else x[0] if y==x[1] else y for y in newitensXDset];
+        newitensXDset=[sorted(newitensXDset),itensXDset[1]];
         newitensXDsets+=[newitensXDset];
     newitensXDsets=sorted(newitensXDsets,key=lambda x:(len(x[0]),operator.itemgetter(*range(len(x[0])))(x[0])));
     
