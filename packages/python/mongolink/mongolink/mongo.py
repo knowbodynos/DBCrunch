@@ -251,7 +251,10 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #print "c";
     #sys.stdout.flush();
     thisiostream.close();
-    newquerydoc={"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters};
+    if (len(queries[0][1])==0) and (len(prevfilters)==0):
+        newquerydoc={};
+    else:
+        newquerydoc={"$and":[dict([x]) for x in queries[0][1].items()]+prevfilters};
     if ("$allFields",1) in queries[0][2].items():
         newprojdoc={};
     else:

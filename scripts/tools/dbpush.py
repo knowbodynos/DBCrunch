@@ -20,7 +20,8 @@ def default_sigpipe():
 def jobstepname2indexdoc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_");
     nindexes=min(len(indexsplit)-2,len(dbindexes));
-    return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
+    #return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
+    return dict([(dbindexes[i],eval(indexsplit[i+2]) if indexsplit[i+2].isdigit() else indexsplit[i+2]) for i in range(nindexes)]);
 
 def merge_dicts(*dicts):
     result={};
@@ -69,14 +70,14 @@ try:
         with open(workpath+"/"+jobstepname+".log","r") as logstream:
             for line in logstream:
                 #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
-                linehead=re.sub("^([-+].*?>|None).*",r"\1",line).rstrip("\n");
-                if linehead[0] in ["-","+"]:
+                linehead=re.sub("^([-+&].*?>|None).*",r"\1",line).rstrip("\n");
+                if linehead[0] in ["-","+","&"]:
                     linemarker=linehead[0];
                     newcollection,strindexdoc=linehead[1:-1].split(".");
                     #print strindexdoc;
                     #sys.stdout.flush();
                     newindexdoc=json.loads(strindexdoc);
-                    linedoc=re.sub("^[-+].*?>","",line).rstrip("\n");
+                    linedoc=re.sub("^[-+&].*?>","",line).rstrip("\n");
                     #for x in outputlinemarkers:
                     #    linedoc=linedoc.replace(x,"");
                     #print doc;#.replace(" ","");
@@ -87,7 +88,8 @@ try:
                     #newcollection=mongolink.gettierfromdoc(db,fulldoc);
                     #newindexdoc=dict([(x,fulldoc[x]) for x in mongolink.getintersectionindexes(db,newcollection)]);
                     #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
-                    #if dbpush:
+                    #print "b";
+                    #sys.stdout.flush();
                     if linemarker=="+":
                         #print "c";
                         #sys.stdout.flush();
@@ -95,8 +97,15 @@ try:
                             bsonsize+=mongolink.bsonsize(doc);
                         #print "d";
                         #sys.stdout.flush();
-                        #if dbpush:
                         db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
+                    elif linemarker=="&":
+                        #print "c";
+                        #sys.stdout.flush();
+                        if writestorage:
+                            bsonsize+=mongolink.bsonsize(doc);
+                        #print "d";
+                        #sys.stdout.flush();
+                        db[newcollection].update(newindexdoc,{"$push":doc},upsert=True);
                     elif linemarker=="-":
                         if len(doc)>0:
                             #print "e";
@@ -105,7 +114,6 @@ try:
                                 bsonsize-=mongolink.bsonsize(doc);
                             #print "f";
                             #sys.stdout.flush();
-                            #if dbpush:
                             db[newcollection].update(newindexdoc,{"$unset":doc});
                         else:
                             #print mongolink.collectionfind(db,newcollection,newindexdoc,{},formatresult="expression");
@@ -121,8 +129,6 @@ try:
                                 bsonsize-=mongolink.bsonsize(removedoc);
                             #print "i";
                             #sys.stdout.flush();
-                            #if dbpush:
-                                #db[newcollection].remove(removedoc);
                             db[newcollection].remove(newindexdoc,multi=False);
                     #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
                     #sys.stdout.flush();
@@ -134,7 +140,6 @@ try:
                     maxvmsize=eval(line[len(linehead):].split(" ")[0]);
                 #elif linehead=="BSONSize: ":
                 #    bsonsize=eval(line[len(linehead):].split(" ")[0]);
-
         stats={};
         if writestats:
             stats.update({"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize});

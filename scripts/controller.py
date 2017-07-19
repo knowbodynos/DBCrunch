@@ -137,7 +137,8 @@ def seconds2timestamp(seconds):
 def jobstepname2indexdoc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_");
     nindexes=min(len(indexsplit)-2,len(dbindexes));
-    return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
+    #return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
+    return dict([(dbindexes[i],eval(indexsplit[i+2]) if indexsplit[i+2].isdigit() else indexsplit[i+2]) for i in range(nindexes)]);
 
 def indexdoc2jobstepname(doc,modname,controllername,dbindexes):
     return modname+"_"+controllername+"_"+"_".join([str(doc[x]) for x in dbindexes if x in doc.keys()]);

@@ -20,7 +20,7 @@ def default_sigpipe():
 def jobstepname2indexdoc(jobstepname,dbindexes):
     indexsplit=jobstepname.split("_");
     nindexes=min(len(indexsplit)-2,len(dbindexes));
-    return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
+    return dict([(dbindexes[i],eval(indexsplit[i+2]) if indexsplit[i+2].isdigit() else indexsplit[i+2]) for i in range(nindexes)]);
 
 def merge_dicts(*dicts):
     result={};
@@ -100,7 +100,7 @@ try:
                                 #sys.stdout.flush();
                                 if dbpush:
                                     db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
-                            if linemarker=="&":
+                            elif linemarker=="&":
                                 #print "c";
                                 #sys.stdout.flush();
                                 if writestorage:
