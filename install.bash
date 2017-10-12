@@ -22,7 +22,7 @@ python setup.py install --user --record filespy.txt
 sage --python setup.py install --user --record filessage.txt
 cd ${currdir}
 
-cd ${HOME}
+cd ${M2_ROOT}
 wget http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Generic/Macaulay2-1.6-x86_64-Linux-Generic.tar.gz
 wget http://www2.macaulay2.com/Macaulay2/Downloads/Common/Macaulay2-1.6-common.tar.gz
 wait

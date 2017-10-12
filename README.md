@@ -28,8 +28,9 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
    #export SAGE_ROOT=/shared/apps/sage/sage-5.12
    export SAGE_ROOT=/shared/apps/sage-7.4
+   export M2_ROOT=${HOME}
    export SLURMONGO_ROOT=/gss_gpfs_scratch/${USER}/SLURMongo
-   export PATH=${PATH}:${HOME}/Macaulay2-1.6/bin
+   export PATH=${PATH}:${M2_ROOT}/Macaulay2-1.6/bin
 ```
 
 3) Restart your Discovery session OR run the command `source ${HOME}/.bashrc`.
