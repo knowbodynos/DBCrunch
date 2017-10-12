@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g-3"
+#SBATCH --partition="ser-par-10g"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -31,7 +31,7 @@
 #SBATCH --exclusive
 #################
 
-h11="template"
+h11=template
 
 #Input controller info
 modname="involutionfast"
@@ -49,6 +49,9 @@ scripttimelimit=""
 scriptbuffertime="00:01:00"
 
 #Input database info
+dbname="ToricCY"
+dbusername="manager"
+dbpassword="toric"
 queries="[['POLY',{'H11':${h11},'FAV':True},{'POLYID':1,'H11':1,'RESCWS':1,'FUNDGP':1}],['GEOM',{'H11':${h11}},{'GEOMN':1}],['TRIANG',{'H11':${h11},'${modname}MARK':{'\$exists':False}},{'TRIANGN':1,'SRIDEAL':1,'ITENSXD':1,'DIVCOHOM':1}]]"
 basecollection="TRIANG"
 nthreadsfield=""
@@ -59,5 +62,8 @@ dbpush="True"
 markdone="MARK"
 writestats="True"
 writestorage="True"
+niters=1000
+nbatch=100
+nbatcheswrite=1
 
-python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}" "${writestats}" "${writestorage}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${dbname}" "${dbusername}" "${dbpassword}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}" "${writestats}" "${niters}" "${nbatch}" "${nbatcheswrite}"

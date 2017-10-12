@@ -1,0 +1,95 @@
+# http://travis-ci.org/mpi4py/mpi4py
+
+language: python
+python:
+  - 2.7
+  - 3.3
+  - 3.4
+  - 3.5
+  - 3.6
+  - 3.7-dev
+
+os: linux
+dist: trusty
+sudo: required
+
+env:
+  global:
+    - HYDRA_LAUNCHER=fork
+  matrix:
+    - MPI=mpich
+    - MPI=openmpi
+
+matrix:
+  include:
+    - os: osx
+      env: MPI=mpich PY=2
+      language: generic
+      python: 2
+    - os: osx
+      osx_image: xcode8
+      env: MPI=openmpi PY=2
+      language: generic
+      python: 2
+    - os: osx
+      env: MPI=mpich PY=3
+      language: generic
+      python: 3
+    - os: osx
+      osx_image: xcode8
+      env: MPI=openmpi PY=3
+      language: generic
+      python: 3
+    - python: pypy
+      env: MPI=mpich
+    - python: pypy
+      env: MPI=openmpi
+    - python: pypy3
+      env: MPI=mpich
+    - python: pypy3
+      env: MPI=openmpi
+  allow_failures:
+    - python: pypy
+      env: MPI=mpich
+    - python: pypy
+      env: MPI=openmpi
+    - python: pypy3
+      env: MPI=mpich
+    - python: pypy3
+      env: MPI=openmpi
+
+branches:
+  only:
+    - master
+    - maint
+
+git:
+  depth: 3
+
+cache:
+  apt: true
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install $MPI; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]] && [[ "$PY" == "3" ]]; then brew install python3; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip$PY install numpy; fi
+  - sh conf/ci/travis-ci/install-mpi.sh $MPI
+  - pip$PY install Cython
+  - cython --version
+install:
+  - pip$PY -vvv install .
+
+before_script:
+  - if [[ "$MPI" == "mpich" ]]; then P=2; else P=5; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]];  then P=2; fi
+script:
+  - mpiexec -n 1  python$PY $PWD/test/runtests.py -v -f
+  - mpiexec -n $P python$PY $PWD/test/runtests.py -v -f --exclude=spawn
+  - mpiexec -n 1  python$PY $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n $P python$PY $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n 1  python$PY -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n $P python$PY -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+
+#notifications:
+#  email: false

@@ -9,6 +9,7 @@ structure
 glueflops
 toricswisscheese
 involution
+involutionfast
 orientifoldMat
 orientifold
 orientifold1
@@ -20,6 +21,7 @@ divhodgetriang
 cypoly
 explicit
 explicit2
-involutionfast
 mlearn
 facetntriangs
+faceinfo
+maxcones

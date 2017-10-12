@@ -1,6 +1,8 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,os,linecache,traceback,re,subprocess,signal,json,mongolink;
+import sys,os,time,linecache,traceback,re,tempfile,json,mongolink,datetime;#,errno,fcntl
+from pprint import pprint;
+from pymongo.errors import BulkWriteError;
 
 #Misc. function definitions
 def PrintException():
@@ -14,171 +16,179 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
     print "More info: ",traceback.format_exc();
 
-def default_sigpipe():
-    signal.signal(signal.SIGPIPE,signal.SIG_DFL);
-
-def jobstepname2indexdoc(jobstepname,dbindexes):
-    indexsplit=jobstepname.split("_");
-    nindexes=min(len(indexsplit)-2,len(dbindexes));
-    return dict([(dbindexes[i],eval(indexsplit[i+2]) if indexsplit[i+2].isdigit() else indexsplit[i+2]) for i in range(nindexes)]);
-
-def merge_dicts(*dicts):
-    result={};
-    for dictionary in dicts:
-        result.update(dictionary);
-    return result;
-
 try:
-    modname=sys.argv[1];
-    #jobstepid=sys.argv[3];
-    basecollection=sys.argv[2];
-    workpath=sys.argv[3];
-    jobstepname=sys.argv[4];
+    mainpath=sys.argv[1];
+    modname=sys.argv[2];
+    controllername=sys.argv[3];
+    #jobnum=sys.argv[4];
+    #statsnum=sys.argv[5];
+    #infileext=sys.argv[6];
+    infilename=sys.argv[4];
+    #nbatcheswrite=sys.argv[5];
     dbpush=eval(sys.argv[5]);
     markdone=sys.argv[6];
     writestats=eval(sys.argv[7]);
-    writestorage=eval(sys.argv[8]);
-    cputime=sys.argv[9];
-    maxrss=sys.argv[10];
-    maxvmsize=sys.argv[11];
 
-    try:
-        if dbpush or writestorage or (markdone!=""):
-            packagepath=subprocess.Popen("echo \"${SLURMONGO_ROOT}\" | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
-            statepath=packagepath+"/state";
-            mongourifile=statepath+"/mongouri";
-            with open(mongourifile,"r") as mongouristream:
-                mongouri=mongouristream.readline().rstrip("\n");
+    #jobname=modname+"_"+controllername+"_job_"+jobnum;
+    #statsname=jobname+"_stats_"+statsnum;
 
-            #sacctstats=subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0].split(",");#,preexec_fn=default_sigpipe).communicate()[0].split(",");
-            #if len(sacctstats)==3:
-            #    cputime,maxrss,maxvmsize=sacctstats;
+    controllerpath=mainpath+"/modules/"+modname+"/"+controllername;
+    workpath=controllerpath+"/jobs"
+    controllerfile=controllerpath+"/controller_"+modname+"_"+controllername+".job";
+    mongourifile=mainpath+"/state/mongouri";
+    infile=workpath+"/"+infilename;#statsname+infileext;
+    
+    with open(controllerfile,"r") as controllerstream:
+        for controllerline in controllerstream:
+            if "dbname=" in controllerline:
+                dbname=controllerline.split("=")[1].lstrip("\"").rstrip("\"\n");
+            elif "dbusername=" in controllerline:
+                dbusername=controllerline.split("=")[1].lstrip("\"").rstrip("\"\n");
+            elif "dbpassword=" in controllerline:
+                dbpassword=controllerline.split("=")[1].lstrip("\"").rstrip("\"\n");
 
-            mongoclient=mongolink.MongoClient(mongouri+"?authMechanism=SCRAM-SHA-1");
-            dbname=mongouri.split("/")[-1];
-            db=mongoclient[dbname];
+    with open(mongourifile,"r") as mongouristream:
+        mongouri=mongouristream.readline().rstrip("\n").replace("mongodb://","mongodb://"+dbusername+":"+dbpassword+"@");
 
-            dbindexes=mongolink.getintersectionindexes(db,basecollection);
+    mongoclient=mongolink.MongoClient(mongouri+dbname+"?authMechanism=SCRAM-SHA-1");
+    db=mongoclient[dbname];
 
-            indexdoc=jobstepname2indexdoc(jobstepname,dbindexes);
+    bulkdict={};
+    #rmdocs=[];#{};
 
-            statsset={};
-
-            if dbpush or writestorage:
-                bsonsize=0;
-                with open(workpath+"/"+jobstepname+".log","r") as logstream:
-                    for line in logstream:
-                        #print "a";
-                        #sys.stdout.flush();
-                        #linedoc=line.rstrip("\n");#re.sub(":[nN]ull",":None",line.rstrip("\n"));
-                        linehead=re.sub("^([-+&].*?>|None).*",r"\1",line).rstrip("\n");
-                        if linehead[0] in ["-","+","&"]:
-                            linemarker=linehead[0];
-                            newcollection,strindexdoc=linehead[1:-1].split(".");
-                            #print strindexdoc;
-                            #sys.stdout.flush();
-                            newindexdoc=json.loads(strindexdoc);
-                            linedoc=re.sub("^[-+&].*?>","",line).rstrip("\n");
-                            #for x in outputlinemarkers:
-                            #    linedoc=linedoc.replace(x,"");
-                            #print doc;#.replace(" ","");
-                            #print linedoc;
-                            #sys.stdout.flush();
-                            doc=json.loads(linedoc);#.replace(" ",""));
-                            #fulldoc=merge_dicts(indexdoc,doc);
-                            #newcollection=mongolink.gettierfromdoc(db,fulldoc);
-                            #newindexdoc=dict([(x,fulldoc[x]) for x in mongolink.getintersectionindexes(db,newcollection)]);
-                            #db[newcollection].update(newindexdoc,{"$set":fulldoc},upsert=True);
-                            #print "b";
-                            #sys.stdout.flush();
-                            if linemarker=="+":
-                                #print "c";
-                                #sys.stdout.flush();
-                                if writestorage:
-                                    bsonsize+=mongolink.bsonsize(doc);
-                                #print "d";
-                                #sys.stdout.flush();
-                                if dbpush:
-                                    db[newcollection].update(newindexdoc,{"$set":doc},upsert=True);
-                            elif linemarker=="&":
-                                #print "c";
-                                #sys.stdout.flush();
-                                if writestorage:
-                                    bsonsize+=mongolink.bsonsize(doc);
-                                #print "d";
-                                #sys.stdout.flush();
-                                if dbpush:
-                                    db[newcollection].update(newindexdoc,{"$push":doc},upsert=True);
-                            elif linemarker=="-":
-                                if len(doc)>0:
-                                    #print "e";
-                                    #sys.stdout.flush();
-                                    if writestorage:
-                                        bsonsize-=mongolink.bsonsize(doc);
-                                    #print "f";
-                                    #sys.stdout.flush();
-                                    if dbpush:
-                                        db[newcollection].update(newindexdoc,{"$unset":doc});
-                                else:
-                                    #print mongolink.collectionfind(db,newcollection,newindexdoc,{},formatresult="expression");
-                                    #sys.stdout.flush();
-                                    #print "g";
-                                    #sys.stdout.flush();
-                                    #removedocs=list(db[newcollection].find(newindexdoc));
-                                    #for removedoc in removedocs:
-                                    if writestorage:
-                                        removedoc=db[newcollection].find_one(newindexdoc);
-                                        #print "h";
-                                        #sys.stdout.flush();
-                                        bsonsize-=mongolink.bsonsize(removedoc);
-                                    #print "i";
-                                    #sys.stdout.flush();
-                                    if dbpush:
-                                        #db[newcollection].remove(removedoc);
-                                        db[newcollection].remove(newindexdoc,multi=False);
-                            #print "db["+str(newcollection)+"].update("+str(newindexdoc)+","+str({"$set":fulldoc})+",upsert=True);";
-                            #sys.stdout.flush();
-                #print "j";
-                #sys.stdout.flush();
+    #bsonsize=0;
+    with open(infile,"r") as instream:
+        line=instream.readline().rstrip("\n");
+        while line!="":
+            linehead=re.sub("^([-+&@].*?>|None).*",r"\1",line);
+            linemarker=linehead[0];
+            if linemarker=="-":
+                newcollection,strindexdoc=linehead[1:-1].split(".");
+                newindexdoc=json.loads(strindexdoc);
+                linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+                doc=json.loads(linedoc);
+                #bsonsize-=mongolink.bsonsize(doc);
                 if dbpush:
-                    stats={};
-                    if writestats:
-                        stats.update({"CPUTIME":eval(cputime),"MAXRSS":eval(maxrss),"MAXVMSIZE":eval(maxvmsize)});
-                    if writestorage:
-                        stats.update({"BSONSIZE":bsonsize});
-                    statsset.update({modname+"STATS":stats});
-                #print "k";
-                #sys.stdout.flush();
-            if markdone!="":
-                statsset.update({modname+markdone:True});
-            #print "l";
-            #sys.stdout.flush();
-            if len(statsset)>0:
-                db[basecollection].update(indexdoc,{"$set":statsset});
-
-            #print "CPUTime: "+str(cputime)+" seconds";
-            #print "MaxRSS: "+str(maxrss)+" bytes";
-            #print "MaxVMSize: "+str(maxvmsize)+" bytes";
-            #print "BSONSize: "+str(bsonsize)+" bytes";
-            if writestats:
-                print "CPUTime: "+cputime+" seconds";
-                print "MaxRSS: "+maxrss+" bytes";
-                print "MaxVMSize: "+maxvmsize+" bytes";
-            if writestorage:
-                print "BSONSize: "+str(bsonsize)+" bytes";
-            mongoclient.close();
-        os.remove(workpath+"/"+jobstepname+".stat");
-    except IOError:
-        print "File path \""+workpath+"/"+jobstepname+".log\" does not exist.";
-    sys.stdout.flush();
-    #else:
-    #    #print subprocess.Popen("sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2",shell=True,stdout=subprocess.PIPE).communicate()[0];#,preexec_fn=default_sigpipe).communicate()[0];
-    #    #print jobstepid;
-    #   #print sacctstats;
-    #    #print "sacct -n -o 'CPUTimeRAW,MaxRSS,MaxVMSize' -j "+jobstepid+" | sed 's/G/MK/g' | sed 's/M/KK/g' | sed 's/K/000/g' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | tr ' ' ',' | head -c -2";
-    #    print "CPUTime: N/A";
-    #    print "MaxRSS: N/A";
-    #    print "MaxVMSize: N/A";
-    #    print "BSONSize: N/A";
+                    if newcollection not in bulkdict.keys():
+                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                    bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
+                print(line);
+            elif linemarker=="+":
+                newcollection,strindexdoc=linehead[1:-1].split(".");
+                newindexdoc=json.loads(strindexdoc);
+                linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+                doc=json.loads(linedoc);
+                #bsonsize+=mongolink.bsonsize(doc);
+                if dbpush:
+                    if newcollection not in bulkdict.keys():
+                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                    bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
+                print(line);
+            elif linemarker=="&":
+                newcollection,strindexdoc=linehead[1:-1].split(".");
+                newindexdoc=json.loads(strindexdoc);
+                linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+                doc=json.loads(linedoc);
+                #bsonsize+=mongolink.bsonsize(doc);
+                if dbpush:
+                    if newcollection not in bulkdict.keys():
+                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                    bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
+                print(line);
+            elif linemarker=="@":
+                #if linehead[-1]==">":
+                #    newcollection,strindexdoc=linehead[1:-1].split(".");
+                #    newindexdoc=json.loads(strindexdoc);
+                #    stepnum=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+                    #if stepnum not in rmdocs:#.keys():
+                    #    #rmdocs[stepnum]=[newindexdoc];
+                    #    rmdocs=[stepnum];
+                    #else:
+                    #    #rmdocs[stepnum]+=[newindexdoc];
+                    #    rmdocs+=[stepnum];
+                #    print(line.split(">")[0]);
+                #else:
+                newcollection,strindexdoc=linehead[1:].split("<")[0].split(".");
+                newindexdoc=json.loads(strindexdoc);
+                print(line);
+                line=instream.readline().rstrip("\n");
+                if not "CPUTime: " in line:
+                    raise EOFError("CPUTime is not recorded.");
+                cputime=eval(line.split(" ")[1]);
+                print(line);
+                line=instream.readline().rstrip("\n");
+                if not "MaxRSS: " in line:
+                    raise EOFError("MaxRSS is not recorded.");
+                maxrss=eval(line.split(" ")[1]);
+                print(line);
+                line=instream.readline().rstrip("\n");
+                if not "MaxVMSize: " in line:
+                    raise EOFError("MaxVMSize is not recorded.");
+                maxvmsize=eval(line.split(" ")[1]);
+                print(line);
+                #statstell=instream.tell();
+                line=instream.readline().rstrip("\n");
+                #print("BSONSize: "+str(bsonsize)+" bytes");
+                if not "BSONSize: " in line:
+                    raise EOFError("BSONSize is not recorded.");
+                    #instream.seek(statstell);
+                bsonsize=eval(line.split(" ")[1]);
+                statsmark={};
+                if writestats:
+                    statsmark.update({modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}});
+                if markdone!="":
+                    statsmark.update({modname+markdone:True});
+                if dbpush and len(statsmark)>0:
+                    if newcollection not in bulkdict.keys():
+                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                    bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
+                #bsonsize=0;
+            else:
+                print(line);
+            sys.stdout.flush();
+            line=instream.readline().rstrip("\n");
+    #print("+a:"+datetime.datetime.now().strftime("%H.%M.%S"));
+    #sys.stdout.flush();
+    for bulkcoll in bulkdict.keys():
+        try:
+            bulkdict[bulkcoll].execute();
+        except BulkWriteError as bwe:
+            pprint(bwe.details);
+    #print("+b:"+datetime.datetime.now().strftime("%H.%M.%S"));
+    #sys.stdout.flush();
+    #if infileext!=".log":
+    #    stepnames=jobname+"_step_";
+    #    statsstepnames=statsname+"_step_";
+    #    stepfiles=workpath+"/"+jobname+"_step_";
+    #    statsstepfiles=workpath+"/"+statsname+"_step_";
+    #    for stepnum in rmdocs:#.keys():
+            #with open(statsstepfiles+stepnum+".inbatch","r") as batchdocstream, tempfile.NamedTemporaryFile(dir=workpath,delete=False) as tempdocstream:
+            #        ndocsleft=0;
+            #        for checkline in batchdocstream:
+            #            checklinedoc=json.loads(checkline.rstrip("\n"));
+            #            if not any([all([y in checklinedoc.items() for y in x.items()]) for x in rmdocs[stepnum]]):
+            #                tempdocstream.write(checkline);
+            #                tempdocstream.flush();
+            #                ndocsleft+=1;
+            #        os.rename(tempdocstream.name,batchdocstream.name);
+            #if ndocsleft>0:
+            #    with open(statsstepfiles+stepnum+".inbatch","r") as batchdocstream, open(stepfiles+stepnum+".docs","a") as docstream:
+            #        while True:
+            #            try:
+            #                fcntl.flock(docstream,fcntl.LOCK_EX | fcntl.LOCK_NB);
+            #                break;
+            #            except IOError as e:
+            #                if e.errno!=errno.EAGAIN:
+            #                    raise;
+            #                else:
+            #                    time.sleep(0.1);
+            #        for line in batchdocstream:
+            #            docstream.write(line);
+            #            docstream.flush();
+            #        fcntl.flock(docstream,fcntl.LOCK_UN);
+    #        os.remove(statsstepfiles+stepnum+".inbatch");
+    #if infileext!=".log":
+    #    os.remove(infile);
+    mongoclient.close();
 except Exception as e:
     PrintException();

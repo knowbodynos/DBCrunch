@@ -1,4 +1,4 @@
-#!/shared/apps/sage/sage-5.12/spkg/bin/sage -python
+#!/shared/apps/sage-7.4/local/bin/sage -python
 
 from sage.all_cmdline import *;
 import sys,json,mongolink,itertools;

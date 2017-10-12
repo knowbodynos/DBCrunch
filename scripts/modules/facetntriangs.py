@@ -219,7 +219,15 @@ if rank==0:
 
         dverts=[list(x) for x in dlp.vertices().column_matrix().columns()];
 
+        lp_facets=lp.faces_lp(codim=1);
+
+        lp_facetpts=[[list(y) for y in x.boundary_points()] for x in lp_facets];
+
+        lp_noninterpts_dup=[y for x in lp_facetpts for y in x];
+        lp_noninterpts=[lp_noninterpts_dup[i] for i in range(len(lp_noninterpts_dup)) if lp_noninterpts_dup[i] not in lp_noninterpts_dup[:i]];
+
         dlp_facets=dlp.faces_lp(codim=1);
+
         dlp_facetpts=[[list(y) for y in x.boundary_points()] for x in dlp_facets];
         dlp_maxcone_normalform_dup=[[list(y) for y in LatticePolytope(x.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()] for x in dlp_facets];
 
@@ -260,14 +268,14 @@ if rank==0:
         #poten_triangs0=list(itertools.product(*facettriangs));
         #poten_triangs=[[sorted([sorted(x) for x in y]) for y in z] for z in poten_triangs0];
         #Add new properties to the base tier of the JSON
-        print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'FACETNINTPTS':py2mat(dlp_facetpts),'FACETNTRIANGS':py2mat(facetntriangs),'MAXCONENORMALS':[py2mat(x) for x in dlp_maxcone_normalform_dup]},separators=(',',':'));
+        print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts),'NNINTPTS':py2mat(lp_noninterpts),'DNINTPTS':py2mat(dlp_noninterpts),'FACETNINTPTS':py2mat(dlp_facetpts),'FACETNTRIANGS':py2mat(facetntriangs),'MAXCONENORMALS':[py2mat(x) for x in dlp_maxcone_normalform_dup]},separators=(',',':'));
         for i in dlp_maxcone_normalform_inds:
             maxcone=dlp_maxcone_normalform_dup[i];
             facetntriang=facetntriangs[i];
             ninstances=dlp_maxcone_normalform_dup.count(maxcone);
             samentriang=all([facetntriangs[j]==facetntriang for j in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[j]==maxcone]);
-            print "&MAXCONES."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances,'SAMENTRIANG':samentriang},'FACETNTRIANGLIST':facetntriang},separators=(',',':'));
-            print "+MAXCONES."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':'));
+            print "&MAXCONE."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances,'SAMENTRIANG':samentriang},'FACETNTRIANGLIST':facetntriang},separators=(',',':'));
+            print "+MAXCONE."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':'));
         sys.stdout.flush();
     except Exception as e:
         PrintException();
