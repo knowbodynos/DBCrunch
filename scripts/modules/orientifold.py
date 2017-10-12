@@ -2510,4 +2510,4 @@ def main(involdoc,algorithm=None):
     sys.stdout.flush()
 
 if __name__ == "__main__":
-    main(algorithm='libsingular:groebner')
+    main(algorithm='macaulay2:gb')#libsingular:groebner')

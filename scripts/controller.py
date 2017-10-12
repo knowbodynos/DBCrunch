@@ -506,7 +506,7 @@ def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,niters,nbatch,
             #with open(jobpath+"/"+jobstepnames[i]+".error","a") as statstream:
             #    statstream.write(jobstepnames[i]+",-1:0,False\n");
             #    statstream.flush();
-            print "...."+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" in batches of "+str(nbatch)+"/"+str(niters)+" iterations on partition "+partition+" with "+str(nthreads[i])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
+            print "...."+submitcomm[1:]+"."+str(i)+" as "+jobstepnames[i]+" in batches of "+str(nbatch)+"/"+str(niters)+" iteration(s) on partition "+partition+" with "+str(nthreads[i])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
         print "";
         print "";
     else:
@@ -517,7 +517,7 @@ def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,niters,nbatch,
             #with open(jobpath+"/"+jobstepnames[i]+".error","a") as statstream:
             #    statstream.write(jobstepnames[i]+",-1:0,False\n");
             #    statstream.flush();
-            print "...."+submitcomm+"."+str(i)+" as "+jobstepnames[i]+" in batches of "+str(nbatch)+"/"+str(niters)+" iterations on partition "+partition+" with "+str(nthreads[i])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
+            print "...."+submitcomm+"."+str(i)+" as "+jobstepnames[i]+" in batches of "+str(nbatch)+"/"+str(niters)+" iteration(s) on partition "+partition+" with "+str(nthreads[i])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
         print "";
     sys.stdout.flush();
 
@@ -572,7 +572,7 @@ def requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefile
                         with open(controllerpath+"/jobs/"+skippedjobfile,"r") as skippeddocstream:
                             for docsline in skippeddocstream:
                                 doc=json.loads(docsline.rstrip("\n"));
-                                skippedjobfiledocs+=[modname+"_"+controllername+"_".join(indexdoc2indexsplit(doc,dbindexes))];
+                                skippedjobfiledocs+=[modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(doc,dbindexes))];
                                 skippeddoccount+=1;
                         skippedjobdocs+=[skippedjobfiledocs];
                         #os.remove(controllerpath+"/jobs/"+skippedjob+".docs");
@@ -599,33 +599,39 @@ def requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefile
                         #        querystatefilestream.write(line);
                         #        querystatefilestream.flush();
                         with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream1:
-                            for line in querystatefilestream:
-                                linestrip=line.rstrip("\n");
+                            #print(skippedjobdocs);
+                            #print("");
+                            #sys.stdout.flush();
+                            for querystateline in querystatefilestream:
+                                querystatelinestrip=querystateline.rstrip("\n");
                                 skipped=False;
                                 i=0;
+                                #print(linestrip);
+                                #sys.stdout.flush();
                                 while i<len(skippedjobdocs):
-                                    if linestrip in skippedjobdocs[i]:
-                                        skippedjobdocs[i].remove(linestrip);
+                                    if querystatelinestrip in skippedjobdocs[i]:
+                                        skippedjobdocs[i].remove(querystatelinestrip);
                                         if len(skippedjobdocs[i])==0:
+                                            skippedjobfile=skippedjobfiles[i];
                                             skippedjobnum=skippedjobnums[i];
                                             if not os.path.isdir(controllerpath+"/jobs/reloaded"):
                                                 os.mkdir(controllerpath+"/jobs/reloaded");
-                                            os.rename(controllerpath+"/jobs/"+skippedjobfiles[i],controllerpath+"/jobs/reloaded/"+skippedjobfiles[i]);
+                                            os.rename(controllerpath+"/jobs/"+skippedjobfile,controllerpath+"/jobs/reloaded/"+skippedjobfile);
                                             del skippedjobdocs[i];
                                             del skippedjobfiles[i];
                                             del skippedjobnums[i];
                                             try:
-                                                skippedjobfilein=skippedjobfiles[i].replace(".docs",".in");
+                                                skippedjobfilein=skippedjobfile.replace(".docs",".in");
                                                 os.rename(controllerpath+"/jobs/"+skippedjobfilein,controllerpath+"/jobs/reloaded/"+skippedjobfilein);
                                             except:
                                                 pass;
                                             try:
-                                                skippedjobfiletemp=skippedjobfiles[i].replace(".docs",".temp");
+                                                skippedjobfiletemp=skippedjobfile.replace(".docs",".temp");
                                                 os.rename(controllerpath+"/jobs/"+skippedjobfiletemp,controllerpath+"/jobs/reloaded/"+skippedjobfiletemp);
                                             except:
                                                 pass;
                                             try:
-                                                skippedjobfileout=skippedjobfiles[i].replace(".docs",".out");
+                                                skippedjobfileout=skippedjobfile.replace(".docs",".out");
                                                 os.rename(controllerpath+"/jobs/"+skippedjobfileout,controllerpath+"/jobs/reloaded/"+skippedjobfileout);
                                             except:
                                                 pass;
@@ -639,50 +645,51 @@ def requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefile
                                                 skippedheader=skippedstream.readline();
                                                 tempstream2.write(skippedheader);
                                                 tempstream2.flush();
-                                                for line in skippedstream:
-                                                    if not skippedjobfile in line:
-                                                        tempstream2.write(line);
+                                                for skippedline in skippedstream:
+                                                    if not skippedjobfile in skippedline:
+                                                        tempstream2.write(skippedline);
                                                         tempstream2.flush();
                                                 os.rename(tempstream2.name,skippedstream.name);
-                                        else:
-                                            i+=1;
+                                            i-=1;
                                         skipped=True;
+                                    i+=1;
                                 if not skipped:
-                                    tempstream1.write(line);
+                                    tempstream1.write(querystateline);
                                     tempstream1.flush();    
                             os.rename(tempstream1.name,querystatefilestream.name);
                     else:
                     #if querystatetierfilename!=querystatefilename+basecollection:
                         with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream1:
-                            for line in querystatefilestream:
-                                linestrip=line.rstrip("\n");
+                            for querystateline in querystatefilestream:
+                                querystatelinestrip=querystateline.rstrip("\n");
                                 skipped=False;
                                 i=0;
                                 while i<len(skippedjobdocs):
-                                    if any([linestrip+"_" in x for x in skippedjobdocs[i]]):
+                                    if any([querystatelinestrip+"_" in x for x in skippedjobdocs[i]]):
                                         for x in skippedjobdocs[i]:
-                                            if linestrip+"_" in x:
+                                            if querystatelinestrip+"_" in x:
                                                 skippedjobdocs[i].remove(x);
                                         if len(skippedjobdocs[i])==0:
+                                            skippedjobfile=skippedjobfiles[i];
                                             skippedjobnum=skippedjobnums[i];
                                             if not os.path.isdir(controllerpath+"/jobs/reloaded"):
                                                 os.mkdir(controllerpath+"/jobs/reloaded");
-                                            os.rename(controllerpath+"/jobs/"+skippedjobfiles[i],controllerpath+"/jobs/reloaded/"+skippedjobfiles[i]);
+                                            os.rename(controllerpath+"/jobs/"+skippedjobfile,controllerpath+"/jobs/reloaded/"+skippedjobfile);
                                             del skippedjobdocs[i];
                                             del skippedjobfiles[i];
                                             del skippedjobnums[i];
                                             try:
-                                                skippedjobfilein=skippedjobfiles[i].replace(".docs",".in");
+                                                skippedjobfilein=skippedjobfile.replace(".docs",".in");
                                                 os.rename(controllerpath+"/jobs/"+skippedjobfilein,controllerpath+"/jobs/reloaded/"+skippedjobfilein);
                                             except:
                                                 pass;
                                             try:
-                                                skippedjobfiletemp=skippedjobfiles[i].replace(".docs",".temp");
+                                                skippedjobfiletemp=skippedjobfile.replace(".docs",".temp");
                                                 os.rename(controllerpath+"/jobs/"+skippedjobfiletemp,controllerpath+"/jobs/reloaded/"+skippedjobfiletemp);
                                             except:
                                                 pass;
                                             try:
-                                                skippedjobfileout=skippedjobfiles[i].replace(".docs",".out");
+                                                skippedjobfileout=skippedjobfile.replace(".docs",".out");
                                                 os.rename(controllerpath+"/jobs/"+skippedjobfileout,controllerpath+"/jobs/reloaded/"+skippedjobfileout);
                                             except:
                                                 pass;
@@ -696,16 +703,16 @@ def requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefile
                                                 skippedheader=skippedstream.readline();
                                                 tempstream2.write(skippedheader);
                                                 tempstream2.flush();
-                                                for line in skippedstream:
-                                                    if not skippedjobfile in line:
-                                                        tempstream2.write(line);
+                                                for skippedline in skippedstream:
+                                                    if not skippedjobfile in skippedline:
+                                                        tempstream2.write(skippedline);
                                                         tempstream2.flush();
                                                 os.rename(tempstream2.name,skippedstream.name);
-                                        else:
-                                            i+=1;
+                                            i-=1;
                                         skipped=True;
+                                    i+=1;
                                 if not skipped:
-                                    tempstream1.write(line);
+                                    tempstream1.write(querystateline);
                                     tempstream1.flush();
                             os.rename(tempstream1.name,querystatefilestream.name);
                 except IOError:
@@ -853,9 +860,9 @@ def requeueskippedreloadjobs(modname,controllername,controllerpath,reloadstatefi
                                                     skippedheader=skippedstream.readline();
                                                     tempstream2.write(skippedheader);
                                                     tempstream2.flush();
-                                                    for line in skippedstream:
-                                                        if not skippedjobfile in line:
-                                                            tempstream2.write(line);
+                                                    for skippedline in skippedstream:
+                                                        if not skippedjobfile in skippedline:
+                                                            tempstream2.write(skippedline);
                                                             tempstream2.flush();
                                                     #print("a");
                                                     #sys.stdout.flush();
@@ -911,9 +918,9 @@ def requeueskippedreloadjobs(modname,controllername,controllerpath,reloadstatefi
                                         skippedheader=skippedstream.readline();
                                         tempstream2.write(skippedheader);
                                         tempstream2.flush();
-                                        for line in skippedstream:
-                                            if not skippedjobfile in line:
-                                                tempstream2.write(line);
+                                        for skippedline in skippedstream:
+                                            if not skippedjobfile in skippedline:
+                                                tempstream2.write(skippedline);
                                                 tempstream2.flush();
                                         #print("c");
                                         #sys.stdout.flush();
@@ -1563,9 +1570,13 @@ try:
     controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,controllertimelimit,controllerbuffertime);
 
     with open(mongourifile,"r") as mongouristream:
-        mongouri=mongouristream.readline().rstrip("\n").replace("mongodb://","mongodb://"+dbusername+":"+dbpassword+"@");
+        mongouri=mongouristream.readline().rstrip("\n");
+        if dbusername!="":
+            mongouri=mongouri.replace("mongodb://","mongodb://"+dbusername+":"+dbpassword+"@");
+            mongoclient=mongolink.MongoClient(mongouri+dbname+"?authMechanism=SCRAM-SHA-1");
+        else:
+            mongoclient=mongolink.MongoClient(mongouri+dbname);
     
-    mongoclient=mongolink.MongoClient(mongouri+dbname+"?authMechanism=SCRAM-SHA-1");
     #dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 

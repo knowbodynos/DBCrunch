@@ -24,9 +24,12 @@ Installation instructions for the Massachusetts Green High Performance Computing
    module load boost-1.55.0
    module load python-2.7.5
    module load mathematica-10
+   module load sage-7.4
 
-   export SAGE_ROOT=/shared/apps/sage/sage-5.12
+   #export SAGE_ROOT=/shared/apps/sage/sage-5.12
+   export SAGE_ROOT=/shared/apps/sage-7.4
    export SLURMONGO_ROOT=/gss_gpfs_scratch/${USER}/SLURMongo
+   export PATH=${PATH}:${HOME}/Macaulay2-1.6/bin
 ```
 
 3) Restart your Discovery session OR run the command `source ${HOME}/.bashrc`.
@@ -70,10 +73,12 @@ Installation instructions for the Massachusetts Green High Performance Computing
 6) Modify `${SLURMONGO_ROOT}/state/mongouri` by entering the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields. The format should look like:
 
 ```
-   mongodb://(username):(password)@(IP address):(port)/(MongoDB database name)
+   mongodb://(IP address):(port)/
 ```
 
-7) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template*) that you wish to run.
+7) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template.job*) that you wish to run.
+
+   The MongoDB database name, username, and password will be defined in this file (dbname, dbusername, dbpassword). If your database is unauthenticated, leave dbusername blank.
 
    For testing purposes, please modify `controller_(some_module_name)_template.job` by finding the lines defining the variables *dbpush* and *markdone*. Change them to:
 
@@ -105,7 +110,7 @@ Installation instructions for the Massachusetts Green High Performance Computing
    sbatch controller_(some_module_name)_(some_controller_name).job
 ```
    
-10) If you need to cancel the controller job for any reason, make sure you run the command:
+10) If you need to cancel and completely reset the controller job to initial conditions, make sure you run the command:
 
 ```
    ./reset.bash
@@ -179,16 +184,24 @@ _sinteract(){
 _watchjobs() {
     jobs=$(squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" | tr '\n' '!' 2>/dev/null)
     njobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | wc -l)
-    nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " R " | wc -l)
-    npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
-    steps=$(sacct -o "JobID%30,JobName%130,State" --jobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | sed "s/\s\s*/ /g" | cut -d" " -f2 | tr '\n' ',' | head -c -1) 2>/dev/null | grep -v "stats_" | grep -E "\."  | tr '\n' '!' 2>/dev/null)
-    nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
-    pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
-    if [[ "${pendsteps}" == "" ]]
+    if [ "${njobs}" -gt 0 ]
     then
-        npendsteps=0
+        nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " R " | wc -l)
+        npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
+        steps=$(sacct -o "JobID%30,JobName%130,State" --jobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | sed "s/\s\s*/ /g" | cut -d" " -f2 | tr '\n' ',' | head -c -1) 2>/dev/null | grep -v "stats_" | grep -E "\."  | tr '\n' '!' 2>/dev/null)
+        nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
+        pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
+        if [[ "${pendsteps}" == "" ]]
+        then
+            npendsteps=0
+        else
+            npendsteps=$(echo "-(${pendsteps})" | bc)
+        fi
     else
-        npendsteps=$(echo "-(${pendsteps})" | bc)
+        nrunjobs=0
+        npendjobs=0
+        nrunsteps=0
+        npendsteps=0
     fi
     nsteps=$(($nrunsteps+$npendsteps))
     echo "# Jobs: ${njobs}   # Run Jobs: ${nrunjobs}   # Pend Jobs: ${npendjobs}"
@@ -199,8 +212,63 @@ _watchjobs() {
 }
 export -f _watchjobs
 
+_watchoutput() {
+    jobdir=$1
+    nlines=$2
+    isreload=$3
+    datetime=$(date '+%Y.%m.%d:%H.%M.%S')
+    #loglines=$(cat ${jobdir}/*.log 2>/dev/null | sort -t':' -s -k1,2 -k3,3n -k4,4n)
+    logfirstlines=$(for logfile in $(ls ${jobdir}/*.log 2>/dev/null); do head -n 1 ${logfile}; done | cat | sort -t':' -s -k1,2 -k3,3n -k4,4n)
+    lognextlines=$(for logfile in $(ls ${jobdir}/*.log 2>/dev/null); do tail -n $((${nlines}-11)) ${logfile}; done | cat | sort -t':' -s -k1,2 -k3,3n -k4,4n)
+    firstline=$(echo "${logfirstlines}" | head -n 1)
+    nextlines=$(echo "${lognextlines}" | tail -n +2 | tail -n $((${nlines}-11)))
+    docsproc=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*_step_[0-9]+\.batch\.[0-9]+\.out" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+    docscoll=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.in" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+    docscomp=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.out" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+    docswrit=$(($docscomp+$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.temp" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)))
+    if [ "${isreload}" == 1 ]
+    then
+        docsrem=$(find ${jobdir}/ -maxdepth 1 -type f -regextype posix-egrep -regex "(.*_step_[0-9]+\.docs|.*_step_[0-9]+\.batch\.[0-9]+\.docs|.*\.merge\.[0-9]+\.in)" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+        batchesfail=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*_step_[0-9]+\.batch\.[0-9]+\.err\.docs" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+        mergesfail=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.err\.docs" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+    elif [ "${isreload}" == 0 ]
+    then
+        docsrembatch=$(find ${jobdir}/ -maxdepth 1 -type f -regextype posix-egrep -regex "(.*_step_[0-9]+\.docs|.*_step_[0-9]+\.batch\.[0-9]+\.docs)" 2>/dev/null | xargs cat 2>/dev/null | wc -l)
+        docsrem=$((${docsrembatch}+${docscoll}))
+        batchesfail=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*_step_[0-9]+\.batch\.[0-9]+\.err\.docs" 2>/dev/null | xargs cat 2>/dev/null | wc -l)
+        mergesfail=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.err\.docs" 2>/dev/null | xargs cat 2>/dev/null | wc -l)
+    fi
+    echo "${firstline}"
+    echo "${nextlines}"
+    echo ""
+    echo "${datetime}: ${docsproc} Documents Processed"
+    echo "${datetime}: ${docscoll} Documents Collected"
+    echo "${datetime}: ${docswrit} Documents Written (In Progress)"
+    echo "${datetime}: ${docscomp} Documents Written (Complete)"
+    echo "${datetime}: ${docsrem} Documents Remaining"
+    echo "${datetime}: ${batchesfail} Batches Failed"
+    echo "${datetime}: ${mergesfail} Merges Failed"
+}
+export -f _watchoutput
+
 _swatch() {
     watch -n$1 bash -c "_watchjobs"
+}
+
+_owatch() {
+    nseconds=$3
+    nlines=$2
+    modname=$(echo $1 | rev | cut -d'/' -f2 | rev)
+    controllername=$(echo $1 | rev | cut -d'/' -f1 | rev)
+    jobdir=$1/jobs
+    queries=$(cat "$1/controller_${modname}_${controllername}.job" | grep "queries=" | cut -d'=' -f2)
+    if [[ "${queries}" =~ .*'RELOAD'.* ]]
+    then
+        isreload=1
+    else
+        isreload=0
+    fi   
+    watch -n$nseconds "_watchoutput $jobdir $nlines $isreload"
 }
 
 _siwatch(){
@@ -232,8 +300,31 @@ _step2job(){
     fi
 }
 
+_requeuedocs(){
+    #loadfilenames=$(find ./jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
+    loadfilenames=$(find ./jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev)
+    #loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
+    #mkdir ./jobs/requeued 2>/dev/null
+    #for patt in ${loadfilejobpatt}
+    #do
+    #    mv ./jobs/${patt}* ./jobs/requeued/ 2>/dev/null
+    #done
+    #for loadfilename in $(echo ${loadfilenames} | tr ',' '\n')
+    for loadfilename in ${loadfilenames}
+    do
+        if [[ "${loadfilename}" =~ .*".err".* ]]
+        then
+            #errcode=$(cat ./jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+            errcode=$(cat ./jobs/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+        else
+            errcode="-1:0"
+        fi
+        echo "${loadfilename},${errcode},True"
+    done >> ./skippedstate
+}
+
 #Aliases
-alias sage='source /shared/apps/sage/sage-5.12/sage'
+#alias sage='source /shared/apps/sage/sage-5.12/sage'
 alias lsx='watch -n 5 "ls"'
 alias sjob='squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p"'
 alias djob='jobids=$(squeue -h -u ${USER} | grep -v "(null)" | sed "s/\s\s\s*//g" | cut -d" " -f1); for job in $jobids; do scancel $job; echo "Cancelled Job $job."; done'
@@ -242,8 +333,11 @@ alias sfindpart='_sfindpart'
 alias sfindpartall='_sfindpartall'
 alias sinteract='_sinteract'
 alias swatch='_swatch'
+alias owatch='_owatch $(pwd) ${LINES}'
 alias siwatch='_siwatch'
 alias scratch='cd /gss_gpfs_scratch/${USER}'
 alias quickclear='perl -e "for(<*>){((stat)[9]<(unlink))}"'
 alias step2job='_step2job'
+alias statreset='cat *.stat | sed "s/False/True/g" >> ../skippedstate'
+alias requeuedocs='_requeuedocs'
 ```
