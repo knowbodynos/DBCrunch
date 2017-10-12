@@ -10,7 +10,7 @@ class TimeoutException(Exception): pass;
 @contextmanager
 def time_limit(seconds):
     def signal_handler(signum, frame):
-        raise TimeoutException, "Timed out!";
+        raise TimeoutException("Timed out!");
     signal.signal(signal.SIGALRM, signal_handler);
     signal.alarm(seconds);
     try:
@@ -18,27 +18,35 @@ def time_limit(seconds):
     finally:
         signal.alarm(0);
 
-def collectionfind(db,collection,query,projection,formatresult="string"):
+def collectionfind(db,collection,query,projection,options={},formatresult="ITERATOR"):
     "Query specific collection in database."
-    if projection=="count":
+    if ("COUNT" in options.keys()) and options['COUNT']:
         result=db[collection].find(query).count();
     else:
         if len(projection)==0:
-            stringresult=list(db[collection].find(query));
+            result=db[collection].find(query);
         else:
-            stringresult=list(db[collection].find(query,projection));
-        if formatresult=="string":
-            result=stringresult;
-        elif formatresult=="expression":
-            result=parse.string2expression(stringresult);
-        else:
-            result=None;
+            result=db[collection].find(query,projection);
+        if "SORT" in options.keys():
+            result=result.sort(options['SORT']);
+        if "LIMIT" in options.keys():
+            result=result.limit(options['LIMIT']);
+        #if formatresult=="string":
+        #    result=stringresult;
+        #elif formatresult=="expression":
+        #    result=parse.string2expression(stringresult);
+        #else:
+        #    result=None;
     #return [dict(zip(y.keys(),[mat2py(y[x]) for x in y.keys()])) for y in result];
+        if formatresult=="STRING":
+            result=list(result);
+        elif formatresult=="EXPRESSION":
+            result=parse.string2expression(list(result));
     return result;
 
 def gettiers(db):
     "Return all tiers (i.e. collections) of database."
-    return tools.deldup([x["TIER"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1})]);
+    return tools.deldup([x["TIER"] for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1},formatresult="STRING")]);
 
 #def getindexes(db,collection="$allFields"):
 #    "Return all indexes for a collection."
@@ -54,7 +62,7 @@ def getunionindexes(db,*collections):
         tierquery={};
     else:
         tierquery={"TIER":{"$in":collections}};
-    sortedindexdocs=sorted(collectionfind(db,"INDEXES",tierquery,{"_id":0,"TIERID":1,"TIER":1,"INDEXID":1,"INDEX":1}),key=lambda x:(x["TIERID"],x["INDEXID"]));
+    sortedindexdocs=sorted(collectionfind(db,"INDEXES",tierquery,{"_id":0,"TIERID":1,"TIER":1,"INDEXID":1,"INDEX":1},formatresult="STRING"),key=lambda x:(x["TIERID"],x["INDEXID"]));
     unionindexes=tools.deldup([x["INDEX"] for x in sortedindexdocs]);
     return unionindexes;
 
@@ -63,7 +71,7 @@ def getintersectionindexes(db,*collections):
         tierquery={};
     else:
         tierquery={"TIER":{"$in":collections}};
-    sortedindexdocs=sorted(collectionfind(db,"INDEXES",tierquery,{"_id":0,"TIERID":1,"TIER":1,"INDEXID":1,"INDEX":1}),key=lambda x:(x["TIERID"],x["INDEXID"]));
+    sortedindexdocs=sorted(collectionfind(db,"INDEXES",tierquery,{"_id":0,"TIERID":1,"TIER":1,"INDEXID":1,"INDEX":1},formatresult="STRING"),key=lambda x:(x["TIERID"],x["INDEXID"]));
     unionindexes=tools.deldup([x["INDEX"] for x in sortedindexdocs]);
     indexgroups=[[x for x in sortedindexdocs if x["INDEX"]==y] for y in unionindexes];
     intersectionindexes=[x[0]["INDEX"] for x in indexgroups if all([y["TIER"] in collections for y in x]) and all([z in [y["TIER"] for y in x] for z in collections])];
@@ -113,14 +121,14 @@ def listindexes(db,distribfilter,commonindexes,filters):
 #    "Check whether documents from two different collection's queries share the same minimal indexes and should be concatenated."
 #    return all([filter1[x]==filter2[x] for x in filter1 if (x in indexes) and (x in filter2)]);
 
-def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult="string"):
+def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult="STRING"):
     n=int(ceil(float(len(prevresult))/float(chunk)));
     totalresult=[];
     for k in range(n):
         chunkprevresult=prevresult[k*chunk:(k+1)*chunk];
         chunkindexlist=listindexes(db,nextquery[1],commonindexes,chunkprevresult);
         chunknextresult=collectionfind(db,nextquery[0],chunkindexlist,nextquery[2],formatresult=formatresult);
-        chunktotalresult=[dict(x.items()+y.items()) for x in chunkprevresult for y in chunknextresult if all([x[z]==y[z] for z in commonindexes])];
+        chunktotalresult=[dict(list(x.items())+list(y.items())) for x in chunkprevresult for y in chunknextresult if all([x[z]==y[z] for z in commonindexes])];
         #print str(k+1)+" of "+str(n);
         totalresult+=chunktotalresult;
     return totalresult;
@@ -148,9 +156,9 @@ def mergenextquery(db,commonindexes,nextquery,prevresult,chunk=100,formatresult=
 #        totalresult=[dict(x.items()+y.items()) for x in totalresult for y in nextresult if sameindexes(x,y,indexes)];
 #    return totalresult;
 
-def querydatabase(db,queries,chunk=100,formatresult="string"):
+def querydatabase(db,queries,chunk=100,formatresult="STRING"):
     "Query all collections in the database and concatenate the documents of each that refer to the same object."
-    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1,"TIERID":1})]);
+    tiersord=dict([(x["TIER"],x["TIERID"]) for x in collectionfind(db,"INDEXES",{},{"_id":0,"TIER":1,"TIERID":1},formatresult="STRING")]);
     maxquerylen=max([len(x[1]) for x in queries]);
     sortedprojqueries=sorted([y for y in queries if y[2]!="count"],key=lambda x: (maxquerylen-len(x[1]),tiersord[x[0]]));
     maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
@@ -213,7 +221,7 @@ def updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch
 def printasfunc(*args):
     docbatch=list(args)[-1];
     for doc in docbatch:
-        print json.dumps(doc,separators=(',',':'));
+        print(json.dumps(doc,separators=(',',':')));
     sys.stdout.flush();
     return len(docbatch);
 
@@ -258,22 +266,22 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     if ("$allFields",1) in queries[0][2].items():
         newprojdoc={};
     else:
-        newprojdoc=dict(queries[0][2].items()+[(y,1) for y in thiscollindexes]+[("_id",0)]);    
-    thisquery=[queries[0][0],newquerydoc,newprojdoc];
+        newprojdoc=dict(list(queries[0][2].items())+[(y,1) for y in thiscollindexes]+[("_id",0)]);    
+    thisquery=[queries[0][0],newquerydoc,newprojdoc]+queries[0][3:];
     #print thisquery;
     #sys.stdout.flush();
     #print thisquery;
     #sys.stdout.flush();
     if (timeleft()>0) and ((limit==None) or (stepcounter<=limit)):
-        docs=collectionfind(db,*thisquery);
+        docscurs=collectionfind(db,*thisquery);
     else:
         #print "hi";
         #sys.stdout.flush();
         try:
             with time_limit(int(timeleft())):
-                docs=collectionfind(db,*thisquery);
-        except TimeoutException, msg:
-            docs=[];
+                docscurs=collectionfind(db,*thisquery);
+        except TimeoutException(msg):
+            docscurs=iter(());
             pass;
     #print "d";
     #sys.stdout.flush();
@@ -285,9 +293,12 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #sys.stdout.flush();
     origprojfields=dict([x for x in queries[0][2].items() if (x[1]==1) and (x[0]!="$allFields")]);
     projfields=origprojfields;
-    i=0;
-    while (i<len(docs)) and (timeleft()>0) and ((limit==None) or (stepcounter<=limit)):
-        doc=docs[i];
+    i=1;
+    while docscurs.alive and (timeleft()>0) and ((limit==None) or (stepcounter<=limit)):
+        if i==1:
+            doc=next(docscurs);
+            i=0;
+        #doc=docs[i];
         if ("_id" in doc.keys()) and (("_id",1) not in queries[0][2].items()):
             del doc["_id"];
         if ("$allFields",1) in queries[0][2].items():
@@ -302,7 +313,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             #print "e";
             #sys.stdout.flush();
             commonindexes=getintersectionindexes(db,queries[0][0],queries[1][0]);
-            nextqueries=[[queries[1][0],dict(queries[1][1].items()+[(x,doc[x]) for x in commonindexes]),queries[1][2]]]+queries[2:];
+            nextqueries=[[queries[1][0],dict(list(queries[1][1].items())+[(x,doc[x]) for x in commonindexes]),queries[1][2]]]+queries[2:];
             #print "f";
             #sys.stdout.flush();
             newinputdoc=inputdoc.copy();
@@ -325,9 +336,9 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             #endofdocs+=endofsubdocs;
             for j in range(len(subdocbatch)):
                 if not skipsubdocs[j]:
-                    docbatchfiltered+=[dict(doc.items()+subdocbatch[j].items())];
+                    docbatchfiltered+=[dict(list(doc.items())+list(subdocbatch[j].items()))];
                     endofdocsfiltered+=[endofsubdocs[j]];
-                docbatch+=[dict(doc.items()+subdocbatch[j].items())];
+                docbatch+=[dict(list(doc.items())+list(subdocbatch[j].items()))];
                 endofdocs+=[endofsubdocs[j]];
                 skipdocs+=[skipsubdocs[j]];
             projfields.update(subprojfields);
@@ -400,7 +411,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
                     if inputfuncresult==None:
                         break;
                     inputdoc.update(inputfuncresult);
-                if (len(docbatch)>0) and (i<len(docs)-1):
+                if (len(docbatch)>0) and docscurs.alive:
                     updatequerystate(queries,statefilepath,statefilename,allcollindexes,docbatch,endofdocs,readform=readform,writeform=writeform);
                     docbatch=[];
                     endofdocs=[];
@@ -411,15 +422,17 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             #endofdocs+=[[all(x) and (i==len(docs)-1)]+x for x in endofsubdocs];
             for j in range(len(subdocbatch)):
                 if not skipsubdocs[j]:
-                    docbatchfiltered+=[dict(doc.items()+subdocbatch[j].items())];
-                    endofdocsfiltered+=[[all(endofsubdocs[j]) and (i==len(docs)-1)]+endofsubdocs[j]];
-                docbatch+=[dict(doc.items()+subdocbatch[j].items())];
-                endofdocs+=[[all(endofsubdocs[j]) and (i==len(docs)-1)]+endofsubdocs[j]];
+                    docbatchfiltered+=[dict(list(doc.items())+list(subdocbatch[j].items()))];
+                    endofdocsfiltered+=[[all(endofsubdocs[j]) and (not docscurs.alive)]+endofsubdocs[j]];
+                docbatch+=[dict(list(doc.items())+list(subdocbatch[j].items()))];
+                endofdocs+=[[all(endofsubdocs[j]) and (not docscurs.alive)]+endofsubdocs[j]];
                 skipdocs+=[skipsubdocs[j]];
             projfields.update(subprojfields);
             if (len(docbatchfiltered)==inputdoc["nsteps"]) or not (timeleft()>0):
                 return [projfields,skipdocs,endofdocs,docbatch];
         i+=1;
+        #if i==1:
+        #    doc=next(docscurs,None);
     #print "timeleft: "+str(timeleft());
     #sys.stdout.flush();
     if toplevel:
@@ -471,7 +484,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
             projfields=origprojfields;
         return [batchcounter,stepcounter];
     else:
-        if len(docs)==0:
+        if not docscurs.alive:
             #print "thisquery: "+str(thisquery);
             skipdocs=[True];
             endofdocs=[[True for i in range(len(queries)+1)]];
