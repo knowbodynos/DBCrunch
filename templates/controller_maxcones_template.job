@@ -42,7 +42,7 @@ sleeptime="1"
 scriptlanguage="sage"
 partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
 writemode="truncate"
-scriptmemorylimit="2000000000"
+scriptmemorylimit="500000000"
 scripttimelimit=""
 scriptbuffertime="00:01:00"
 
@@ -50,7 +50,7 @@ scriptbuffertime="00:01:00"
 dbname="MLEARN"
 dbusername="manager"
 dbpassword="toric"
-queries="[['POLY',{'${modname}MARK':{'\$exists':False}},{'POLYID':1,'NVERTS':1},{'LIMIT':5000}]]"
+queries="[['POLY',{'H11':{'\$gte':7,'\$lte':10},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'NVERTS':1},{'HINT':[('H11',1)]}]]"
 #,{'SORT':[('POLYID',1)]}]]"
 basecollection="POLY"
 nthreadsfield=""
@@ -60,8 +60,8 @@ blocking="False"
 dbpush="True"
 markdone="MARK"
 writestats="True"
-niters=50
+niters=200
 nbatch=5
-nbatcheswrite=5
+nbatcheswrite=1
 
 python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${dbname}" "${dbusername}" "${dbpassword}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}" "${writestats}" "${niters}" "${nbatch}" "${nbatcheswrite}"
