@@ -36,6 +36,7 @@ modname="maxcones"
 controllername="template"
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
+storagelimit="10G"
 sleeptime="1"
 
 #Input script info
@@ -57,11 +58,13 @@ nthreadsfield=""
 
 #Options
 blocking="False"
-dbpush="True"
+logging="True"
+localwrite="True"
+dbwrite="True"
 markdone="MARK"
 writestats="True"
 niters=200
 nbatch=5
 nbatcheswrite=1
 
-python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${dbname}" "${dbusername}" "${dbpassword}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${dbpush}" "${markdone}" "${writestats}" "${niters}" "${nbatch}" "${nbatcheswrite}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${dbname}" "${dbusername}" "${dbpassword}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${localwrite}" "${dbwrite}" "${markdone}" "${writestats}" "${niters}" "${nbatch}" "${nbatcheswrite}"

@@ -217,13 +217,15 @@ _watchoutput() {
     jobdir=$1
     nlines=$2
     isreload=$3
+    permspace=$(du -ch ${jobdir}/*.log ${jobdir}/*.job ${jobdir}/*.err ${jobdir}/*.docs ${jobdir}/*.merge.*.out 2>/dev/null | tail -n1 | sed 's/\s\s*/ /g' | cut -d' ' -f1)
+    tempspace=$(du -ch ${jobdir}/*.batch.*.temp ${jobdir}/*.batch.*.out ${jobdir}/*.merge.*.in ${jobdir}/*.merge.*.temp ${jobdir}/*.err.docs ${jobdir}/*.err.out 2>/dev/null | tail -n1 | sed 's/\s\s*/ /g' | cut -d' ' -f1)
     datetime=$(date '+%Y.%m.%d:%H.%M.%S')
     #loglines=$(cat ${jobdir}/*.log 2>/dev/null | sort -t':' -s -k1,2 -k3,3n -k4,4n)
-    logfirstlines=$(for logfile in $(ls ${jobdir}/*.log 2>/dev/null); do head -n 1 ${logfile}; done | cat | sort -t':' -s -k1,2 -k3,3n -k4,4n)
-    lognextlines=$(for logfile in $(ls ${jobdir}/*.log 2>/dev/null); do tail -n $((${nlines}-11)) ${logfile}; done | cat | sort -t':' -s -k1,2 -k3,3n -k4,4n)
+    logfirstlines=$(for logfile in $(ls ${jobdir}/*.log 2>/dev/null); do head -n 1 ${logfile}; done | sort -t':' -s -k1,2 -k3,3n -k4,4n)
+    lognextlines=$(for logfile in $(ls ${jobdir}/*.log 2>/dev/null); do tail -n $((${nlines}-13)) ${logfile}; done | sort -t':' -s -k1,2 -k3,3n -k4,4n)
     firstline=$(echo "${logfirstlines}" | head -n 1)
-    nextlines=$(echo "${lognextlines}" | tail -n +2 | tail -n $((${nlines}-11)))
-    docsproc=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*_step_[0-9]+\.batch\.[0-9]+\.out" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
+    nextlines=$(echo "${lognextlines}" | tail -n +2 | tail -n $((${nlines}-13)))
+    docsproc=$(find ${jobdir}/ -maxdepth 1 -type f -regextype posix-egrep -regex ".*_step_[0-9]+\.batch\.[0-9]+\.(temp|out)" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
     docscoll=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.in" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
     docscomp=$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.out" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)
     docswrit=$(($docscomp+$(find ${jobdir}/ -maxdepth 1 -type f -regex ".*\.merge\.[0-9]+\.temp" 2>/dev/null | xargs cat 2>/dev/null | grep "@" | wc -l)))
@@ -242,6 +244,8 @@ _watchoutput() {
     echo "${firstline}"
     echo "${nextlines}"
     echo ""
+    echo "${datetime}: ${permspace} Permanent Space"
+    echo "${datetime}: ${tempspace} Temporary Space"
     echo "${datetime}: ${docsproc} Documents Processed"
     echo "${datetime}: ${docscoll} Documents Collected"
     echo "${datetime}: ${docswrit} Documents Written (In Progress)"

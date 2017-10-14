@@ -84,16 +84,18 @@ try:
     nbatch=eval(sys.argv[13]);
     nbatcheswrite=eval(sys.argv[14]);
     #Option info
-    dbpush=sys.argv[15];
-    markdone=sys.argv[16];
-    writestats=sys.argv[17];
+    logging=eval(sys.argv[15]);
+    localwrite=eval(sys.argv[16]);
+    dbwrite=sys.argv[17];
+    markdone=sys.argv[18];
+    writestats=sys.argv[19];
     #File system info
-    mainpath=sys.argv[18];
+    mainpath=sys.argv[20];
     #Database info
-    basecollection=sys.argv[19];
-    dbindexes=eval(sys.argv[20]);
+    basecollection=sys.argv[21];
+    dbindexes=eval(sys.argv[22]);
     #MPI info
-    nstepthreads=sys.argv[21:];
+    nstepthreads=sys.argv[23:];
 
     nsteps=len(nstepthreads);
 
@@ -144,16 +146,18 @@ try:
             batchstepids+=[serialid];
             mergestepids+=[0];
             serialid+=1;
-            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Started");
-            sys.stdout.flush();
+            if logging:
+                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Started");
+                sys.stdout.flush();
             loglinenum+=1;
         else:
             if os.path.exists(workpath+"/"+stepname+".docs"):
                 os.remove(workpath+"/"+stepname+".docs");
             stepstatuses+=["DONE"];
             countdone+=1;
-            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Complete");
-            sys.stdout.flush();
+            if logging:
+                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Complete");
+                sys.stdout.flush();
             loglinenum+=1;
     rangesteps=[i for i in rangesteps if stepstatuses[i]!="DONE"];
     #Loop while any step has unprocessed documents
@@ -257,16 +261,18 @@ try:
                             #    os.rename(tempstream.name,docsstream.name);
                             #    os.remove(batchinstream.name);
                             stepstatuses[stepind]="NEXT";
-                            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Failed");
-                            sys.stdout.flush();
+                            if logging:
+                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Failed");
+                                sys.stdout.flush();
                             loglinenum+=1;
                         else:
                             mergenums[stepind]=mergenum;
                             mergestepbatchnumslist+=[[stepind,batchnums[stepind]]];
                             os.remove(workpath+"/"+batchname+".temp");
                             #Append the .merge.temp file to the .merge.out file and rename .batch.in file to .batch.docs
-                            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Completed Successfully");
-                            sys.stdout.flush();
+                            if logging:
+                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Completed Successfully");
+                                sys.stdout.flush();
                             loglinenum+=1;
                             with open(workpath+"/"+batchname+".out","r") as batchoutstream, open(workpath+"/"+mergename+".in","a") as mergeinstream:
                                 for line in batchoutstream:
@@ -279,7 +285,9 @@ try:
                             if (countmerge==nbatcheswrite) or (countdone==nsteps-1):
                                 #Submit stats process on completed documents
                                 stepmems[stepind]=(totmem-usedmem)/(nsteps-countdone-usedsteps);
-                                stepjobs[stepind]=execscript(nstepthreads[stepind],mergename+"-"+str(serialid),str(stepmems[stepind]),memunit,steptime,"python","",scriptpath,"stats.py",[mainpath,modname,controllername,mergename+".in",dbpush,markdone,writestats],outfile=open(workpath+"/"+mergename+".temp","a"));
+                                stepjobs[stepind]=execscript(nstepthreads[stepind],mergename+"-"+str(serialid),str(stepmems[stepind]),memunit,steptime,"python","",scriptpath,"writetodb.py",[mainpath,modname,controllername,mergename+".in",dbwrite,markdone,writestats],outfile=open(workpath+"/"+mergename+".temp","a"));
+                                #Remove .merge.in file from submitted step
+                                os.remove(workpath+"/"+mergename+".in");
                                 usedsteps+=1;
                                 usedmem+=stepmems[stepind];
                                 mergenum+=1;
@@ -289,8 +297,9 @@ try:
                                 serialid+=1;
                                 stepstatuses[stepind]="MERGE";
                                 countmerge=0;
-                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Merge "+str(mergenums[stepind])+" Started");
-                                sys.stdout.flush();
+                                if logging:
+                                    print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Merge "+str(mergenums[stepind])+" Started");
+                                    sys.stdout.flush();
                                 loglinenum+=1;
                             else:
                                 stepstatuses[stepind]="NEXT";
@@ -298,6 +307,8 @@ try:
                         tempmergenum=mergenums[stepind];
                         tempmergestepbatchnums=mergestepbatchnums[stepind];
                         tempmergename=jobname+".merge."+str(tempmergenum);
+                        ##Remove all .merge.in files from completed steps
+                        #os.remove(workpath+"/"+tempmergename+".in");
                         #Get merge process exit code
                         stats=getstats(["ExitCode"],slurmjobid,str(mergestepids[stepind]));
                         while any([x=="" for x in stats]):
@@ -327,8 +338,8 @@ try:
                                         mergeerrstream.write("\n");
                                         mergeerrstream.flush();
                                         os.remove(mergetempstream.name);
-                            #Put failed input documents from .batch.docs into .merge.err.docs file and failed output from .merge.in into .merge.err.in
-                            os.rename(workpath+"/"+tempmergename+".in",workpath+"/"+tempmergename+".err.in");
+                            #Put failed input documents from .batch.docs into .merge.err.docs file
+                            #os.rename(workpath+"/"+tempmergename+".in",workpath+"/"+tempmergename+".err.in");
                             for tempstepind,tempbatchnum in tempmergestepbatchnums:
                                 tempstepnum=tempstepind+1;
                                 tempstepname=jobname+"_step_"+str(tempstepnum);
@@ -364,12 +375,13 @@ try:
                             #    if (stepstatuses[tempstepind]!="DONE") and (tempstepind!=stepind):
                             #        stepstatuses[tempstepind]="COLLECT";
                             stepstatuses[stepind]="NEXT";
-                            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Merge "+str(tempmergenum)+" Failed");
-                            sys.stdout.flush();
+                            if logging:
+                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Merge "+str(tempmergenum)+" Failed");
+                                sys.stdout.flush();
                             loglinenum+=1;
                         else:
-                            #Remove all .batch.docs and .merge.in files from completed steps
-                            os.remove(workpath+"/"+tempmergename+".in");
+                            #Remove all .batch.docs files from completed steps
+                            #os.remove(workpath+"/"+tempmergename+".in");
                             for tempstepind,tempbatchnum in tempmergestepbatchnums:
                                 tempstepnum=tempstepind+1;
                                 tempstepname=jobname+"_step_"+str(tempstepnum);
@@ -383,10 +395,14 @@ try:
                                 #if (stepstatuses[tempstepind]!="DONE") and (tempstepind!=stepind):
                                 #    stepstatuses[tempstepind]="COLLECT";
                             stepstatuses[stepind]="NEXT";
-                            os.rename(workpath+"/"+tempmergename+".temp",workpath+"/"+tempmergename+".out");
+                            if localwrite:
+                                os.rename(workpath+"/"+tempmergename+".temp",workpath+"/"+tempmergename+".out");
+                            else:
+                                os.remove(workpath+"/"+tempmergename+".temp");
                             mergestepids[stepind]=0;
-                            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Merge "+str(tempmergenum)+" Completed Successfully");
-                            sys.stdout.flush();
+                            if logging:
+                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Merge "+str(tempmergenum)+" Completed Successfully");
+                                sys.stdout.flush();
                             loglinenum+=1;
                     #else:
                     #    print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Not MERGE or COLLECT");
@@ -409,13 +425,15 @@ try:
                             stepstatuses[stepind]="COLLECT";
                             batchstepids[stepind]=serialid;
                             serialid+=1;
-                            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Started");
-                            sys.stdout.flush();
+                            if logging:
+                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Batch "+str(batchnums[stepind])+" Started");
+                                sys.stdout.flush();
                             loglinenum+=1;
                         else:
                             #Remove .docs file, mark current step as done, and reallocate node memory among remaining steps
-                            print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Complete");
-                            sys.stdout.flush();
+                            if logging:
+                                print(lineheader(jobnum,loglinenum)+"Job "+jobnum+" Step "+str(stepnum)+" Complete");
+                                sys.stdout.flush();
                             loglinenum+=1;
                             if os.path.exists(workpath+"/"+stepname+".docs"):
                                 os.remove(workpath+"/"+stepname+".docs");

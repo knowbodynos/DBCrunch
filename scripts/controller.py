@@ -349,15 +349,29 @@ def indexdoc2indexsplit(doc,dbindexes):
 #    bracketcontracted=[x.split("_") for x in jobstepnames];
 #    return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
 
-def formatinput(doc):#,scriptlanguage):
-    #if scriptlanguage=="python":
-    #    formatteddoc=doc;
-    #elif scriptlanguage=="sage":
-    #    formatteddoc=doc;
-    #elif scriptlanguage=="mathematica":
-    #    formatteddoc=mongolink.pythondictionary2mathematicarules(doc);
-    #return str(formatteddoc).replace(" ","");
-    return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
+#def formatinput(doc):#,scriptlanguage):
+#    #if scriptlanguage=="python":
+#    #    formatteddoc=doc;
+#    #elif scriptlanguage=="sage":
+#    #    formatteddoc=doc;
+#    #elif scriptlanguage=="mathematica":
+#    #    formatteddoc=mongolink.pythondictionary2mathematicarules(doc);
+#    #return str(formatteddoc).replace(" ","");
+#    return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
+
+def dir_size(start_path='.'):
+    total_size=0;
+    for dirpath,dirnames,filenames in os.walk(start_path):
+        for f in filenames:
+            fp=os.path.join(dirpath,f);
+            total_size+=os.stat(fp).st_blocks*512;
+    return total_size;
+
+def storageleft(path,storagelimit):
+    if storagelimit==None:
+        return True;
+    else:
+        return dir_size(path)<storagelimit;
 
 def getpartitiontimelimit(partition,scripttimelimit,scriptbuffertime):
     maxtimelimit=subprocess.Popen("sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
@@ -1041,7 +1055,7 @@ def distributeovernodes(resourcesstatefile,partition,scriptmemorylimit,nnodes,ma
     #    memoryperstep=maxmemorypernode;
     return [ncores,nsteps,maxmemorypernode];
 
-def writejobfile(reloadjob,modname,dbpush,markdone,writestats,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,counters,totmem,ncoresused,scriptlanguage,scriptcommand,scriptflags,scriptext,base,dbindexes,nthreadsfield,nbatch,nbatcheswrite,docbatches):
+def writejobfile(reloadjob,modname,logging,localwrite,dbwrite,markdone,writestats,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,counters,totmem,ncoresused,scriptlanguage,scriptcommand,scriptflags,scriptext,base,dbindexes,nthreadsfield,nbatch,nbatcheswrite,docbatches):
     ndocbatches=len(docbatches);
     outputlinemarkers=["-","+","&","@","CPUTime:","MaxRSS:","MaxVMSize:","BSONSize:","None"];
     scriptcommandflags=scriptcommand;
@@ -1099,7 +1113,9 @@ def writejobfile(reloadjob,modname,dbpush,markdone,writestats,jobname,jobstepnam
     jobstring+="nbatcheswrite="+str(min(nbatcheswrite,ncoresused))+"\n";
     jobstring+="\n";
     jobstring+="#Option info\n";
-    jobstring+="dbpush=\""+dbpush+"\"\n";
+    jobstring+="logging=\""+logging+"\"\n";
+    jobstring+="localwrite=\""+localwrite+"\"\n";
+    jobstring+="dbwrite=\""+dbwrite+"\"\n";
     jobstring+="markdone=\""+markdone+"\"\n";
     jobstring+="writestats=\""+writestats+"\"\n";
     jobstring+="\n";
@@ -1133,15 +1149,15 @@ def writejobfile(reloadjob,modname,dbpush,markdone,writestats,jobname,jobstepnam
             jobstring+="nstepthreads["+str(i)+"]=1\n";
     jobstring+="\n";
     if reloadjob:
-        jobstring+="python \"${scriptpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${dbpush}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${nstepthreads[@]}\"";
+        jobstring+="python \"${scriptpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${logging}\" \"${localwrite}\" \"${dbwrite}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${nstepthreads[@]}\"";
     else:
-        jobstring+="python \"${scriptpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${dbpush}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
+        jobstring+="python \"${scriptpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${logging}\" \"${localwrite}\" \"${dbwrite}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
     jobstream=open(controllerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
     jobstream.close();
 
-def waitforslots(reloadjob,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes):
+def waitforslots(reloadjob,storagelimit,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes):
     needslicense=(licensestream!=None);
     if needslicense:
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
@@ -1149,12 +1165,12 @@ def waitforslots(reloadjob,licensestream,username,modname,controllername,control
         licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
         orderedfreepartitions=orderfreepartitions(partitions);
         releaseheldjobs(username,modname,controllername);
-        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0)):
+        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
                 statusstream.write("Waiting");
                 statusstream.flush();
-            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0)):
+            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
                 nlicensesplit=licensecount(username,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage);
@@ -1190,12 +1206,12 @@ def waitforslots(reloadjob,licensestream,username,modname,controllername,control
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
         orderedfreepartitions=orderfreepartitions(partitions);
         releaseheldjobs(username,modname,controllername);
-        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0)):
+        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
             with open(statusstatefile,"w") as statusstream:
                 statusstream.truncate(0);
                 statusstream.write("Waiting");
                 statusstream.flush();
-            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0)):
+            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
                 time.sleep(sleeptime);
                 jobslotsleft=clusterjobslotsleft(username,maxjobcount);
                 orderedfreepartitions=orderfreepartitions(partitions);
@@ -1210,7 +1226,7 @@ def waitforslots(reloadjob,licensestream,username,modname,controllername,control
 
     return orderedfreepartitions;
 
-def doinput(docbatch,querylimit,counters,reloadjob,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig):
+def doinput(docbatch,querylimit,counters,reloadjob,storagelimit,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig):
     if querylimit==None:
         niters=niters_orig;
     else:
@@ -1221,7 +1237,7 @@ def doinput(docbatch,querylimit,counters,reloadjob,nthreadsfield,licensestream,u
         maxthreads=max([x[nthreadsfield] for x in docbatch[0:niters]]);
     else:
         maxthreads=1;
-    orderedfreepartitions=waitforslots(reloadjob,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
+    orderedfreepartitions=waitforslots(reloadjob,storagelimit,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
     if orderedfreepartitions==None:
         return None;
     #orderedfreepartitions=orderpartitions(partitions);
@@ -1261,7 +1277,7 @@ def doinput(docbatch,querylimit,counters,reloadjob,nthreadsfield,licensestream,u
                 maxthreads-=1;
         while maxthreads==0:
             nnodes+=1;
-            orderedfreepartitions=waitforslots(reloadjob,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
+            orderedfreepartitions=waitforslots(reloadjob,storagelimit,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
             if orderedfreepartitions==None:
                 return None;
             #orderedfreepartitions=orderpartitions(partitions);
@@ -1302,7 +1318,7 @@ def doinput(docbatch,querylimit,counters,reloadjob,nthreadsfield,licensestream,u
     #sys.stdout.flush();
     return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"maxmemorypernode":maxmemorypernode};
 
-def doaction(counters,inputdoc,docbatch,querylimit,reloadjob,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,writestats,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,querystatefilename,base,counterstatefile,counterheader,niters_orig,nbatch_orig,nbatcheswrite_orig):
+def doaction(counters,inputdoc,docbatch,querylimit,reloadjob,storagelimit,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,logging,localwrite,dbwrite,markdone,writestats,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,querystatefilename,base,counterstatefile,counterheader,niters_orig,nbatch_orig,nbatcheswrite_orig):
     partition=inputdoc['partition'];
     nnodes=inputdoc['nnodes'];
     ncores=inputdoc['ncores'];
@@ -1347,7 +1363,7 @@ def doaction(counters,inputdoc,docbatch,querylimit,reloadjob,nthreadsfield,licen
             maxthreads-=1;
     while maxthreads==0:
         nnodes+=1;
-        orderedfreepartitions=waitforslots(reloadjob,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
+        orderedfreepartitions=waitforslots(reloadjob,storagelimit,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
         if orderedfreepartitions==None:
             return None;
         #orderedfreepartitions=orderpartitions(partitions);
@@ -1410,7 +1426,7 @@ def doaction(counters,inputdoc,docbatch,querylimit,reloadjob,nthreadsfield,licen
     partitiontimelimit,buffertimelimit=getpartitiontimelimit(partition,scripttimelimit,scriptbuffertime);
     #if len(docbatch)<inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(reloadjob,modname,dbpush,markdone,writestats,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,counters,totmem,ncoresused,scriptlanguage,scriptcommand,scriptflags,scriptext,base,dbindexes,nthreadsfield,nbatch,nbatcheswrite,docbatchwrite);
+    writejobfile(reloadjob,modname,logging,localwrite,dbwrite,markdone,writestats,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,counters,totmem,ncoresused,scriptlanguage,scriptcommand,scriptflags,scriptext,base,dbindexes,nthreadsfield,nbatch,nbatcheswrite,docbatchwrite);
     #Submit job file
     if (nthreadsfield!="") and (not reloadjob):
         nthreads=[max([y[nthreadsfield] for y in x]) for x in docbatchwrite];
@@ -1470,8 +1486,9 @@ try:
     controllerjobid=sys.argv[3];
     #controllerpartition=sys.argv[4];
     controllerbuffertime=sys.argv[4];
+    storagelimit=sys.argv[5];
     #largemempartitions=sys.argv[6].split(",");
-    sleeptime=eval(sys.argv[5]);
+    sleeptime=eval(sys.argv[6]);
 
     #seekfile=sys.argv[7]; 
 
@@ -1481,33 +1498,35 @@ try:
     #scriptpath=sys.argv[9];
 
     #Input script info
-    scriptlanguage=sys.argv[6];
-    partitions=sys.argv[7].split(",");
-    writemode=sys.argv[8];
+    scriptlanguage=sys.argv[7];
+    partitions=sys.argv[8].split(",");
+    writemode=sys.argv[9];
     #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[9];
-    scripttimelimit=sys.argv[10];
-    scriptbuffertime=sys.argv[11];
+    scriptmemorylimit=sys.argv[10];
+    scripttimelimit=sys.argv[11];
+    scriptbuffertime=sys.argv[12];
     #outputlinemarkers=sys.argv[15].split(",");
 
     #Input database info
-    dbname=sys.argv[12];
-    dbusername=sys.argv[13];
-    dbpassword=sys.argv[14];
-    queries=eval(sys.argv[15]);
+    dbname=sys.argv[13];
+    dbusername=sys.argv[14];
+    dbpassword=sys.argv[15];
+    queries=eval(sys.argv[16]);
     #dumpfile=sys.argv[13];
-    basecollection=sys.argv[16];
-    nthreadsfield=sys.argv[17];
+    basecollection=sys.argv[17];
+    nthreadsfield=sys.argv[18];
     #newcollection,newfield=sys.argv[18].split(",");
 
     #Options
-    blocking=eval(sys.argv[18]);
-    dbpush=sys.argv[19];
-    markdone=sys.argv[20];
-    writestats=sys.argv[21];
-    niters_orig=eval(sys.argv[22]);
-    nbatch_orig=eval(sys.argv[23]);
-    nbatcheswrite_orig=eval(sys.argv[24]);
+    blocking=eval(sys.argv[19]);
+    logging=sys.argv[20];
+    localwrite=sys.argv[21];
+    dbwrite=sys.argv[22];
+    markdone=sys.argv[23];
+    writestats=sys.argv[24];
+    niters_orig=eval(sys.argv[25]);
+    nbatch_orig=eval(sys.argv[26]);
+    nbatcheswrite_orig=eval(sys.argv[27]);
     
     #Read seek position from file
     #with open(controllerpath+"/"+seekfile,"r") as seekstream:
@@ -1520,6 +1539,18 @@ try:
     #if seekpos==-1:
     #Open connection to remote database
     #sys.stdout.flush();
+
+    if storagelimit=="":
+        storagelimit=None;
+    else:
+        storagelimit=re.sub("(.*)(gb|g)(.*)",r"\g<1>000000000\3",storagelimit,flags=re.IGNORECASE);
+        storagelimit=re.sub("(.*)(mb|m)(.*)",r"\g<1>000000\3",storagelimit,flags=re.IGNORECASE);
+        storagelimit=re.sub("(.*)(kb|k)(.*)",r"\g<1>000\3",storagelimit,flags=re.IGNORECASE);
+        if storagelimit.isdigit():
+            storagelimit=eval(storagelimit);
+        else:
+            storagelimit=None;
+
     controllerstats=subprocess.Popen("sacct -n -j \""+controllerjobid+"\" -o 'Partition%30,Timelimit,NNodes,NCPUs' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
     while len(controllerstats)<4:
         time.sleep(sleeptime);
@@ -1576,7 +1607,7 @@ try:
             mongoclient=mongolink.MongoClient(mongouri+dbname+"?authMechanism=SCRAM-SHA-1");
         else:
             mongoclient=mongolink.MongoClient(mongouri+dbname);
-    
+
     #dbname=mongouri.split("/")[-1];
     db=mongoclient[dbname];
 
@@ -1681,11 +1712,11 @@ try:
         if reloadjob:
             requeueskippedreloadjobs(modname,controllername,controllerpath,reloadstatefilename,reloadpath,counters,counterstatefile,counterheader,dbindexes);
             if (querylimit==None) or (counters[1]<=querylimit):
-                counters=reloadcrawl(reloadpath,reloadpattern,controllerpath,reloadstatefilename=reloadstatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,nthreadsfield,licensestream,username,modname,controllername,controllerpath,reloadstatefilename,reloadpath,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,nthreadsfield,licensestream,username,modname,controllername,controllerpath,reloadstatefilename,reloadpath,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,writestats,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,reloadstatefilename,reloadpath,counterstatefile,counterheader,niters_orig,nbatch_orig,nbatcheswrite_orig),filereadform=lambda x:x,filewriteform=lambda x:x,docwriteform=lambda x:"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit);
+                counters=reloadcrawl(reloadpath,reloadpattern,controllerpath,reloadstatefilename=reloadstatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,storagelimit,nthreadsfield,licensestream,username,modname,controllername,controllerpath,reloadstatefilename,reloadpath,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,storagelimit,nthreadsfield,licensestream,username,modname,controllername,controllerpath,reloadstatefilename,reloadpath,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,storagelimit,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,logging,localwrite,dbwrite,markdone,writestats,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,reloadstatefilename,reloadpath,counterstatefile,counterheader,niters_orig,nbatch_orig,nbatcheswrite_orig),filereadform=lambda x:x,filewriteform=lambda x:x,docwriteform=lambda x:"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit);
         else:
             requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefilename,basecollection,counters,counterstatefile,counterheader,dbindexes);
             if (querylimit==None) or (counters[1]<=querylimit):
-                counters=mongolink.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,dbpush,markdone,writestats,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,querystatefilename,basecollection,counterstatefile,counterheader,niters_orig,nbatch_orig,nbatcheswrite_orig),readform=lambda x:indexsplit2indexdoc(x.split("_")[2:],dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit,toplevel=True);
+                counters=mongolink.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,storagelimit,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,storagelimit,nthreadsfield,licensestream,username,modname,controllername,controllerpath,querystatefilename,basecollection,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,storagelimit,nthreadsfield,licensestream,username,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,resourcesstatefile,scriptmemorylimit,maxstepcount,modname,controllername,dbindexes,logging,localwrite,dbwrite,markdone,writestats,controllerpath,writemode,mongouri,scriptcommand,scriptflags,scriptext,querystatefilename,basecollection,counterstatefile,counterheader,niters_orig,nbatch_orig,nbatcheswrite_orig),readform=lambda x:indexsplit2indexdoc(x.split("_")[2:],dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit,toplevel=True);
         #print "bye";
         #firstrun=False;
         releaseheldjobs(username,modname,controllername);

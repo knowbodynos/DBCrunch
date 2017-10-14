@@ -25,7 +25,7 @@ try:
     #infileext=sys.argv[6];
     infilename=sys.argv[4];
     #nbatcheswrite=sys.argv[5];
-    dbpush=eval(sys.argv[5]);
+    dbwrite=eval(sys.argv[5]);
     markdone=sys.argv[6];
     writestats=eval(sys.argv[7]);
 
@@ -48,9 +48,13 @@ try:
                 dbpassword=controllerline.split("=")[1].lstrip("\"").rstrip("\"\n");
 
     with open(mongourifile,"r") as mongouristream:
-        mongouri=mongouristream.readline().rstrip("\n").replace("mongodb://","mongodb://"+dbusername+":"+dbpassword+"@");
+        mongouri=mongouristream.readline().rstrip("\n");
+        if dbusername!="":
+            mongouri=mongouri.replace("mongodb://","mongodb://"+dbusername+":"+dbpassword+"@");
+            mongoclient=mongolink.MongoClient(mongouri+dbname+"?authMechanism=SCRAM-SHA-1");
+        else:
+            mongoclient=mongolink.MongoClient(mongouri+dbname);
 
-    mongoclient=mongolink.MongoClient(mongouri+dbname+"?authMechanism=SCRAM-SHA-1");
     db=mongoclient[dbname];
 
     bulkdict={};
@@ -68,33 +72,36 @@ try:
                 linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
                 doc=json.loads(linedoc);
                 #bsonsize-=mongolink.bsonsize(doc);
-                if dbpush:
+                if dbwrite:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
                 print(line);
+                line=instream.readline().rstrip("\n");
             elif linemarker=="+":
                 newcollection,strindexdoc=linehead[1:-1].split(".");
                 newindexdoc=json.loads(strindexdoc);
                 linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
                 doc=json.loads(linedoc);
                 #bsonsize+=mongolink.bsonsize(doc);
-                if dbpush:
+                if dbwrite:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
                 print(line);
+                line=instream.readline().rstrip("\n");
             elif linemarker=="&":
                 newcollection,strindexdoc=linehead[1:-1].split(".");
                 newindexdoc=json.loads(strindexdoc);
                 linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
                 doc=json.loads(linedoc);
                 #bsonsize+=mongolink.bsonsize(doc);
-                if dbpush:
+                if dbwrite:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
                 print(line);
+                line=instream.readline().rstrip("\n");
             elif linemarker=="@":
                 #if linehead[-1]==">":
                 #    newcollection,strindexdoc=linehead[1:-1].split(".");
@@ -112,41 +119,33 @@ try:
                 newindexdoc=json.loads(strindexdoc);
                 print(line);
                 line=instream.readline().rstrip("\n");
-                if not "CPUTime: " in line:
-                    raise EOFError("CPUTime is not recorded.");
-                cputime=eval(line.split(" ")[1]);
-                print(line);
-                line=instream.readline().rstrip("\n");
-                if not "MaxRSS: " in line:
-                    raise EOFError("MaxRSS is not recorded.");
-                maxrss=eval(line.split(" ")[1]);
-                print(line);
-                line=instream.readline().rstrip("\n");
-                if not "MaxVMSize: " in line:
-                    raise EOFError("MaxVMSize is not recorded.");
-                maxvmsize=eval(line.split(" ")[1]);
-                print(line);
-                #statstell=instream.tell();
-                line=instream.readline().rstrip("\n");
-                #print("BSONSize: "+str(bsonsize)+" bytes");
-                if not "BSONSize: " in line:
-                    raise EOFError("BSONSize is not recorded.");
-                    #instream.seek(statstell);
-                bsonsize=eval(line.split(" ")[1]);
+                while (line!="") and any([line[:len(x)]==x for x in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
+                    if "CPUTime: " in line:
+                        cputime=eval(line.split(" ")[1]);
+                    if "MaxRSS: " in line:
+                        maxrss=eval(line.split(" ")[1]);
+                    if "MaxVMSize: " in line:
+                        maxvmsize=eval(line.split(" ")[1]);
+                        #print("BSONSize: "+str(bsonsize)+" bytes");
+                    if "BSONSize: " in line:
+                        #instream.seek(statstell);
+                        bsonsize=eval(line.split(" ")[1]);
+                    print(line);
+                    line=instream.readline().rstrip("\n");
                 statsmark={};
                 if writestats:
                     statsmark.update({modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}});
                 if markdone!="":
                     statsmark.update({modname+markdone:True});
-                if dbpush and len(statsmark)>0:
+                if dbwrite and len(statsmark)>0:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
                 #bsonsize=0;
             else:
                 print(line);
-            sys.stdout.flush();
-            line=instream.readline().rstrip("\n");
+                line=instream.readline().rstrip("\n");
+            sys.stdout.flush();      
     #print("+a:"+datetime.datetime.now().strftime("%H.%M.%S"));
     #sys.stdout.flush();
     for bulkcoll in bulkdict.keys():
