@@ -364,7 +364,10 @@ def dir_size(start_path='.'):
     for dirpath,dirnames,filenames in os.walk(start_path):
         for f in filenames:
             fp=os.path.join(dirpath,f);
-            total_size+=os.stat(fp).st_blocks*512;
+            try:
+                total_size+=os.stat(fp).st_blocks*512;
+            except OSError:
+                pass;
     return total_size;
 
 def storageleft(path,storagelimit):
@@ -1143,21 +1146,29 @@ def writejobfile(reloadjob,modname,logging,localwrite,dbwrite,markdone,writestat
                 else:
                     docstream.write(json.dumps(doc,separators=(',',':'))+"\n");
                 docstream.flush()
-        if (nthreadsfield!="") and (not reloadjob):
-            jobstring+="nstepthreads["+str(i)+"]="+str(max([x[nthreadsfield] for x in docbatches[i]]))+"\n";
+        if nthreadsfield!="":
+            nstepthreads=max([x[nthreadsfield] for x in docbatches[i]]);
         else:
-            jobstring+="nstepthreads["+str(i)+"]=1\n";
-    jobstring+="\n";
-    if reloadjob:
-        jobstring+="python \"${scriptpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${logging}\" \"${localwrite}\" \"${dbwrite}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${nstepthreads[@]}\"";
-    else:
-        jobstring+="python \"${scriptpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${logging}\" \"${localwrite}\" \"${dbwrite}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
+            nstepthreads=1;
+        jobstring+="nstepthreads="+str(nstepthreads)+"\n";
+        jobstring+="stepmem=$(((${totmem}*${nstepthreads})/${nsteps}))\n";
+        if not reloadjob:
+            jobstring+="mpirun -srun -n \"${nstepthreads}\" -J \""+jobstepnames[i]+"\" --mem-per-cpu=\"${stepmem}${memunit}\" --time=\"${steptime}\" python ${scriptpath}/wrapper.py --controller \"${controllername}\" --stepid \"${SLURM_JOBID}."+str(i)+"\" --nbatch \"${nbatch}\" --nworkers \"${nbatcheswrite}\" --write-local --stats-local --write-db --stats-db --module "+scriptcommand+" "+scriptflags+" ${scriptpath}/modules/"+modname+scriptext+" \""+controllerpath+"/jobs/"+jobstepnames[i]+".docs\" \""+base+"\" "+" ".join(["\""+str(x)+"\"" for x in dbindexes])+" &";
+        jobstring+="\n";
+    jobstring+="wait";
+    #if reloadjob:
+    #    jobstring+="python \"${scriptpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${logging}\" \"${localwrite}\" \"${dbwrite}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${nstepthreads[@]}\"";
+    #else:
+    #    jobstring+="python \"${scriptpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nbatcheswrite}\" \"${logging}\" \"${localwrite}\" \"${dbwrite}\" \"${markdone}\" \"${writestats}\" \"${mainpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
     jobstream=open(controllerpath+"/jobs/"+jobname+".job","w");
     jobstream.write(jobstring);
     jobstream.flush();
     jobstream.close();
 
 def waitforslots(reloadjob,storagelimit,licensestream,username,modname,controllername,controllerpath,querystatefilename,base,maxjobcount,modlist,modulesdirpath,softwarestatefile,scriptpath,scriptlanguage,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes):
+    #print("dir_size/storagelimit: "+str(dir_size(controllerpath))+"/"+str(storagelimit));
+    #print("storageleft: "+str(storageleft(controllerpath,storagelimit)));
+    #sys.stdout.flush();
     needslicense=(licensestream!=None);
     if needslicense:
         jobslotsleft=clusterjobslotsleft(username,maxjobcount);
@@ -1543,11 +1554,16 @@ try:
     if storagelimit=="":
         storagelimit=None;
     else:
+        if '.' in storagelimit:
+            storagelimit,decimal=storagelimit.split('.');
+            decimal="."+decimal;
+        else:
+            decimal="";
         storagelimit=re.sub("(.*)(gb|g)(.*)",r"\g<1>000000000\3",storagelimit,flags=re.IGNORECASE);
         storagelimit=re.sub("(.*)(mb|m)(.*)",r"\g<1>000000\3",storagelimit,flags=re.IGNORECASE);
         storagelimit=re.sub("(.*)(kb|k)(.*)",r"\g<1>000\3",storagelimit,flags=re.IGNORECASE);
         if storagelimit.isdigit():
-            storagelimit=eval(storagelimit);
+            storagelimit=eval(storagelimit+decimal);
         else:
             storagelimit=None;
 

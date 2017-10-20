@@ -33,7 +33,7 @@ def execscript(nstepthreads,batchname,stepmems,memunit,steptime,scriptcommand,sc
     scriptcommandflags=scriptcommand;
     if len(scriptflags)>0:
         scriptcommandflags+=" "+scriptflags;
-    jobstring="mpirun -srun -n \""+nstepthreads+"\" -J \""+batchname+"\" --mem-per-cpu=\""+stepmems+memunit+"\" --time=\""+steptime+"\" "+scriptcommandflags+" \""+scriptpath+"/"+scriptfile+"\" "+" ".join(["\""+x+"\"" for x in args]);
+    jobstring="mpirun -srun -n \""+nstepthreads+"\" -J \""+batchname+"\" --mem-per-cpu=\""+stepmems+memunit+"\" --time=\""+steptime+"\" "+scriptcommandflags+" \""+scriptpath+"/"+scriptfile+"\" "+" ".join(["\""+str(x)+"\"" for x in args]);
     job=subprocess.Popen(jobstring,shell=True,stdout=outfile,preexec_fn=default_sigpipe);
     return job;
 
@@ -271,9 +271,9 @@ try:
                             if (countmerge==nbatcheswrite) or (countdone==nsteps-1):
                                 #Submit stats process on completed documents
                                 stepmems[stepind]=(totmem-usedmem)/(nsteps-countdone-usedsteps);
-                                stepjobs[stepind]=execscript(nstepthreads[stepind],mergename+"-"+str(serialid),str(stepmems[stepind]),memunit,steptime,"python","",scriptpath,"writetodb.py",[mainpath,modname,controllername,mergename+".in",dbwrite,markdone,writestats],outfile=open(workpath+"/"+mergename+".temp","a"));
-                                #Remove .merge.in file from submitted step
-                                os.remove(workpath+"/"+mergename+".in");
+                                stepjobs[stepind]=execscript(nstepthreads[stepind],mergename+"-"+str(serialid),str(stepmems[stepind]),memunit,steptime,"python","",scriptpath,"writetodb.py",[mainpath,modname,controllername,mergename+".in",dbwrite,markdone,writestats,"True"],outfile=open(workpath+"/"+mergename+".temp","a"));
+                                ##Remove .merge.in file from submitted step
+                                #os.remove(workpath+"/"+mergename+".in");
                                 usedsteps+=1;
                                 usedmem+=stepmems[stepind];
                                 mergenum+=1;

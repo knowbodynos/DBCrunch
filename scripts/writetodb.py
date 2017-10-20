@@ -28,6 +28,7 @@ try:
     dbwrite=eval(sys.argv[5]);
     markdone=sys.argv[6];
     writestats=eval(sys.argv[7]);
+    rminput=eval(sys.argv[8]);
 
     #jobname=modname+"_"+controllername+"_job_"+jobnum;
     #statsname=jobname+"_stats_"+statsnum;
@@ -148,6 +149,8 @@ try:
             sys.stdout.flush();      
     #print("+a:"+datetime.datetime.now().strftime("%H.%M.%S"));
     #sys.stdout.flush();
+    if rminput:
+        os.remove(infile);
     for bulkcoll in bulkdict.keys():
         try:
             bulkdict[bulkcoll].execute();

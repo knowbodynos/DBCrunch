@@ -295,7 +295,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #sys.stdout.flush();
     #print thisquery;
     #sys.stdout.flush();
-    if (limit==None) or (stepcounter<=limit):
+    if (limit==None) or (counters[1]<=limit):
         if timeleft()>0:
             docscurs=collectionfind(db,*thisquery);
         else:
@@ -321,7 +321,7 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
     #projfields=origprojfields;
     #i=1;
     cursnext=True;
-    while docscurs.alive and (timeleft()>0) and ((limit==None) or (stepcounter<=limit)):
+    while docscurs.alive and (timeleft()>0) and ((limit==None) or (counters[1]<=limit)):
         #print("loop"+" <- "+queries[0][0]);
         #sys.stdout.flush();
         #firstrun=False;
@@ -394,8 +394,8 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
                 #    endofdocsskipped=[];
                 if (len(docbatch)==inputdoc["nsteps"]) or not (timeleft()>0):
                     #print "docbatch: "+str([dict([(y,x[y]) for z in allcollindexes for y in z if y in x.keys()]) for x in docbatch]);
-                    if (limit!=None) and (stepcounter+len(docbatch)>limit):
-                        docbatch=docbatch[:limit-stepcounter+1];
+                    if (limit!=None) and (counters[1]+len(docbatch)>limit):
+                        docbatch=docbatch[:limit-counters[1]+1];
                     if not endofdocs[-1][0]:# and (len(endofdocs)>0)
                         #i-=1;
                         cursnext=False;
@@ -506,8 +506,8 @@ def dbcrawl(db,queries,statefilepath,statefilename="querystate",inputfunc=lambda
         #    docbatchskipped=[];
         #    endofdocsskipped=[];
         while len(docbatch)>0:
-            if (limit!=None) and (stepcounter+len(docbatch)>limit):
-                docbatch=docbatch[:limit-stepcounter+1];
+            if (limit!=None) and (counters[1]+len(docbatch)>limit):
+                docbatch=docbatch[:limit-counters[1]+1];
             docbatchprojfields=[dict([y for y in x.items() if y[0] in projfields.keys()]) for x in docbatch];
             #docbatchpass=action(counters,inputdoc,docbatchprojfields);
             nextdocind=action(counters,inputdoc,docbatchprojfields);

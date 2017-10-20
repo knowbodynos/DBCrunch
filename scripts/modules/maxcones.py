@@ -6,7 +6,6 @@ import sys,json;#,linecache,traceback,mongolink;#os,tempfile,time,datetime,subpr
 from mongolink.parse import pythonlist2mathematicalist as py2mat;
 from mongolink.parse import mathematicalist2pythonlist as mat2py;
 import mongolink.tools as tools;
-from mongolink.wrapper import *
 
 #Misc. function definitions
 #def PrintException():
@@ -55,81 +54,84 @@ def timestamp2unit(timestamp,unit="seconds"):
 #    else:
 #        return ((timestamp2unit(timelimit)-(time.time()-starttime)))>0;
 
-@wrap()
-def main(polydoc):
-    #polydoc=json.loads(line.rstrip("\n"));
+docsfile=sys.argv[1];
+basecoll=sys.argv[2];
+dbindexes=sys.argv[3:];
+with open(docsfile,'r') as docstream:
+    for line in docstream:
+        polydoc=json.loads(line.rstrip("\n"));
 
-    #with open(workpath+"/"+jobstepname+".docs","r") as docstream:
-    #    count=0;
-    #    #polydoc=next(polycurs,None);
-    #    line=docstream.readline();
-    #    while line!="":# and timeleft(starttime,timelimit):
-    #        polydoc=json.loads(line.rstrip("\n"));
-    #        #iddoc=dict([(x,polydoc[x]) for x in dbindexes if x in polydoc.keys()]);
-    #Read in pertinent fields from JSON
-    polyid=polydoc['POLYID'];
-    nverts=mat2py(polydoc['NVERTS']);
+        #with open(workpath+"/"+jobstepname+".docs","r") as docstream:
+        #    count=0;
+        #    #polydoc=next(polycurs,None);
+        #    line=docstream.readline();
+        #    while line!="":# and timeleft(starttime,timelimit):
+        #        polydoc=json.loads(line.rstrip("\n"));
+        #        #iddoc=dict([(x,polydoc[x]) for x in dbindexes if x in polydoc.keys()]);
+        #Read in pertinent fields from JSON
+        polyid=polydoc['POLYID'];
+        nverts=mat2py(polydoc['NVERTS']);
 
-    lp=LatticePolytope(nverts);
-    dlp=LatticePolytope(lp.polar().normal_form());
+        lp=LatticePolytope(nverts);
+        dlp=LatticePolytope(lp.polar().normal_form());
 
-    dverts=[list(x) for x in dlp.vertices().column_matrix().columns()];
+        dverts=[list(x) for x in dlp.vertices().column_matrix().columns()];
 
-    #lp_facets=lp.faces_lp(codim=1);
+        #lp_facets=lp.faces_lp(codim=1);
 
-    #lp_facetbndrypts=[[list(y) for y in x.boundary_points()] for x in lp_facets];
+        #lp_facetbndrypts=[[list(y) for y in x.boundary_points()] for x in lp_facets];
 
-    #lp_bndrypts_dup=[y for x in lp_facetbndrypts for y in x];
-    #lp_bndrypts=[lp_bndrypts_dup[i] for i in range(len(lp_bndrypts_dup)) if lp_bndrypts_dup[i] not in lp_bndrypts_dup[:i]];
+        #lp_bndrypts_dup=[y for x in lp_facetbndrypts for y in x];
+        #lp_bndrypts=[lp_bndrypts_dup[i] for i in range(len(lp_bndrypts_dup)) if lp_bndrypts_dup[i] not in lp_bndrypts_dup[:i]];
 
-    #dlp_facets=dlp.faces_lp(dim=3);
+        #dlp_facets=dlp.faces_lp(dim=3);
 
-    #dlp_facetbndrypts=[[list(y) for y in x.boundary_points()] for x in dlp_facets];
-    #dlp_facetinterpts=[[list(y) for y in x.interior_points()] for x in dlp_facets];
-    #dlp_maxcone_normalform_dup=[[list(y) for y in LatticePolytope(x.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()] for x in dlp_facets];
-    #dlp_maxcone_normalform_inds=[i for i in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[i] not in dlp_maxcone_normalform_dup[:i]];
-    
-    #dlp_bndrypts_dup=[y for x in dlp_facetbndrypts for y in x];
-    #dlp_bndrypts=[dlp_bndrypts_dup[i] for i in range(len(dlp_bndrypts_dup)) if dlp_bndrypts_dup[i] not in dlp_bndrypts_dup[:i]];
+        #dlp_facetbndrypts=[[list(y) for y in x.boundary_points()] for x in dlp_facets];
+        #dlp_facetinterpts=[[list(y) for y in x.interior_points()] for x in dlp_facets];
+        #dlp_maxcone_normalform_dup=[[list(y) for y in LatticePolytope(x.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()] for x in dlp_facets];
+        #dlp_maxcone_normalform_inds=[i for i in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[i] not in dlp_maxcone_normalform_dup[:i]];
+        
+        #dlp_bndrypts_dup=[y for x in dlp_facetbndrypts for y in x];
+        #dlp_bndrypts=[dlp_bndrypts_dup[i] for i in range(len(dlp_bndrypts_dup)) if dlp_bndrypts_dup[i] not in dlp_bndrypts_dup[:i]];
 
-    #dlp_interpts_dup=[y for x in dlp_facetinterpts for y in x];
-    #dlp_interpts=[dlp_interpts_dup[i] for i in range(len(dlp_interpts_dup)) if dlp_interpts_dup[i] not in dlp_interpts_dup[:i]];
+        #dlp_interpts_dup=[y for x in dlp_facetinterpts for y in x];
+        #dlp_interpts=[dlp_interpts_dup[i] for i in range(len(dlp_interpts_dup)) if dlp_interpts_dup[i] not in dlp_interpts_dup[:i]];
 
-    nformlist=[];
-    nformcountlist=[];
-    faceinfolist=[];
-    for facet in dlp.faces_lp(dim=3):
-        nform=[list(w) for w in LatticePolytope(facet.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()];
-        if nform not in nformlist:
-            nformlist+=[nform];
-            nformcountlist+=[1];
-            dim0=[facet.nvertices()];
-            face1intpts=[len(y.interior_points()) for y in facet.faces_lp(dim=1)];
-            dim1=[len(face1intpts),sum(face1intpts),min(face1intpts),max(face1intpts)];
-            face2intpts=[len(y.interior_points()) for y in facet.faces_lp(dim=2)];
-            dim2=[len(face2intpts),sum(face2intpts),min(face2intpts),max(face2intpts)];
-            faceinfolist+=[dim0+dim1+dim2];
-        else:
-            nformcountlist[nformlist.index(nform)]+=1;
+        nformlist=[];
+        nformcountlist=[];
+        faceinfolist=[];
+        for facet in dlp.faces_lp(dim=3):
+            nform=[list(w) for w in LatticePolytope(facet.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()];
+            if nform not in nformlist:
+                nformlist+=[nform];
+                nformcountlist+=[1];
+                dim0=[facet.nvertices()];
+                face1intpts=[len(y.interior_points()) for y in facet.faces_lp(dim=1)];
+                dim1=[len(face1intpts),sum(face1intpts),min(face1intpts),max(face1intpts)];
+                face2intpts=[len(y.interior_points()) for y in facet.faces_lp(dim=2)];
+                dim2=[len(face2intpts),sum(face2intpts),min(face2intpts),max(face2intpts)];
+                faceinfolist+=[dim0+dim1+dim2];
+            else:
+                nformcountlist[nformlist.index(nform)]+=1;
 
-    print("+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts)},separators=(',',':')));
-    sys.stdout.flush();
-    
-    for i in range(len(nformlist)):
-        nform=nformlist[i];
-        faceinfo=faceinfolist[i];
-        ninstances=nformcountlist[i];
-        print("&MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances}},separators=(',',':')));
-        print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACEINFO':py2mat(faceinfo)},separators=(',',':')));
+        print("+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts)},separators=(',',':')));
         sys.stdout.flush();
+        
+        for i in range(len(nformlist)):
+            nform=nformlist[i];
+            faceinfo=faceinfolist[i];
+            ninstances=nformcountlist[i];
+            print("&MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances}},separators=(',',':')));
+            print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACEINFO':py2mat(faceinfo)},separators=(',',':')));
+            sys.stdout.flush();
 
-    #print("@POLY."+json.dumps(dict([(x,polydoc[x]) for x in dbindexes]),separators=(',',':')));
-    sys.stdout.flush();
+        print("@"+basecoll+"."+json.dumps(dict([(x,polydoc[x]) for x in dbindexes]),separators=(',',':')));
+        sys.stdout.flush();
 
 #        line=docstream.readline();
 
-if __name__ == "__main__":
-    main();
+#if __name__ == "__main__":
+#    main();
 
 #with tempfile.NamedTemporaryFile(dir=workpath,delete=False) as tempstream:
 #    while line!="":
