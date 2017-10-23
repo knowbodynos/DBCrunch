@@ -1,28 +1,23 @@
 #!/shared/apps/sage-7.4/local/bin/sage -python
 
+#Created by
+#Ross Altman
+#10/12/2015
+
 from sage.all_cmdline import *;
 
-import sys,linecache,traceback,signal,json;
-from contextlib import contextmanager;
+import sys,os,fcntl,errno,linecache,operator,traceback,time,re,itertools,json;
 from mongolink.parse import pythonlist2mathematicalist as py2mat;
 from mongolink.parse import mathematicalist2pythonlist as mat2py;
-#import mongolink.tools as tools;
+import mongolink.tools as tools;
+from mpi4py import MPI;
+
+comm=MPI.COMM_WORLD;
+size=comm.Get_size();
+rank=comm.Get_rank();
 
 #################################################################################
 #Misc. function definitions
-class TimeoutException(Exception): pass;
-
-@contextmanager
-def time_limit(seconds):
-    def signal_handler(signum, frame):
-        raise TimeoutException("Timed out!");
-    signal.signal(signal.SIGALRM, signal_handler);
-    signal.alarm(seconds);
-    try:
-        yield;
-    finally:
-        signal.alarm(0);
-
 def PrintException():
     "If an exception is raised, print traceback of it to output log."
     exc_type,exc_obj,tb=sys.exc_info();
@@ -205,33 +200,107 @@ def FSRT_facet_from_resolved_verts(resverts,facet):
     return triangs;
 '''
 
-def n_FSRT_facet_from_resolved_verts(facetpts):
-    pc=PointConfiguration(facetpts);
-    triangs=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).triangulations_list();
-    return len(triangs);
+def n_FSRT_facet_from_resolved_verts(label,facet):
+    pc=PointConfiguration(facet);
+    pretriangs=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).triangulations_list();
+    return [label,len(pretriangs)];
 
 #################################################################################
 #Main body
-try:
-    docsfile=sys.argv[1];
-    basecoll=sys.argv[2];
-    dbindexes=sys.argv[3:];
-    with open(docsfile,'r') as docstream:
-        for line in docstream:
-            maxconedoc=json.loads(line.rstrip("\n"));
-            nform=mat2py(maxconedoc['NORMALFORM']);
-            facetverts=[x for x in nform if not all([y==0 for y in x])];
-            facet=LatticePolytope(facetverts);
-            facetpts=[list(x) for x in facet.boundary_points()];
-            try:
-                with time_limit(60):
-                    facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
-            except TimeoutException("Timed out!"):
-                pass;
+if rank==0:
+    try:
+        #IO Definitions
+        polydoc=json.loads(sys.argv[1]);
+        #Read in pertinent fields from JSON
+        polyid=polydoc['POLYID'];
+        nverts=mat2py(polydoc['NVERTS']);
+        lp=LatticePolytope(nverts);
+        dlp=LatticePolytope(lp.polar().normal_form());
+
+        dverts=[list(x) for x in dlp.vertices().column_matrix().columns()];
+
+        lp_facets=lp.faces_lp(codim=1);
+
+        lp_facetpts=[[list(y) for y in x.boundary_points()] for x in lp_facets];
+
+        lp_noninterpts_dup=[y for x in lp_facetpts for y in x];
+        lp_noninterpts=[lp_noninterpts_dup[i] for i in range(len(lp_noninterpts_dup)) if lp_noninterpts_dup[i] not in lp_noninterpts_dup[:i]];
+
+        dlp_facets=dlp.faces_lp(codim=1);
+
+        dlp_facetpts=[[list(y) for y in x.boundary_points()] for x in dlp_facets];
+        dlp_maxcone_normalform_dup=[[list(y) for y in LatticePolytope(x.vertices().column_matrix().columns()+[vector((0,0,0,0))]).normal_form().column_matrix().columns()] for x in dlp_facets];
+
+        dlp_noninterpts_dup=[y for x in dlp_facetpts for y in x];
+        dlp_noninterpts=[dlp_noninterpts_dup[i] for i in range(len(dlp_noninterpts_dup)) if dlp_noninterpts_dup[i] not in dlp_noninterpts_dup[:i]];
+
+        ######################## Begin parallel MPI scatter/gather of triangulation information ###############################
+        #scatt=[[dlp_noninterpts]+x for x in tools.distribcores(dlp_facetpts,size)];
+        label_dlp_facetpts=[[i,dlp_facetpts[i]] for i in range(len(dlp_facetpts))];
+        scatt=tools.distribcores(label_dlp_facetpts,size);
+        #If fewer cores are required than are available, pass extraneous cores no information
+        if len(scatt)<size:
+            scatt+=[-2 for x in range(len(scatt),size)];
+        #Scatter and define rank-independent input variables
+        facets=comm.scatter(scatt,root=0);
+        #For each chunk of information assigned to this rank, do the following
+        gath=[];
+        #cpu_dlp_noninterpts=facets[0];
+        #for facet in facets[1:]:
+        for facet in facets:
+            #Triangulate cone c and relabel vertices according to full polytope
+            #newfacettriang=FSRT_facet_from_resolved_verts(cpu_dlp_noninterpts,facet);
+            newfacetntriangs=n_FSRT_facet_from_resolved_verts(*facet);
+            #Gather information into a list and pass it back to main rank
+            gath+=[newfacetntriangs];
+        facetntriangs_group=comm.gather(gath,root=0);
+        #Signal ranks to exit current process (if there are no other processes, then exit other ranks)
+        scatt=[-1 for j in range(size)];
+        comm.scatter(scatt,root=0);
+        #Reorganize gathered information into a serial form
+        #facettriangs=[x for y in facettriangs_group for x in y];
+        label_facetntriangs=[x for y in facetntriangs_group for x in y];
+        labels=[x[0] for x in label_facetntriangs];
+        facetntriangs=[x[1] for x in label_facetntriangs];
+        dlp_facetpts=[dlp_facetpts[i] for i in labels];
+        dlp_maxcone_normalform_dup=[dlp_maxcone_normalform_dup[i] for i in labels];
+        dlp_maxcone_normalform_inds=[i for i in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[i] not in dlp_maxcone_normalform_dup[:i]];
+        #poten_triangs0=list(itertools.product(*facettriangs));
+        #poten_triangs=[[sorted([sorted(x) for x in y]) for y in z] for z in poten_triangs0];
+        #Add new properties to the base tier of the JSON
+        print "+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts),'NNINTPTS':py2mat(lp_noninterpts),'DNINTPTS':py2mat(dlp_noninterpts),'FACETNINTPTS':py2mat(dlp_facetpts),'FACETNTRIANGS':py2mat(facetntriangs),'MAXCONENORMALS':[py2mat(x) for x in dlp_maxcone_normalform_dup]},separators=(',',':'));
+        for i in dlp_maxcone_normalform_inds:
+            maxcone=dlp_maxcone_normalform_dup[i];
+            facetntriang=facetntriangs[i];
+            ninstances=dlp_maxcone_normalform_dup.count(maxcone);
+            samentriang=all([facetntriangs[j]==facetntriang for j in range(len(dlp_maxcone_normalform_dup)) if dlp_maxcone_normalform_dup[j]==maxcone]);
+            print "&MAXCONE."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances,'SAMENTRIANG':samentriang},'FACETNTRIANGLIST':facetntriang},separators=(',',':'));
+            print "+MAXCONE."+json.dumps({'NORMALFORM':py2mat(maxcone)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':'));
+        sys.stdout.flush();
+    except Exception as e:
+        PrintException();
+else:
+    try:
+        #While rank is not signalled to close
+        while True:
+            scatt=None;
+            facets=comm.scatter(scatt,root=0);
+            if facets==-1:
+                #Rank has been signalled to close
+                break;
+            elif facets==-2:
+                #Rank is extraneous and no information is being passed
+                gath=[];
             else:
-                facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
-                print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':')));
-                print("@"+basecoll+"."+json.dumps(dict([(x,maxconedoc[x]) for x in dbindexes]),separators=(',',':')));
-                sys.stdout.flush();
-except Exception as e:
-    PrintException();
+                gath=[];
+                #cpu_dlp_noninterpts=facets[0];
+                #for facet in facets[1:]:
+                for facet in facets:
+                    #Triangulate cone c and relabel vertices according to full polytope
+                    #newfacettriang=FSRT_facet_from_resolved_verts(cpu_dlp_noninterpts,facet);
+                    newfacetntriangs=n_FSRT_facet_from_resolved_verts(*facet);
+                    #Gather information into a list and pass it back to main rank
+                    gath+=[newfacetntriangs];
+                facetntriangs_group=comm.gather(gath,root=0);
+    except Exception as e:
+        PrintException();

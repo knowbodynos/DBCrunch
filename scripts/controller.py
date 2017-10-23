@@ -1153,7 +1153,7 @@ def writejobfile(reloadjob,modname,logging,localwrite,dbwrite,markdone,writestat
         jobstring+="nstepthreads="+str(nstepthreads)+"\n";
         jobstring+="stepmem=$(((${totmem}*${nstepthreads})/${nsteps}))\n";
         if not reloadjob:
-            jobstring+="mpirun -srun -n \"${nstepthreads}\" -J \""+jobstepnames[i]+"\" --mem-per-cpu=\"${stepmem}${memunit}\" --time=\"${steptime}\" python ${scriptpath}/wrapper.py --controller \"${controllername}\" --stepid \"${SLURM_JOBID}."+str(i)+"\" --nbatch \"${nbatch}\" --nworkers \"${nbatcheswrite}\" --write-local --stats-local --write-db --stats-db --module "+scriptcommand+" "+scriptflags+" ${scriptpath}/modules/"+modname+scriptext+" \""+controllerpath+"/jobs/"+jobstepnames[i]+".docs\" \""+base+"\" "+" ".join(["\""+str(x)+"\"" for x in dbindexes])+" &";
+            jobstring+="mpirun -srun -n \"${nstepthreads}\" -J \""+jobstepnames[i]+"\" --mem-per-cpu=\"${stepmem}${memunit}\" --time=\"${steptime}\" python ${scriptpath}/wrapper.py --controller \"${controllername}\" --stepid \"${SLURM_JOBID}."+str(i)+"\" --jobnum \"${jobnum}\" --nbatch \"${nbatch}\" --nworkers \"${nbatcheswrite}\" --write-local --stats-local --write-db --stats-db --module "+scriptcommand+" "+scriptflags+" ${scriptpath}/modules/"+modname+scriptext+" \""+controllerpath+"/jobs/"+jobstepnames[i]+".docs\" \""+base+"\" "+" ".join(["\""+str(x)+"\"" for x in dbindexes])+" &";
         jobstring+="\n";
     jobstring+="wait";
     #if reloadjob:
