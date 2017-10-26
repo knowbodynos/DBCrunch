@@ -12,12 +12,36 @@ try:
 except ImportError:
     from queue import Queue,Empty;  # python 3.x
 
+class AsynchronousThreadStreamReader(Thread):
+    '''Class to implement asynchronously read output of
+    a separate thread. Pushes read lines on a queue to
+    be consumed in another thread.
+    '''
+    def __init__(self, stream, queue):
+        assert isinstance(queue, Queue)
+        assert callable(stream.readline)
+        Thread.__init__(self)
+        self._stream = stream
+        self._queue = queue
+        self.daemon = True
+
+    def run(self):
+        '''The body of the thread: read lines and put them on the queue.'''
+        for line in iter(self._stream.readline, ''):
+            self._queue.put(line)
+
+    def eof(self):
+        '''Check whether there is no more content to expect.'''
+        return (not self.is_alive()) and self._queue.empty()
+
 class AsynchronousThreadStreamReaderWriter(Thread):
     '''Class to implement asynchronously read output of
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, in_stream, out_stream, in_queue, out_queue):
+    def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = ''):
+        assert hasattr(in_iter_arg, '__iter__')
+        assert hasattr(in_iter_file, '__iter__')
         assert isinstance(in_queue, Queue)
         assert isinstance(out_queue, Queue)
         assert callable(in_stream.write)
@@ -25,30 +49,143 @@ class AsynchronousThreadStreamReaderWriter(Thread):
         Thread.__init__(self)
         self._instream = in_stream
         self._outstream = out_stream
+        self._initerarg = in_iter_arg
+        self._initerfile = in_iter_file
+        self._initerargflag = False
+        #self._initerfileflag = False
         self._inqueue = in_queue
+        self._tempqueue = temp_queue
         self._outqueue = out_queue
+        self._delimiter = delimiter
         self.daemon = True
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
-        if not self._inqueue.empty():
-            in_line = self._inqueue.get()
-            self._instream.write(in_line)
-            self._instream.flush()
-        else:
-            self._instream.close()
-        for out_line in iter(self._outstream.readline, ''):
-            self._outqueue.put(out_line)
-            if not self._inqueue.empty():
+        try:
+            in_line = self._initerarg.next()
+        except StopIteration:
+            self._initerargflag = True
+            if self._initerfile.closed:
                 in_line = self._inqueue.get()
-                self._instream.write(in_line)
-                self._instream.flush()
+                if in_line == "":
+                    self._instream.close()
+                    #print("finally!");
+                    #sys.stdout.flush();
+                else:
+                    self._tempqueue.put(in_line)
+                    self._instream.write(in_line+self._delimiter)
+                    #print("a: "+in_line+self._delimiter);
+                    #sys.stdout.flush();
+                    self._instream.flush()
             else:
-                self._instream.close()
+                in_line = self._initerfile.readline().rstrip("\n")
+                if in_line == "":
+                    self._initerfile.close()
+                    #self._initerfileflag = True
+                    in_line = self._inqueue.get()
+                    if in_line == "":
+                        self._instream.close()
+                        #print("finally!");
+                        #sys.stdout.flush();
+                    else:
+                        self._tempqueue.put(in_line)
+                        self._instream.write(in_line+self._delimiter)
+                        #print("a: "+in_line+self._delimiter);
+                        #sys.stdout.flush();
+                        self._instream.flush()
+                else:
+                    self._tempqueue.put(in_line)
+                    self._instream.write(in_line+self._delimiter)
+                    #print("a: "+in_line+self._delimiter);
+                    #sys.stdout.flush();
+                    self._instream.flush()
+                    with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
+                        in_line = self._initerfile.readline()
+                        while in_line != "":
+                            tempstream.write(in_line)
+                            tempstream.flush()
+                            in_line = self._initerfile.readline()
+                        name = self._initerfile.name
+                        self._initerfile.close()
+                        os.rename(tempstream.name, name)
+                        self._initerfile = open(name, 'r')
+        else:
+            self._tempqueue.put(in_line)
+            self._instream.write(in_line+self._delimiter)
+            #print("a: "+in_line+self._delimiter);
+            #sys.stdout.flush();
+            self._instream.flush()
+            #self._instream.close()
+            #print(in_line);
+            #sys.stdout.flush();
+        for out_line in iter(self._outstream.readline, ''):
+            out_line = out_line.rstrip("\n")
+            #if out_line == "\n".decode('string_escape'):
+            #print(out_line);
+            #sys.stdout.flush();
+            if out_line == "@":
+                try:
+                    in_line = self._initerarg.next()
+                except StopIteration:
+                    self._initerargflag = True
+                    if self._initerfile.closed:
+                        in_line = self._inqueue.get()
+                        if in_line == "":
+                            self._instream.close()
+                            #print("finally!");
+                            #sys.stdout.flush();
+                        else:
+                            self._tempqueue.put(in_line)
+                            self._instream.write(in_line+self._delimiter)
+                            #print("a: "+in_line+self._delimiter);
+                            #sys.stdout.flush();
+                            self._instream.flush()
+                    else:
+                        in_line = self._initerfile.readline().rstrip("\n")
+                        if in_line == "":
+                            self._initerfile.close()
+                            #self._initerfileflag = True
+                            in_line = self._inqueue.get()
+                            if in_line == "":
+                                self._instream.close()
+                                #print("finally!");
+                                #sys.stdout.flush();
+                            else:
+                                self._tempqueue.put(in_line)
+                                self._instream.write(in_line+self._delimiter)
+                                #print("a: "+in_line+self._delimiter);
+                                #sys.stdout.flush();
+                                self._instream.flush()
+                        else:
+                            self._tempqueue.put(in_line)
+                            self._instream.write(in_line+self._delimiter)
+                            #print("a: "+in_line+self._delimiter);
+                            #sys.stdout.flush();
+                            self._instream.flush()
+                            with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
+                                in_line = self._initerfile.readline()
+                                while in_line != "":
+                                    tempstream.write(in_line)
+                                    tempstream.flush()
+                                    in_line = self._initerfile.readline()
+                                name = self._initerfile.name
+                                self._initerfile.close()
+                                os.rename(tempstream.name, name)
+                                self._initerfile = open(name, 'r')
+                else:
+                    self._tempqueue.put(in_line)
+                    self._instream.write(in_line+self._delimiter)
+                    #print("a: "+in_line+self._delimiter);
+                    #sys.stdout.flush();
+                    self._instream.flush()
+            self._outqueue.put(out_line.rstrip("\n"))
+
+    def waiting(self):
+        return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
 
     def eof(self):
         '''Check whether there is no more content to expect.'''
-        return (not self.is_alive()) and self._inqueue.empty() and self._outqueue.empty()
+        return (not self.is_alive()) and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
 
 class AsynchronousThreadStatsReader(Thread):
     '''Class to implement asynchronously read output of
@@ -139,7 +276,7 @@ class AsynchronousThreadStatsReader(Thread):
             self._nstats += 1
             for k in self._stats.keys():
                 self._totstats[k] += self._stats[k]
-                if self._stats[k] > self._maxstats[k]:
+                if self._stats[k] >= self._maxstats[k]:
                     self._maxstats[k] = self._stats[k]
             sleep(self._statsdelay)
         self._smaps.close()
@@ -173,7 +310,7 @@ class AsynchronousThreadStatsReader(Thread):
 parser=ArgumentParser();
 
 parser.add_argument('--controller',dest='controllername',action='store',default=None,help='');
-parser.add_argument('--stepid',dest='stepid',action='store',default=1,help='');
+parser.add_argument('--stepid',dest='stepid',action='store',default="1",help='');
 
 parser.add_argument('--nbatch','-n',dest='nbatch',action='store',default=1,help='');
 parser.add_argument('--nworkers','-N',dest='nworkers',action='store',default=1,help='');
@@ -198,18 +335,25 @@ parser.add_argument('--markdone',dest='markdone',action='store',default="MARK",h
 parser.add_argument('--delay',dest='delay',action='store',default=0,help='');
 parser.add_argument('--stats',dest='stats_list',nargs='+',action='store',default=[],help='');
 parser.add_argument('--stats-delay',dest='stats_delay',action='store',default=0,help='');
-parser.add_argument('--delimiter','-d',dest='delimiter',action='store',default='',help='');
+parser.add_argument('--delimiter','-d',dest='delimiter',action='store',default='\n',help='');
 parser.add_argument('--input','-i',dest='input_list',nargs='+',action='store',default=[],help='');
 parser.add_argument('--file','-f',dest='input_file',action='store',default=None,help='');
+parser.add_argument('--interactive',dest='interactive',action='store_true',default=False,help='');
 parser.add_argument('--script','-c', dest='scriptcommand',nargs=REMAINDER,required=True,help='');
 
 kwargs=vars(parser.parse_known_args()[0]);
+
+#print(kwargs['input_list']);
+#sys.stdout.flush();
 
 kwargs['delay']=float(kwargs['delay']);
 kwargs['stats_delay']=float(kwargs['stats_delay']);
 kwargs['nbatch']=int(kwargs['nbatch']);
 kwargs['nworkers']=int(kwargs['nworkers']);
-kwargs['delimiter']=kwargs['delimiter'].decode("string_escape");
+kwargs['delimiter']=kwargs['delimiter']#.decode("string_escape");
+
+modname=kwargs['scriptcommand'][1].split("/")[-1].split(".")[0];
+
 kwargs['scriptcommand']=" ".join(kwargs['scriptcommand']);
 
 if kwargs['controllername']==None:
@@ -223,20 +367,20 @@ if kwargs['controllername']==None:
     basecoll=kwargs['basecoll'];
 else:
     mainpath=os.environ['SLURMONGO_ROOT'];
-    softwarefile=mainpath+"/state/software";
-    with open(softwarefile,"r") as softwarestream:
-        softwarestream.readline();
-        for line in softwarestream:
-            ext=line.split(',')[2];
-            if ext+" " in kwargs['scriptcommand']:
-                break;
-    modulesfile=mainpath+"/state/modules";
-    with open(modulesfile,"r") as modulesstream:
-        modulesstream.readline();
-        for line in modulesstream:
-            modname=line.rstrip("\n");
-            if " "+modname+ext+" " in kwargs['scriptcommand'] or "/"+modname+ext+" " in kwargs['scriptcommand']:
-                break;
+    #softwarefile=mainpath+"/state/software";
+    #with open(softwarefile,"r") as softwarestream:
+    #    softwarestream.readline();
+    #    for line in softwarestream:
+    #        ext=line.split(',')[2];
+    #        if ext+" " in kwargs['scriptcommand']:
+    #            break;
+    #modulesfile=mainpath+"/state/modules";
+    #with open(modulesfile,"r") as modulesstream:
+    #    modulesstream.readline();
+    #    for line in modulesstream:
+    #        modname=line.rstrip("\n");
+    #        if " "+modname+ext+" " in kwargs['scriptcommand'] or "/"+modname+ext+" " in kwargs['scriptcommand']:
+    #            break;
     controllerpath=mainpath+"/modules/"+modname+"/"+kwargs['controllername'];
     workpath=controllerpath+"/jobs";
     controllerfile=controllerpath+"/controller_"+modname+"_"+kwargs['controllername']+".job";
@@ -268,26 +412,37 @@ else:
                 if dbname=="":
                     dbname=None;
             elif "basecollection=" in controllerline:
-                basecoll=controllerlinedbname.split("=")[1].lstrip("\"").rstrip("\"\n");
+                basecoll=controllerline.split("=")[1].lstrip("\"").rstrip("\"\n");
                 if basecoll=="":
                     basecoll=None;
 
+if len(kwargs['input_list'])>0:
+    stdin_iter_arg=iter(kwargs['input_list']);
+else:
+    stdin_iter_arg=iter([]);
+
 if kwargs['input_file']!=None:
-    filename=workpath+"/"+kwargs['input_file'];
-    iniostream=open(filename,"r");
+    if "/" not in kwargs['input_file']:
+        kwargs['input_file']=workpath+"/"+kwargs['input_file'];
+    filename=kwargs['input_file'];
+    stdin_iter_file=open(filename,"r");
+else:
+    stdin_iter_file=cStringIO.StringIO();
+
 if kwargs['writelocal'] or kwargs['statslocal']:
-    filename=workpath+"/";
-    if kwargs['input_file']:
-        filename+=".".join(kwargs['input_file'].split('.')[:-1]);
+    if kwargs['input_file']!=None:
+        filename=".".join(kwargs['input_file'].split('.')[:-1]);
     else:
-        filename+=kwargs['stepid'];
+        filename=workpath+"/"+kwargs['stepid'];
     outiostream=open(filename+".out","w");
     if kwargs['templocal']:
         tempiostream=open(filename+".temp","w");
+    if (kwargs['dbindexes']==None) or ((kwargs['controllername']==None) and (basecoll==None)):
+        parser.error("Both --write-local and --stats-local require either the options:\n--controllername --dbindexes,\nor the options: --basecoll --dbindexes")
 
 if any([kwargs[x] for x in ['writedb','statsdb']]):
-    if any([x==None for x in [dbtype,dbhost,dbport,dbusername,dbpassword,dbname,basecoll,kwargs['dbindexes']]]):
-        parser.error("Both --writedb and --statsdb require either the options:\n--controllername --dbindexes\n, or the options:\n--dbtype --dbhost --dbport --dbusername --dbpassword --dbname --basecoll --dbindexes");
+    if (kwargs['dbindexes']==None) or ((kwargs['controllername']==None) and any([x==None for x in [dbtype,dbhost,dbport,dbusername,dbpassword,dbname,basecoll]])):
+        parser.error("Both --writedb and --statsdb require either the options:\n--controllername --dbindexes,\nor the options:\n--dbtype --dbhost --dbport --dbusername --dbpassword --dbname --basecoll --dbindexes");
     else:
         if dbtype=="mongodb":
             if dbusername==None:
@@ -302,13 +457,17 @@ if any([kwargs[x] for x in ['writedb','statsdb']]):
 process=Popen(kwargs['scriptcommand'],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE,bufsize=1);
 
 stdin_queue=Queue();
+if not kwargs['interactive']:
+    stdin_queue.put("");
+
+temp_queue=Queue();
 
 stdout_queue=Queue();
-stdout_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stdout,stdin_queue,stdout_queue);
+stdout_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stdout,stdin_iter_arg,stdin_iter_file,stdin_queue,temp_queue,stdout_queue,delimiter=kwargs['delimiter']);
 stdout_reader.start();
 
 stderr_queue=Queue();
-stderr_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stderr,stdin_queue,stderr_queue);
+stderr_reader=AsynchronousThreadStreamReader(process.stderr,stderr_queue);
 stderr_reader.start();
 
 if kwargs['statslocal'] or kwargs['statsdb']:
@@ -321,24 +480,13 @@ iostream=cStringIO.StringIO();
 bsonsize=0;
 countresult=0;
 nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
-totcputime=0;
 while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.eof() or stderr_reader.eof()):
+    if stdout_reader.waiting():
+        stdin_line=sys.stdin.readline().rstrip("\n");
+        stdin_queue.put(stdin_line);
+
     while not stdout_queue.empty():
         while (not stdout_queue.empty()) and ((countresult<nbatch) or (len(glob.glob(workpath+"/*.lock"))>=kwargs['nworkers'])):
-            if stdin_queue.empty():
-                if len(kwargs['input_list'])>0:
-                    stdin_line=kwargs['input_list'][0];
-                    stdin_queue.put(stdin_line+kwargs['delimiter']);
-                    del kwargs['input_list'][0];
-                if kwargs['input_file']!=None:
-                    with tempfile.NamedTemporaryFile(dir=workpath,delete=False) as tempstream:
-                        stdin_line=iniostream.readline().rstrip("\n");
-                        stdin_queue.put(stdin_line+kwargs['delimiter']);
-                        for stdin_line in iniostream:
-                            tempstream.write(stdin_line);
-                            tempstream.flush();
-                        os.rename(tempstream.name,iniostream.name);
-                        iniostream.seek(0);
             line=stdout_queue.get().rstrip("\n");
             linehead=re.sub("^([-+&@].*?>|None).*",r"\1",line);
             linemarker=linehead[0];
@@ -394,9 +542,9 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                         tempiostream.flush();
             elif linemarker=="@":
                 if kwargs['statslocal'] or kwargs['statsdb']:
-                    cputime=stats_reader.stat("CPUTime");
-                    maxrss=stats_reader.max_stats("Rss");
-                    maxvmsize=stats_reader.max_stats("Size");
+                    cputime=stats_reader.stat("TotalCPUTime");
+                    maxrss=stats_reader.max_stat("Rss");
+                    maxvmsize=stats_reader.max_stat("Size");
                 #    stats=getstats("sstat",["MaxRSS","MaxVMSize"],kwargs['stepid']);
                 #    if (len(stats)==1) and (stats[0]==""):
                 #        newtotcputime,maxrss,maxvmsize=[eval(x) for x in getstats("sacct",["CPUTimeRAW","MaxRSS","MaxVMSize"],kwargs['stepid'])];
@@ -405,13 +553,19 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                 #        maxrss,maxvmsize=stats;
                 #    cputime=newtotcputime-totcputime;
                 #    totcputime=newtotcputime;
-                newcollection,strindexdoc=linehead[1:].split("<")[0].split(".");
-                newindexdoc=json.loads(strindexdoc);
+                #newcollection,strindexdoc=linehead[1:].split("<")[0].split(".");
+                #newindexdoc=json.loads(strindexdoc);
+                if kwargs['writelocal'] or kwargs['statslocal']:
+                    newcollection=basecoll;
+                    doc=json.loads(temp_queue.get());
+                    newindexdoc=dict([(x,doc[x]) for x in kwargs['dbindexes']]);
                 if kwargs['writelocal']:
-                    iostream.write(line+"\n");
+                    iostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
                     iostream.flush();
+                    print(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':')));
+                    sys.stdout.flush();
                     if kwargs['templocal']:
-                        tempiostream.write(line+"\n");
+                        tempiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
                         tempiostream.flush();
                 if kwargs['statslocal']:
                     iostream.write("CPUTime: "+str(cputime)+" seconds\n");
@@ -506,7 +660,7 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
             #fcntl.flock(sys.stdout,fcntl.LOCK_UN);
             bulkdict={};
             #tempiostream=open(workpath+"/"+stepname+".temp","w");
-            iostream=cStringIO.StringIO();
+            iostream.truncate(0);
             countresult=0;
             nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
             os.remove(lockfile);
@@ -514,20 +668,6 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
             #    os.kill(process.pid,signal.SIGCONT);
 
     while not stderr_queue.empty():
-        if stdin_queue.empty():
-            if len(kwargs['input_list'])>0:
-                stdin_line=kwargs['input_list'][0];
-                stdin_queue.put(stdin_line+kwargs['delimiter']);
-                del kwargs['input_list'][0];
-            if kwargs['input_file']!=None:
-                with tempfile.NamedTemporaryFile(dir=workpath,delete=False) as tempstream:
-                    stdin_line=iniostream.readline().rstrip("\n");
-                    stdin_queue.put(stdin_line+kwargs['delimiter']);
-                    for stdin_line in iniostream:
-                        tempstream.write(stdin_line);
-                        tempstream.flush();
-                    os.rename(tempstream.name,iniostream.name);
-                    iniostream.seek(0);
         stderr_line=stderr_queue.get();
         while True:
             try:
@@ -539,10 +679,204 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
         sys.stderr.flush();
         fcntl.flock(sys.stderr,fcntl.LOCK_UN);
 
-    sleep(kwargs['delay'])
+    sleep(kwargs['delay']);
+
+while not stdout_queue.empty():
+    while (not stdout_queue.empty()) and ((countresult<nbatch) or (len(glob.glob(workpath+"/*.lock"))>=kwargs['nworkers'])):
+        line=stdout_queue.get().rstrip("\n");
+        linehead=re.sub("^([-+&@].*?>|None).*",r"\1",line);
+        linemarker=linehead[0];
+        if linemarker=="-":
+            newcollection,strindexdoc=linehead[1:-1].split(".");
+            newindexdoc=json.loads(strindexdoc);
+            linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+            doc=json.loads(linedoc);
+            bsonsize-=mongolink.bsonsize(doc);
+            if kwargs['writedb']:
+                if newcollection not in bulkdict.keys():
+                    bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+        elif linemarker=="+":
+            #tempiostream.write(linehead[1:-1].split(".")+"\n");
+            #sys.stdout.flush();
+            newcollection,strindexdoc=linehead[1:-1].split(".");
+            newindexdoc=json.loads(strindexdoc);
+            linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+            doc=json.loads(linedoc);
+            bsonsize+=mongolink.bsonsize(doc);
+            if kwargs['writedb']:
+                if newcollection not in bulkdict.keys():
+                    bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+        elif linemarker=="&":
+            newcollection,strindexdoc=linehead[1:-1].split(".");
+            newindexdoc=json.loads(strindexdoc);
+            linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
+            doc=json.loads(linedoc);
+            bsonsize+=mongolink.bsonsize(doc);
+            if kwargs['writedb']:
+                if newcollection not in bulkdict.keys():
+                    bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+        elif linemarker=="@":
+            if kwargs['statslocal'] or kwargs['statsdb']:
+                cputime=stats_reader.stat("TotalCPUTime");
+                maxrss=stats_reader.max_stat("Rss");
+                maxvmsize=stats_reader.max_stat("Size");
+            #    stats=getstats("sstat",["MaxRSS","MaxVMSize"],kwargs['stepid']);
+            #    if (len(stats)==1) and (stats[0]==""):
+            #        newtotcputime,maxrss,maxvmsize=[eval(x) for x in getstats("sacct",["CPUTimeRAW","MaxRSS","MaxVMSize"],kwargs['stepid'])];
+            #    else:
+            #        newtotcputime=eval(getstats("sacct",["CPUTimeRAW"],kwargs['stepid'])[0]);
+            #        maxrss,maxvmsize=stats;
+            #    cputime=newtotcputime-totcputime;
+            #    totcputime=newtotcputime;
+            #newcollection,strindexdoc=linehead[1:].split("<")[0].split(".");
+            #newindexdoc=json.loads(strindexdoc);
+            if kwargs['writelocal'] or kwargs['statslocal']:
+                newcollection=basecoll;
+                doc=json.loads(temp_queue.get());
+                newindexdoc=dict([(x,doc[x]) for x in kwargs['dbindexes']]);
+            if kwargs['writelocal']:
+                iostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
+                iostream.flush();
+                #print(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':')));
+                #sys.stdout.flush();
+                if kwargs['templocal']:
+                    tempiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
+                    tempiostream.flush();
+            if kwargs['statslocal']:
+                iostream.write("CPUTime: "+str(cputime)+" seconds\n");
+                iostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
+                iostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
+                iostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
+                iostream.flush();
+                if kwargs['templocal']:
+                    tempiostream.write("CPUTime: "+str(cputime)+" seconds\n");
+                    tempiostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
+                    tempiostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
+                    tempiostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
+                    tempiostream.flush();
+            if kwargs['statsdb']:
+                statsmark={};
+                statsmark.update({modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}});
+                if kwargs['markdone']!="":
+                    statsmark.update({modname+kwargs['markdone']:True});
+                if len(statsmark)>0:
+                    if newcollection not in bulkdict.keys():
+                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                    bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
+            bsonsize=0;
+        else:
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+        countresult+=1;
+        #if len(glob.glob(workpath+"/*.lock"))<kwargs['nworkers']:
+        #    lockfile=workpath+"/"+kwargs['stepid']+".lock";
+        #    with open(lockfile,'w') as lockstream:
+        #        lockstream.write(str(countresult));
+        #        lockstream.flush();
+        #    for bulkcoll in bulkdict.keys():
+        #        try:
+        #            bulkdict[bulkcoll].execute();
+        #        except BulkWriteError as bwe:
+        #            pprint(bwe.details);
+        #    while True:
+        #        try:
+        #            fcntl.flock(sys.stdout,fcntl.LOCK_EX | fcntl.LOCK_NB);
+        #            break;
+        #        except IOError:
+        #            sleep(0.01);
+        #    sys.stdout.write(tempiostream.getvalue());
+        #    sys.stdout.flush();
+        #    fcntl.flock(sys.stdout,fcntl.LOCK_UN);
+        #    bulkdict={};
+        #    tempiostream=cStringIO.StringIO();
+        #    countresult=0;
+        #    os.remove(lockfile);
+
+    if (countresult>=nbatch) and (len(glob.glob(workpath+"/*.lock"))<kwargs['nworkers']):
+        #if len(glob.glob(workpath+"/*.lock"))>=kwargs['nworkers']:
+        #    overlocked=True;
+        #    os.kill(process.pid,signal.SIGSTOP);
+        #    while len(glob.glob(workpath+"/*.lock"))>=kwargs['nworkers']:
+        #        sleep(0.01);
+        #else:
+        #    overlocked=False;
+        lockfile=workpath+"/"+kwargs['stepid']+".lock";
+        with open(lockfile,'w') as lockstream:
+            lockstream.write(str(countresult));
+            lockstream.flush();
+        for bulkcoll in bulkdict.keys():
+            try:
+                bulkdict[bulkcoll].execute();
+            except BulkWriteError as bwe:
+                pprint(bwe.details);
+        #while True:
+        #    try:
+        #        fcntl.flock(sys.stdout,fcntl.LOCK_EX | fcntl.LOCK_NB);
+        #        break;
+        #    except IOError:
+        #        sleep(0.01);
+        #tempiostream.close();
+        #with open(workpath+"/"+stepname+".temp","r") as tempiostream, open(workpath+"/"+stepname+".out","a") as iostream:
+        #    for line in tempiostream:
+        #        iostream.write(line);
+        #        iostream.flush();
+        #    os.remove(tempiostream.name);
+        #sys.stdout.write(tempiostream.getvalue());
+        #sys.stdout.flush();
+        if kwargs['writelocal'] or kwargs['statslocal']:
+            if kwargs['templocal']:
+                tempiostream.truncate(0);
+            outiostream.write(iostream.getvalue());
+            outiostream.flush();
+        #fcntl.flock(sys.stdout,fcntl.LOCK_UN);
+        bulkdict={};
+        #tempiostream=open(workpath+"/"+stepname+".temp","w");
+        iostream.truncate(0);
+        countresult=0;
+        nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
+        os.remove(lockfile);
+        #if overlocked:
+        #    os.kill(process.pid,signal.SIGCONT);
+
+while not stderr_queue.empty():
+    stderr_line=stderr_queue.get();
+    while True:
+        try:
+            fcntl.flock(sys.stderr,fcntl.LOCK_EX | fcntl.LOCK_NB);
+            break;
+        except IOError:
+            sleep(0.01);
+    sys.stderr.write(stderr_line);
+    sys.stderr.flush();
+    fcntl.flock(sys.stderr,fcntl.LOCK_UN);
 
 if kwargs['input_file']!=None:
-    iniostream.close();
+    stdin_iter_file.close();
 if kwargs['writelocal'] or kwargs['statslocal']:
     outiostream.close();
     if kwargs['templocal']:

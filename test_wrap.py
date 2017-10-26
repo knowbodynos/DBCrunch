@@ -260,6 +260,7 @@ parser.add_argument('--stats-delay',dest='stats_delay',action='store',default=0,
 parser.add_argument('--delimiter','-d',dest='delimiter',action='store',default='',help='');
 parser.add_argument('--input','-i',dest='input_list',nargs='+',action='store',default=[],help='');
 parser.add_argument('--file','-f',dest='input_file',action='store',default=None,help='');
+parser.add_argument('--interactive',dest='interactive',action='store_true',default=False,help='');
 parser.add_argument('--script','-s', dest='scriptcommand',nargs=REMAINDER,required=True,help='');
 
 kwargs=vars(parser.parse_known_args()[0]);
@@ -278,7 +279,9 @@ else:
     stdin_iter_arg=iter([]);
 
 if kwargs['input_file']!=None:
-    filename=workpath+"/"+kwargs['input_file'];
+    if "/" not in kwargs['input_file']:
+        kwargs['input_file']=workpath+"/"+kwargs['input_file'];
+    filename=kwargs['input_file'];
     stdin_iter_file=open(filename,"r");
 else:
     stdin_iter_file=cStringIO.StringIO();
@@ -289,7 +292,8 @@ else:
 process=Popen(kwargs['scriptcommand'],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE,bufsize=1);
 
 stdin_queue=Queue();
-stdin_queue.put("");
+if not kwargs['interactive']:
+    stdin_queue.put("");
 #for x in ["a","b","c","d"]:
 #    stdin_queue.put(x+kwargs['delimiter']);
 
@@ -307,10 +311,10 @@ stats_reader.start();
 
 while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.eof() or stderr_reader.eof()):
     if stdout_reader.waiting():
-        line=sys.stdin.readline().rstrip("\n");
+        stdin_line=sys.stdin.readline().rstrip("\n");
         #print("line: "+line);
         #sys.stdout.flush();
-        stdin_queue.put(line);
+        stdin_queue.put(stdin_line);
 
     while not stdout_queue.empty():
         line=stdout_queue.get();
