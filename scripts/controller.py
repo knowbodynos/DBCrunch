@@ -1800,6 +1800,6 @@ try:
     if needslicense:
         #fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
         licensestream.close();
-    mongoclient.close();
+    dbclient.close();
 except Exception as e:
     PrintException();
