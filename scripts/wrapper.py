@@ -39,7 +39,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = ''):
+    def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = '', cleanup = None):
         assert hasattr(in_iter_arg, '__iter__')
         assert hasattr(in_iter_file, '__iter__')
         assert isinstance(in_queue, Queue)
@@ -57,10 +57,13 @@ class AsynchronousThreadStreamReaderWriter(Thread):
         self._tempqueue = temp_queue
         self._outqueue = out_queue
         self._delimiter = delimiter
+        self._cleanup = cleanup
         self.daemon = True
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
+        if self._cleanup != None:
+            counter = 0
         try:
             in_line = self._initerarg.next()
         except StopIteration:
@@ -99,16 +102,17 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                     #print("a: "+in_line+self._delimiter);
                     #sys.stdout.flush();
                     self._instream.flush()
-                    with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
-                        in_line = self._initerfile.readline()
-                        while in_line != "":
-                            tempstream.write(in_line)
-                            tempstream.flush()
+                    if self._cleanup != None:
+                        with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
                             in_line = self._initerfile.readline()
-                        name = self._initerfile.name
-                        self._initerfile.close()
-                        os.rename(tempstream.name, name)
-                        self._initerfile = open(name, 'r')
+                            while in_line != "":
+                                tempstream.write(in_line)
+                                tempstream.flush()
+                                in_line = self._initerfile.readline()
+                            name = self._initerfile.name
+                            self._initerfile.close()
+                            os.rename(tempstream.name, name)
+                            self._initerfile = open(name, 'r')
         else:
             self._tempqueue.put(in_line)
             self._instream.write(in_line+self._delimiter)
@@ -162,16 +166,19 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                             #print("a: "+in_line+self._delimiter);
                             #sys.stdout.flush();
                             self._instream.flush()
-                            with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
-                                in_line = self._initerfile.readline()
-                                while in_line != "":
-                                    tempstream.write(in_line)
-                                    tempstream.flush()
+                            if self._cleanup != None and counter == self._cleanup:
+                                with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
                                     in_line = self._initerfile.readline()
-                                name = self._initerfile.name
-                                self._initerfile.close()
-                                os.rename(tempstream.name, name)
-                                self._initerfile = open(name, 'r')
+                                    while in_line != "":
+                                        tempstream.write(in_line)
+                                        tempstream.flush()
+                                        in_line = self._initerfile.readline()
+                                    name = self._initerfile.name
+                                    self._initerfile.close()
+                                    os.rename(tempstream.name, name)
+                                    self._initerfile = open(name, 'r')
+                    if self._cleanup != None:
+                        counter += 1
                 else:
                     self._tempqueue.put(in_line)
                     self._instream.write(in_line+self._delimiter)
@@ -323,6 +330,7 @@ parser.add_argument('--dbusername',dest='dbusername',action='store',default=None
 parser.add_argument('--dbpassword',dest='dbpassword',action='store',default=None,help='');
 parser.add_argument('--dbname',dest='dbname',action='store',default=None,help='');
 
+parser.add_argument('--logging',dest='logging',action='store_true',default=False,help='');
 parser.add_argument('--temp-local','-t',dest='templocal',action='store_true',default=False,help='');
 parser.add_argument('--write-local','-w',dest='writelocal',action='store_true',default=False,help='');
 parser.add_argument('--write-db','-W',dest='writedb',action='store_true',default=False,help='');
@@ -338,6 +346,7 @@ parser.add_argument('--stats-delay',dest='stats_delay',action='store',default=0,
 parser.add_argument('--delimiter','-d',dest='delimiter',action='store',default='\n',help='');
 parser.add_argument('--input','-i',dest='input_list',nargs='+',action='store',default=[],help='');
 parser.add_argument('--file','-f',dest='input_file',action='store',default=None,help='');
+parser.add_argument('--cleanup-after',dest='cleanup',action='store',default=None,help='');
 parser.add_argument('--interactive',dest='interactive',action='store_true',default=False,help='');
 parser.add_argument('--script','-c', dest='scriptcommand',nargs=REMAINDER,required=True,help='');
 
@@ -350,7 +359,9 @@ kwargs['delay']=float(kwargs['delay']);
 kwargs['stats_delay']=float(kwargs['stats_delay']);
 kwargs['nbatch']=int(kwargs['nbatch']);
 kwargs['nworkers']=int(kwargs['nworkers']);
-kwargs['delimiter']=kwargs['delimiter']#.decode("string_escape");
+#kwargs['delimiter']=kwargs['delimiter']#.decode("string_escape");
+if kwargs['cleanup']=="":
+    kwargs['cleanup']=None;
 
 modname=kwargs['scriptcommand'][1].split("/")[-1].split(".")[0];
 
@@ -454,6 +465,9 @@ if any([kwargs[x] for x in ['writedb','statsdb']]):
 
         db=dbclient[dbname];
 
+if kwargs['logging']:
+    logiostream=cStringIO.StringIO();
+
 process=Popen(kwargs['scriptcommand'],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE,bufsize=1);
 
 stdin_queue=Queue();
@@ -463,7 +477,7 @@ if not kwargs['interactive']:
 temp_queue=Queue();
 
 stdout_queue=Queue();
-stdout_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stdout,stdin_iter_arg,stdin_iter_file,stdin_queue,temp_queue,stdout_queue,delimiter=kwargs['delimiter']);
+stdout_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stdout,stdin_iter_arg,stdin_iter_file,stdin_queue,temp_queue,stdout_queue,delimiter=kwargs['delimiter'],cleanup=kwargs['cleanup']);
 stdout_reader.start();
 
 stderr_queue=Queue();
@@ -496,16 +510,16 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                 linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
                 doc=json.loads(linedoc);
                 bsonsize-=mongolink.bsonsize(doc);
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+                if kwargs['writelocal']:
+                    iostream.write(line+"\n");
+                    iostream.flush();
                 if kwargs['writedb']:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
-                if kwargs['writelocal']:
-                    iostream.write(line+"\n");
-                    iostream.flush();
-                    if kwargs['templocal']:
-                        tempiostream.write(line+"\n");
-                        tempiostream.flush();
             elif linemarker=="+":
                 #tempiostream.write(linehead[1:-1].split(".")+"\n");
                 #sys.stdout.flush();
@@ -514,35 +528,35 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                 linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
                 doc=json.loads(linedoc);
                 bsonsize+=mongolink.bsonsize(doc);
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+                if kwargs['writelocal']:
+                    iostream.write(line+"\n");
+                    iostream.flush();
                 if kwargs['writedb']:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
-                if kwargs['writelocal']:
-                    iostream.write(line+"\n");
-                    iostream.flush();
-                    if kwargs['templocal']:
-                        tempiostream.write(line+"\n");
-                        tempiostream.flush();
             elif linemarker=="&":
                 newcollection,strindexdoc=linehead[1:-1].split(".");
                 newindexdoc=json.loads(strindexdoc);
                 linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
                 doc=json.loads(linedoc);
                 bsonsize+=mongolink.bsonsize(doc);
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
+                if kwargs['writelocal']:
+                    iostream.write(line+"\n");
+                    iostream.flush();
                 if kwargs['writedb']:
                     if newcollection not in bulkdict.keys():
                         bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                     bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
-                if kwargs['writelocal']:
-                    iostream.write(line+"\n");
-                    iostream.flush();
-                    if kwargs['templocal']:
-                        tempiostream.write(line+"\n");
-                        tempiostream.flush();
             elif linemarker=="@":
                 if kwargs['statslocal'] or kwargs['statsdb']:
-                    cputime=stats_reader.stat("TotalCPUTime");
+                    cputime="%.2f" % stats_reader.stat("TotalCPUTime");
                     maxrss=stats_reader.max_stat("Rss");
                     maxvmsize=stats_reader.max_stat("Size");
                 #    stats=getstats("sstat",["MaxRSS","MaxVMSize"],kwargs['stepid']);
@@ -555,47 +569,47 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                 #    totcputime=newtotcputime;
                 #newcollection,strindexdoc=linehead[1:].split("<")[0].split(".");
                 #newindexdoc=json.loads(strindexdoc);
-                if kwargs['writelocal'] or kwargs['statslocal']:
-                    newcollection=basecoll;
-                    doc=json.loads(temp_queue.get());
-                    newindexdoc=dict([(x,doc[x]) for x in kwargs['dbindexes']]);
+                newcollection=basecoll;
+                doc=json.loads(temp_queue.get());
+                newindexdoc=dict([(x,doc[x]) for x in kwargs['dbindexes']]);               
+                if kwargs['logging']:
+                    logiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"<OUT\n");
+                    logiostream.flush();
+                    sys.stdout.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"<TEMP\n");
+                    sys.stdout.flush();
+                if kwargs['templocal']:
+                    tempiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
+                    tempiostream.write("CPUTime: "+str(cputime)+" seconds\n");
+                    tempiostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
+                    tempiostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
+                    tempiostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
+                    tempiostream.flush();
                 if kwargs['writelocal']:
                     iostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
                     iostream.flush();
-                    print(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':')));
-                    sys.stdout.flush();
-                    if kwargs['templocal']:
-                        tempiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
-                        tempiostream.flush();
                 if kwargs['statslocal']:
                     iostream.write("CPUTime: "+str(cputime)+" seconds\n");
                     iostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
                     iostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
                     iostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
                     iostream.flush();
-                    if kwargs['templocal']:
-                        tempiostream.write("CPUTime: "+str(cputime)+" seconds\n");
-                        tempiostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
-                        tempiostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
-                        tempiostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
-                        tempiostream.flush();
+                statsmark={};
                 if kwargs['statsdb']:
-                    statsmark={};
                     statsmark.update({modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}});
-                    if kwargs['markdone']!="":
-                        statsmark.update({modname+kwargs['markdone']:True});
-                    if len(statsmark)>0:
-                        if newcollection not in bulkdict.keys():
-                            bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
-                        bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
+                if kwargs['markdone']!="":
+                    statsmark.update({modname+kwargs['markdone']:True});
+                if len(statsmark)>0:
+                    if newcollection not in bulkdict.keys():
+                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                    bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
                 bsonsize=0;
             else:
+                if kwargs['templocal']:
+                    tempiostream.write(line+"\n");
+                    tempiostream.flush();
                 if kwargs['writelocal']:
                     iostream.write(line+"\n");
                     iostream.flush();
-                    if kwargs['templocal']:
-                        tempiostream.write(line+"\n");
-                        tempiostream.flush();
             countresult+=1;
             #if len(glob.glob(workpath+"/*.lock"))<kwargs['nworkers']:
             #    lockfile=workpath+"/"+kwargs['stepid']+".lock";
@@ -652,15 +666,19 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
             #    os.remove(tempiostream.name);
             #sys.stdout.write(tempiostream.getvalue());
             #sys.stdout.flush();
+            if kwargs['templocal']:
+                tempiostream.truncate(0);
             if kwargs['writelocal'] or kwargs['statslocal']:
-                if kwargs['templocal']:
-                    tempiostream.truncate(0);
                 outiostream.write(iostream.getvalue());
                 outiostream.flush();
+            if kwargs['logging']:
+                sys.stdout.write(logiostream.getvalue());
+                sys.stdout.flush();
             #fcntl.flock(sys.stdout,fcntl.LOCK_UN);
             bulkdict={};
             #tempiostream=open(workpath+"/"+stepname+".temp","w");
             iostream.truncate(0);
+            logiostream.truncate(0);
             countresult=0;
             nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
             os.remove(lockfile);
@@ -692,16 +710,16 @@ while not stdout_queue.empty():
             linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
             doc=json.loads(linedoc);
             bsonsize-=mongolink.bsonsize(doc);
+            if kwargs['templocal']:
+                tempiostream.write(line+"\n");
+                tempiostream.flush();
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
             if kwargs['writedb']:
                 if newcollection not in bulkdict.keys():
                     bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                 bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
-            if kwargs['writelocal']:
-                iostream.write(line+"\n");
-                iostream.flush();
-                if kwargs['templocal']:
-                    tempiostream.write(line+"\n");
-                    tempiostream.flush();
         elif linemarker=="+":
             #tempiostream.write(linehead[1:-1].split(".")+"\n");
             #sys.stdout.flush();
@@ -710,35 +728,35 @@ while not stdout_queue.empty():
             linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
             doc=json.loads(linedoc);
             bsonsize+=mongolink.bsonsize(doc);
+            if kwargs['templocal']:
+                tempiostream.write(line+"\n");
+                tempiostream.flush();
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
             if kwargs['writedb']:
                 if newcollection not in bulkdict.keys():
                     bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                 bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
-            if kwargs['writelocal']:
-                iostream.write(line+"\n");
-                iostream.flush();
-                if kwargs['templocal']:
-                    tempiostream.write(line+"\n");
-                    tempiostream.flush();
         elif linemarker=="&":
             newcollection,strindexdoc=linehead[1:-1].split(".");
             newindexdoc=json.loads(strindexdoc);
             linedoc=re.sub("^[-+&@].*?>","",line).rstrip("\n");
             doc=json.loads(linedoc);
             bsonsize+=mongolink.bsonsize(doc);
+            if kwargs['templocal']:
+                tempiostream.write(line+"\n");
+                tempiostream.flush();
+            if kwargs['writelocal']:
+                iostream.write(line+"\n");
+                iostream.flush();
             if kwargs['writedb']:
                 if newcollection not in bulkdict.keys():
                     bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                 bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
-            if kwargs['writelocal']:
-                iostream.write(line+"\n");
-                iostream.flush();
-                if kwargs['templocal']:
-                    tempiostream.write(line+"\n");
-                    tempiostream.flush();
         elif linemarker=="@":
             if kwargs['statslocal'] or kwargs['statsdb']:
-                cputime=stats_reader.stat("TotalCPUTime");
+                cputime="%.2f" % stats_reader.stat("TotalCPUTime");
                 maxrss=stats_reader.max_stat("Rss");
                 maxvmsize=stats_reader.max_stat("Size");
             #    stats=getstats("sstat",["MaxRSS","MaxVMSize"],kwargs['stepid']);
@@ -751,47 +769,47 @@ while not stdout_queue.empty():
             #    totcputime=newtotcputime;
             #newcollection,strindexdoc=linehead[1:].split("<")[0].split(".");
             #newindexdoc=json.loads(strindexdoc);
-            if kwargs['writelocal'] or kwargs['statslocal']:
-                newcollection=basecoll;
-                doc=json.loads(temp_queue.get());
-                newindexdoc=dict([(x,doc[x]) for x in kwargs['dbindexes']]);
+            newcollection=basecoll;
+            doc=json.loads(temp_queue.get());
+            newindexdoc=dict([(x,doc[x]) for x in kwargs['dbindexes']]);               
+            if kwargs['logging']:
+                logiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"<OUT\n");
+                logiostream.flush();
+                sys.stdout.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"<TEMP\n");
+                sys.stdout.flush();
+            if kwargs['templocal']:
+                tempiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
+                tempiostream.write("CPUTime: "+str(cputime)+" seconds\n");
+                tempiostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
+                tempiostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
+                tempiostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
+                tempiostream.flush();
             if kwargs['writelocal']:
                 iostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
                 iostream.flush();
-                #print(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':')));
-                #sys.stdout.flush();
-                if kwargs['templocal']:
-                    tempiostream.write(line+newcollection+"."+json.dumps(newindexdoc,separators=(',',':'))+"\n");
-                    tempiostream.flush();
             if kwargs['statslocal']:
                 iostream.write("CPUTime: "+str(cputime)+" seconds\n");
                 iostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
                 iostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
                 iostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
                 iostream.flush();
-                if kwargs['templocal']:
-                    tempiostream.write("CPUTime: "+str(cputime)+" seconds\n");
-                    tempiostream.write("MaxRSS: "+str(maxrss)+" bytes\n");
-                    tempiostream.write("MaxVMSize: "+str(maxvmsize)+" bytes\n");
-                    tempiostream.write("BSONSize: "+str(bsonsize)+" bytes\n");
-                    tempiostream.flush();
+            statsmark={};
             if kwargs['statsdb']:
-                statsmark={};
                 statsmark.update({modname+"STATS":{"CPUTIME":cputime,"MAXRSS":maxrss,"MAXVMSIZE":maxvmsize,"BSONSIZE":bsonsize}});
-                if kwargs['markdone']!="":
-                    statsmark.update({modname+kwargs['markdone']:True});
-                if len(statsmark)>0:
-                    if newcollection not in bulkdict.keys():
-                        bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
-                    bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
+            if kwargs['markdone']!="":
+                statsmark.update({modname+kwargs['markdone']:True});
+            if len(statsmark)>0:
+                if newcollection not in bulkdict.keys():
+                    bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
+                bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
             bsonsize=0;
         else:
+            if kwargs['templocal']:
+                tempiostream.write(line+"\n");
+                tempiostream.flush();
             if kwargs['writelocal']:
                 iostream.write(line+"\n");
                 iostream.flush();
-                if kwargs['templocal']:
-                    tempiostream.write(line+"\n");
-                    tempiostream.flush();
         countresult+=1;
         #if len(glob.glob(workpath+"/*.lock"))<kwargs['nworkers']:
         #    lockfile=workpath+"/"+kwargs['stepid']+".lock";
@@ -848,15 +866,19 @@ while not stdout_queue.empty():
         #    os.remove(tempiostream.name);
         #sys.stdout.write(tempiostream.getvalue());
         #sys.stdout.flush();
+        if kwargs['templocal']:
+            tempiostream.truncate(0);
         if kwargs['writelocal'] or kwargs['statslocal']:
-            if kwargs['templocal']:
-                tempiostream.truncate(0);
             outiostream.write(iostream.getvalue());
             outiostream.flush();
+        if kwargs['logging']:
+            sys.stdout.write(logiostream.getvalue());
+            sys.stdout.flush();
         #fcntl.flock(sys.stdout,fcntl.LOCK_UN);
         bulkdict={};
         #tempiostream=open(workpath+"/"+stepname+".temp","w");
         iostream.truncate(0);
+        logiostream.truncate(0);
         countresult=0;
         nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
         os.remove(lockfile);
@@ -881,6 +903,9 @@ if kwargs['writelocal'] or kwargs['statslocal']:
     outiostream.close();
     if kwargs['templocal']:
         tempiostream.close();
+iostream.close();
+if kwargs['logging']:
+    logiostream.close();
 
 stdout_reader.join();
 stderr_reader.join();
