@@ -213,25 +213,26 @@ def n_FSRT_facet_from_resolved_verts(facetpts):
 #################################################################################
 #Main body
 try:
-    docsfile=sys.argv[1];
-    basecoll=sys.argv[2];
-    dbindexes=sys.argv[3:];
-    with open(docsfile,'r') as docstream:
-        for line in docstream:
-            maxconedoc=json.loads(line.rstrip("\n"));
-            nform=mat2py(maxconedoc['NORMALFORM']);
-            facetverts=[x for x in nform if not all([y==0 for y in x])];
-            facet=LatticePolytope(facetverts);
-            facetpts=[list(x) for x in facet.boundary_points()];
-            try:
-                with time_limit(60):
-                    facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
-            except TimeoutException("Timed out!"):
-                pass;
-            else:
+    #docsfile=sys.argv[1];
+    #basecoll=sys.argv[2];
+    #dbindexes=sys.argv[3:];
+    #with open(docsfile,'r') as docstream:
+    #    for line in docstream:
+    for line in iter(sys.stdin.readline,''):
+        maxconedoc=json.loads(line.rstrip("\n"));
+        nform=mat2py(maxconedoc['NORMALFORM']);
+        facetverts=[x for x in nform if not all([y==0 for y in x])];
+        facet=LatticePolytope(facetverts);
+        facetpts=[list(x) for x in facet.boundary_points()];
+        try:
+            with time_limit(60):
                 facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
-                print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':')));
-                print("@"+basecoll+"."+json.dumps(dict([(x,maxconedoc[x]) for x in dbindexes]),separators=(',',':')));
-                sys.stdout.flush();
+        except TimeoutException("Timed out!"):
+            pass;
+        else:
+            facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
+            print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':')));
+            print("@");#print("@"+basecoll+"."+json.dumps(dict([(x,maxconedoc[x]) for x in dbindexes]),separators=(',',':')));
+            sys.stdout.flush();
 except Exception as e:
     PrintException();

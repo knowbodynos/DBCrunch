@@ -1621,6 +1621,9 @@ try:
     statusstatefile=controllerpath+"/statusstate";
     #querystatefile=controllerpath+"/querystate";
 
+    for f in glob.glob(workpath+"/*.lock"):
+        os.remove(f);
+
     with open(statusstatefile,"w") as statusstream:
         statusstream.truncate(0);
         statusstream.write("Starting");

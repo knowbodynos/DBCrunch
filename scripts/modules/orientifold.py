@@ -2475,51 +2475,53 @@ def main_all(filename, tofile):
 #    for line in docstream:
 #@wrap()
 #def main(involdoc,algorithm=None):
-docsfile=sys.argv[1];
-basecoll=sys.argv[2];
-dbindexes=sys.argv[3:];
-with open(docsfile,'r') as docstream:
-    for line in docstream:
-        involdoc=json.loads(line.rstrip("\n"));
-        #main_all("h114.txt", "h114-results-vF.txt")
+#docsfile=sys.argv[1];
+#basecoll=sys.argv[2];
+#dbindexes=sys.argv[3:];
+#with open(docsfile,'r') as docstream:
+#    for line in docstream:
+for line in iter(sys.stdin.readline,''):
+    involdoc=json.loads(line.rstrip("\n"));
+    #main_all("h114.txt", "h114-results-vF.txt")
 
-        #_ = singular.LIB("sing.lib")
+    #_ = singular.LIB("sing.lib")
 
-        # FOR LOCAL TEST
-        #involdoc = {"DRESVERTS":"{{-1,-1,-1,0},{-1,-1,-1,1},{-1,-1,0,0},{-1,0,-1,1},{0,-1,0,0},{0,0,-1,0},{2,2,2,-1}}","TRIANGN":1,"POLYID":87,"H11":3,"BASIS":"{{J1,D5},{J2,D6},{J3,D7}}","H21":72,"RESCWS":"{{0,1,1},{1,0,1},{1,0,0},{0,1,0},{0,1,0},{1,0,0},{1,1,1}}","INVOLN":1,"GEOMN":1,"SRIDEAL":"{D3*D6,D4*D5,D1*D2*D7}","INVOL":"{D1->D2,D2->D1}"}
-        #involdoc = {"DRESVERTS":"{{-1,0,0,0},{-1,0,0,1},{-1,0,2,0},{-1,4,-2,-1},{1,-1,0,0},{-1,0,1,0},{-1,2,-1,0}}","TRIANGN":1,"POLYID":147,"H11":3,"BASIS":"{{J1,D3},{J2,D4},{J3,D7}}","H21":83,"RESCWS":"{{0,0,1},{0,1,1},{0,0,1},{0,1,1},{2,4,4},{1,2,0},{1,0,0}}","INVOLN":2,"GEOMN":1,"SRIDEAL":"{D1*D3,D2*D4,D5*D6*D7}","INVOL":"{D1->D2,D2->D1,D3->D4,D4->D3}"}
-        #involdoc = read_JSON(str(involdoc))
+    # FOR LOCAL TEST
+    #involdoc = {"DRESVERTS":"{{-1,-1,-1,0},{-1,-1,-1,1},{-1,-1,0,0},{-1,0,-1,1},{0,-1,0,0},{0,0,-1,0},{2,2,2,-1}}","TRIANGN":1,"POLYID":87,"H11":3,"BASIS":"{{J1,D5},{J2,D6},{J3,D7}}","H21":72,"RESCWS":"{{0,1,1},{1,0,1},{1,0,0},{0,1,0},{0,1,0},{1,0,0},{1,1,1}}","INVOLN":1,"GEOMN":1,"SRIDEAL":"{D3*D6,D4*D5,D1*D2*D7}","INVOL":"{D1->D2,D2->D1}"}
+    #involdoc = {"DRESVERTS":"{{-1,0,0,0},{-1,0,0,1},{-1,0,2,0},{-1,4,-2,-1},{1,-1,0,0},{-1,0,1,0},{-1,2,-1,0}}","TRIANGN":1,"POLYID":147,"H11":3,"BASIS":"{{J1,D3},{J2,D4},{J3,D7}}","H21":83,"RESCWS":"{{0,0,1},{0,1,1},{0,0,1},{0,1,1},{2,4,4},{1,2,0},{1,0,0}}","INVOLN":2,"GEOMN":1,"SRIDEAL":"{D1*D3,D2*D4,D5*D6*D7}","INVOL":"{D1->D2,D2->D1,D3->D4,D4->D3}"}
+    #involdoc = read_JSON(str(involdoc))
 
-        #involdoc = json.loads(line.rstrip("\n"))
+    #involdoc = json.loads(line.rstrip("\n"))
 
-        polyid = involdoc['POLYID']
-        geonum = involdoc['GEOMN']
-        trinum = involdoc['TRIANGN']
-        invnum = involdoc['INVOLN']
-        h11 = involdoc['H11']
-        h21 = involdoc['H21']
-        invol = involdoc['INVOL']
-        basis = involdoc['BASIS']
-        dresverts = mat2py(involdoc['DRESVERTS'])
-        sr = involdoc['SRIDEAL']
-        rwmat = involdoc['RESCWS']
+    polyid = involdoc['POLYID']
+    geonum = involdoc['GEOMN']
+    trinum = involdoc['TRIANGN']
+    invnum = involdoc['INVOLN']
+    h11 = involdoc['H11']
+    h21 = involdoc['H21']
+    invol = involdoc['INVOL']
+    basis = involdoc['BASIS']
+    dresverts = mat2py(involdoc['DRESVERTS'])
+    sr = involdoc['SRIDEAL']
+    rwmat = involdoc['RESCWS']
 
-        invol = tools.deldup([sorted([y-1 for y in x]) for x in mat2py(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
-        basisinds = [x-1 for x in tools.transpose_list(mat2py(re.sub("[JD]","",basis)))[1]]
-        sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
-        rwmat = np.array(mat2py(rwmat))
+    invol = tools.deldup([sorted([y-1 for y in x]) for x in mat2py(re.sub("D([0-9]+)->D([0-9]+)",r"[\1,\2]",invol))])
+    basisinds = [x-1 for x in tools.transpose_list(mat2py(re.sub("[JD]","",basis)))[1]]
+    sr = [[y-1 for y in eval(("["+x+"]").replace("D","").replace("*",","))] for x in sr.lstrip("{").rstrip("}").split(",")]
+    rwmat = np.array(mat2py(rwmat))
 
-        rand = randint(0,1)
-        if rand==0:
-            algorithm = 'libsingular:groebner'
-        elif rand==1:
-            algorithm = 'macaulay2:gb'
-        
-        query, output = main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat, algorithm=algorithm)
+    rand = randint(0,1)
+    if rand==0:
+        algorithm = 'libsingular:groebner'
+    elif rand==1:
+        algorithm = 'macaulay2:gb'
+    
+    #query, output = main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat, algorithm=algorithm)
+    query, output = main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat, algorithm=algorithm)
 
-        print("+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(output,separators=(',',':')))
-        #print("@INVOL."+json.dumps(dict([(x,involdoc[x]) for x in dbindexes]),separators=(',',':')))
-        sys.stdout.flush()
+    print("+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(output,separators=(',',':')))
+    print("@");#print("@INVOL."+json.dumps(dict([(x,involdoc[x]) for x in dbindexes]),separators=(',',':')))
+    sys.stdout.flush()
 
 #if __name__ == "__main__":
 #    main(algorithm='libsingular:stdfglm')#libsingular:groebner')#macaulay2:gb')
