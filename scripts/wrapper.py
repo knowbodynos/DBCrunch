@@ -39,7 +39,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = '', cleanup = None):
+    def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = '', cleanup = None, time_limit = None, start_time = None):
         assert hasattr(in_iter_arg, '__iter__')
         assert hasattr(in_iter_file, '__iter__')
         assert isinstance(in_queue, Queue)
@@ -58,12 +58,13 @@ class AsynchronousThreadStreamReaderWriter(Thread):
         self._outqueue = out_queue
         self._delimiter = delimiter
         self._cleanup = cleanup
+        self._counter = 0
+        self._timelimit = time_limit
+        self._starttime = start_time
         self.daemon = True
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
-        if self._cleanup != None:
-            counter = 0
         try:
             in_line = self._initerarg.next()
         except StopIteration:
@@ -102,7 +103,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                     #print("a: "+in_line+self._delimiter);
                     #sys.stdout.flush();
                     self._instream.flush()
-                    if self._cleanup != None:
+                    if (self._cleanup != None and self._counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time()-self._starttime >= self._timelimit):
                         with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
                             in_line = self._initerfile.readline()
                             while in_line != "":
@@ -113,6 +114,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                             self._initerfile.close()
                             os.rename(tempstream.name, name)
                             self._initerfile = open(name, 'r')
+                        self._counter = 0
         else:
             self._tempqueue.put(in_line)
             self._instream.write(in_line+self._delimiter)
@@ -166,7 +168,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                             #print("a: "+in_line+self._delimiter);
                             #sys.stdout.flush();
                             self._instream.flush()
-                            if self._cleanup != None and counter == self._cleanup:
+                            if (self._cleanup != None and self._counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time()-self._starttime >= self._timelimit):
                                 with tempfile.NamedTemporaryFile(dir="/".join(self._initerfile.name.split("/")[:-1]), delete=False) as tempstream:
                                     in_line = self._initerfile.readline()
                                     while in_line != "":
@@ -177,8 +179,9 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                                     self._initerfile.close()
                                     os.rename(tempstream.name, name)
                                     self._initerfile = open(name, 'r')
+                                self._counter = 0
                     if self._cleanup != None:
-                        counter += 1
+                        self._counter += 1
                 else:
                     self._tempqueue.put(in_line)
                     self._instream.write(in_line+self._delimiter)
@@ -314,6 +317,29 @@ class AsynchronousThreadStatsReader(Thread):
         '''Check whether there is no more content to expect.'''
         return dict((k,self._totstats[k]/self._nstats if self._nstats > 0 else 0) for k in self._totstats.keys())
 
+def timestamp2unit(timestamp,unit="seconds"):
+    if timestamp=="infinite":
+        return timestamp;
+    else:
+        days=0;
+        if "-" in timestamp:
+            daysstr,timestamp=timestamp.split("-");
+            days=int(daysstr);
+        hours,minutes,seconds=[int(x) for x in timestamp.split(":")];
+        hours+=days*24;
+        minutes+=hours*60;
+        seconds+=minutes*60;
+        if unit=="seconds":
+            return seconds;
+        elif unit=="minutes":
+            return float(seconds)/60.;
+        elif unit=="hours":
+            return float(seconds)/(60.*60.);
+        elif unit=="days":
+            return float(seconds)/(60.*60.*24.);
+        else:
+            return 0;
+
 parser=ArgumentParser();
 
 parser.add_argument('--controller',dest='controllername',action='store',default=None,help='');
@@ -348,12 +374,19 @@ parser.add_argument('--input','-i',dest='input_list',nargs='+',action='store',de
 parser.add_argument('--file','-f',dest='input_file',action='store',default=None,help='');
 parser.add_argument('--cleanup-after',dest='cleanup',action='store',default=None,help='');
 parser.add_argument('--interactive',dest='interactive',action='store_true',default=False,help='');
+parser.add_argument('--time-limit',dest='time_limit',action='store',default=None,help='');
 parser.add_argument('--script','-c', dest='scriptcommand',nargs=REMAINDER,required=True,help='');
 
 kwargs=vars(parser.parse_known_args()[0]);
 
 #print(kwargs['input_list']);
 #sys.stdout.flush();
+
+if kwargs['time_limit']==None:
+    start_time=None;
+else:
+    start_time=time();
+    kwargs['time_limit']=timestamp2unit(kwargs['time_limit']);
 
 kwargs['delay']=float(kwargs['delay']);
 kwargs['stats_delay']=float(kwargs['stats_delay']);
@@ -362,6 +395,8 @@ kwargs['nworkers']=int(kwargs['nworkers']);
 #kwargs['delimiter']=kwargs['delimiter']#.decode("string_escape");
 if kwargs['cleanup']=="":
     kwargs['cleanup']=None;
+else:
+    kwargs['cleanup']=eval(kwargs['cleanup']);
 
 modname=kwargs['scriptcommand'][1].split("/")[-1].split(".")[0];
 
@@ -435,16 +470,16 @@ else:
 if kwargs['input_file']!=None:
     if "/" not in kwargs['input_file']:
         kwargs['input_file']=workpath+"/"+kwargs['input_file'];
-    filename=kwargs['input_file'];
-    stdin_iter_file=open(filename,"r");
+    stdin_iter_file=open(kwargs['input_file'],"r");
 else:
     stdin_iter_file=cStringIO.StringIO();
 
+if kwargs['input_file']!=None:
+    filename=".".join(kwargs['input_file'].split('.')[:-1]);
+else:
+    filename=workpath+"/"+kwargs['stepid'];
+
 if kwargs['writelocal'] or kwargs['statslocal']:
-    if kwargs['input_file']!=None:
-        filename=".".join(kwargs['input_file'].split('.')[:-1]);
-    else:
-        filename=workpath+"/"+kwargs['stepid'];
     outiostream=open(filename+".out","w");
     if kwargs['templocal']:
         tempiostream=open(filename+".temp","w");
@@ -477,7 +512,7 @@ if not kwargs['interactive']:
 temp_queue=Queue();
 
 stdout_queue=Queue();
-stdout_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stdout,stdin_iter_arg,stdin_iter_file,stdin_queue,temp_queue,stdout_queue,delimiter=kwargs['delimiter'],cleanup=kwargs['cleanup']);
+stdout_reader=AsynchronousThreadStreamReaderWriter(process.stdin,process.stdout,stdin_iter_arg,stdin_iter_file,stdin_queue,temp_queue,stdout_queue,delimiter=kwargs['delimiter'],cleanup=kwargs['cleanup'],time_limit=kwargs['time_limit'],start_time=start_time);
 stdout_reader.start();
 
 stderr_queue=Queue();
@@ -687,6 +722,12 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
 
     while not stderr_queue.empty():
         stderr_line=stderr_queue.get();
+        exitstring="sacct -n -o 'ExitCode' -j \""+kwargs['stepid']+"\" | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2";
+        exitcode=subprocess.Popen(exitstring,shell=True,stdout=subprocess.PIPE).communicate()[0];
+        with open(filename+".err","a") as errstream:
+            errstream.write("ExitCode: "+exitcode+"\n");
+            errstream.write(stderr_line)
+            errstream.flush();
         while True:
             try:
                 fcntl.flock(sys.stderr,fcntl.LOCK_EX | fcntl.LOCK_NB);
@@ -887,6 +928,12 @@ while not stdout_queue.empty():
 
 while not stderr_queue.empty():
     stderr_line=stderr_queue.get();
+    exitstring="sacct -n -o 'ExitCode' -j \""+kwargs['stepid']+"\" | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2";
+    exitcode=subprocess.Popen(exitstring,shell=True,stdout=subprocess.PIPE).communicate()[0];
+    with open(filename+".err","a") as errstream:
+        errstream.write("ExitCode: "+exitcode+"\n");
+        errstream.write(stderr_line)
+        errstream.flush();
     while True:
         try:
             fcntl.flock(sys.stderr,fcntl.LOCK_EX | fcntl.LOCK_NB);
