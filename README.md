@@ -71,31 +71,28 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
 5) Install Mathematica and Python components by running the command `${SLURMONGO_ROOT}/install.bash` from a login node.
 
-6) Modify `${SLURMONGO_ROOT}/state/mongouri` by entering the IP address and port of your remote MongoDB database, as well as your username and password in the appropriate URI fields. The format should look like:
 
-```
-   mongodb://(IP address):(port)/
-```
-
-7) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template.job*) that you wish to run.
+6) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template.job*) that you wish to run.
 
    The MongoDB database name, username, and password will be defined in this file (dbname, dbusername, dbpassword). If your database is unauthenticated, leave dbusername blank.
 
    For testing purposes, please modify `controller_(some_module_name)_template.job` by finding the lines defining the variables *dbpush* and *markdone*. Change them to:
 
 ```
-   dbpush="False"
+   writedb="False"
+   statsdb="False"
    markdone=""
 ```
 
    This prevents the controller from writing the results back to the remote MongoDB database. When you are finished testing, you can change these back to:
    
 ```
-   dbpush="True"
+   writedb="True"
+   statsdb="True"
    markdone="MARK"
 ```
 
-8) To copy the template to a usable format, run the following command:
+7) To copy the template to a usable format, run the following command:
    
 ```
    ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)
@@ -105,13 +102,13 @@ Installation instructions for the Massachusetts Green High Performance Computing
 
    *(Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)*
 
-9) The template has now been copied to the directory `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. Navigate here, and you can now submit the job using the command:
+8) The template has now been copied to the directory `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. Navigate here, and you can now submit the job using the command:
 
 ```
    sbatch controller_(some_module_name)_(some_controller_name).job
 ```
    
-10) If you need to cancel and completely reset the controller job to initial conditions, make sure you run the command:
+9) If you need to cancel and completely reset the controller job to initial conditions, make sure you run the command:
 
 ```
    ./reset.bash
@@ -213,6 +210,65 @@ _watchjobs() {
 }
 export -f _watchjobs
 
+_swatch() {
+    watch -n$1 bash -c "_watchjobs"
+}
+
+_bwatchjobs() {
+    jobs=$(squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" | tr '\n' '!' 2>/dev/null)
+
+    for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep " controller_" | sed 's/\s\s*/ /g' | cut -d' ' -f4 | cut -d'_' -f2,3)
+    do
+        modname=$(echo ${controller} | cut -d'_' -f1)
+        controllername=$(echo ${controller} | cut -d'_' -f2)
+        workpath="${SLURMONGO_ROOT}/modules/${modname}/${controllername}/jobs"
+        temps=$(cat ${workpath}/*.log 2>/dev/null | grep "<TEMP" | wc -l)
+        outs=$(cat ${workpath}/*.log 2>/dev/null | grep "<OUT" | wc -l)
+        docs=$(cat ${workpath}/*.docs 2>/dev/null | wc -l)
+        echo "${controller}"
+        if [ "${docs}" -gt 0 ]
+        then 
+            tempsperc=$(echo "scale=2;(100*${temps})/${docs}" | bc)
+            echo "${tempsperc}% Processing: ${temps} of ${docs}"
+            outsperc=$(echo "scale=2;(100*${outs})/${docs}" | bc)
+            echo "${outsperc}% Finished: ${outs} of ${docs}"
+        fi
+        echo "Size: $(du -ch ${workpath} 2>/dev/null | tail -n1 | sed 's/\s\s*/ /g' | cut -d' ' -f1)"
+        echo ""
+    done
+    njobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | wc -l)
+    if [ "${njobs}" -gt 0 ]
+    then
+        nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " R " | wc -l)
+        npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
+        steps=$(sacct -o "JobID%30,JobName%130,State" --jobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | sed "s/\s\s*/ /g" | cut -d" " -f2 | tr '\n' ',' | head -c -1) 2>/dev/null | grep -v "stats_" | grep -E "\."  | tr '\n' '!' 2>/dev/null)
+        nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
+        pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
+        if [[ "${pendsteps}" == "" ]]
+        then
+            npendsteps=0
+        else
+            npendsteps=$(echo "-(${pendsteps})" | bc)
+        fi
+    else
+        nrunjobs=0
+        npendjobs=0
+        nrunsteps=0
+        npendsteps=0
+    fi
+    nsteps=$(($nrunsteps+$npendsteps))
+    echo "# Jobs: ${njobs}   # Run Jobs: ${nrunjobs}   # Pend Jobs: ${npendjobs}"
+    echo "# Steps: ${nsteps}   # Run Steps: ${nrunsteps}   # Pend Steps: ${npendsteps}"
+    echo ""
+    #squeue -u ${USER} -o "%.10i %.13P %.130j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p"
+    echo "${jobs}" | tr '!' '\n' 2>/dev/null
+}
+export -f _bwatchjobs
+
+_bwatch() {
+    watch -n$1 bash -c "_bwatchjobs"
+}
+
 _watchoutput() {
     jobdir=$1
     nlines=$2
@@ -255,10 +311,6 @@ _watchoutput() {
     echo "${datetime}: ${mergesfail} Merges Failed"
 }
 export -f _watchoutput
-
-_swatch() {
-    watch -n$1 bash -c "_watchjobs"
-}
 
 _owatch() {
     nseconds=$3
@@ -338,6 +390,7 @@ alias sfindpart='_sfindpart'
 alias sfindpartall='_sfindpartall'
 alias sinteract='_sinteract'
 alias swatch='_swatch'
+alias bwatch='_bwatch'
 alias owatch='_owatch $(pwd) ${LINES}'
 alias siwatch='_siwatch'
 alias scratch='cd /gss_gpfs_scratch/${USER}'
