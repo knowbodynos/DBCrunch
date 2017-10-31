@@ -120,17 +120,20 @@ for line in iter(sys.stdin.readline,''):
         else:
             nformcountlist[nformlist.index(nform)]+=1;
 
-    print("+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts)},separators=(',',':')));
-    sys.stdout.flush();
+    #print("+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts)},separators=(',',':')));
+    #sys.stdout.flush();
     
+    maxconenormals=[];
     for i in range(len(nformlist)):
         nform=nformlist[i];
         faceinfo=faceinfolist[i];
         ninstances=nformcountlist[i];
-        print("&MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances}},separators=(',',':')));
+        maxconenormals+=[{'NORMALFORM':py2mat(nform),'NINST':ninstances}];
+        #print("&MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'POS':{'POLYID':polyid,'NINST':ninstances}},separators=(',',':')));
         print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACEINFO':py2mat(faceinfo)},separators=(',',':')));
         sys.stdout.flush();
 
+    print("+POLY."+json.dumps({'POLYID':polyid},separators=(',',':'))+">"+json.dumps({'DVERTS':py2mat(dverts),'MAXCONENORMALS':maxconenormals},separators=(',',':')));
     print("@");#+basecoll+"."+json.dumps(dict([(x,polydoc[x]) for x in dbindexes]),separators=(',',':')));
     sys.stdout.flush();
     #line=sys.stdin.readline();

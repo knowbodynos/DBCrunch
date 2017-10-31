@@ -41,7 +41,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
     '''
     def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = '', cleanup = None, time_limit = None, start_time = None):
         assert hasattr(in_iter_arg, '__iter__')
-        assert hasattr(in_iter_file, '__iter__')
+        assert isinstance(in_iter_file, file) or in_iter_file==None
         assert isinstance(in_queue, Queue)
         assert isinstance(out_queue, Queue)
         assert callable(in_stream.write)
@@ -69,7 +69,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
             in_line = self._initerarg.next()
         except StopIteration:
             self._initerargflag = True
-            if self._initerfile.closed:
+            if self._initerfile == None or self._initerfile.closed:
                 in_line = self._inqueue.get()
                 if in_line == "":
                     self._instream.close()
@@ -84,7 +84,9 @@ class AsynchronousThreadStreamReaderWriter(Thread):
             else:
                 in_line = self._initerfile.readline().rstrip("\n")
                 if in_line == "":
+                    name = self._initerfile.name
                     self._initerfile.close()
+                    os.remove(name)
                     #self._initerfileflag = True
                     in_line = self._inqueue.get()
                     if in_line == "":
@@ -134,7 +136,7 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                     in_line = self._initerarg.next()
                 except StopIteration:
                     self._initerargflag = True
-                    if self._initerfile.closed:
+                    if self._initerfile == None or self._initerfile.closed:
                         in_line = self._inqueue.get()
                         if in_line == "":
                             self._instream.close()
@@ -149,7 +151,9 @@ class AsynchronousThreadStreamReaderWriter(Thread):
                     else:
                         in_line = self._initerfile.readline().rstrip("\n")
                         if in_line == "":
+                            name = self._initerfile.name
                             self._initerfile.close()
+                            os.remove(name)
                             #self._initerfileflag = True
                             in_line = self._inqueue.get()
                             if in_line == "":
@@ -479,7 +483,11 @@ if kwargs['input_file']!=None:
 else:
     filename=workpath+"/"+kwargs['stepid'];
 
+if kwargs['logging']:
+    logiostream=cStringIO.StringIO();
+
 if kwargs['writelocal'] or kwargs['statslocal']:
+    iostream=cStringIO.StringIO();
     outiostream=open(filename+".out","w");
     if kwargs['templocal']:
         tempiostream=open(filename+".temp","w");
@@ -499,9 +507,6 @@ if any([kwargs[x] for x in ['writedb','statsdb']]):
             raise Exception("Only mongodb is currently supported.");
 
         db=dbclient[dbname];
-
-if kwargs['logging']:
-    logiostream=cStringIO.StringIO();
 
 process=Popen(kwargs['scriptcommand'],shell=True,stdin=PIPE,stdout=PIPE,stderr=PIPE,bufsize=1);
 
@@ -525,7 +530,6 @@ if kwargs['statslocal'] or kwargs['statsdb']:
 
 bulkdict={};
 #tempiostream=open(workpath+"/"+stepname+".temp","w");
-iostream=cStringIO.StringIO();
 bsonsize=0;
 countresult=0;
 nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
@@ -701,19 +705,22 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
             #    os.remove(tempiostream.name);
             #sys.stdout.write(tempiostream.getvalue());
             #sys.stdout.flush();
-            if kwargs['templocal']:
-                tempiostream.truncate(0);
-            if kwargs['writelocal'] or kwargs['statslocal']:
-                outiostream.write(iostream.getvalue());
-                outiostream.flush();
             if kwargs['logging']:
                 sys.stdout.write(logiostream.getvalue());
                 sys.stdout.flush();
+                logiostream.truncate(0);
+            if kwargs['templocal']:
+                name=tempiostream.name;
+                tempiostream.close();
+                os.remove(name);
+                tempiostream=open(name,"w");
+            if kwargs['writelocal'] or kwargs['statslocal']:
+                outiostream.write(iostream.getvalue());
+                outiostream.flush();
+                iostream.truncate(0);
             #fcntl.flock(sys.stdout,fcntl.LOCK_UN);
             bulkdict={};
             #tempiostream=open(workpath+"/"+stepname+".temp","w");
-            iostream.truncate(0);
-            logiostream.truncate(0);
             countresult=0;
             nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
             os.remove(lockfile);
@@ -907,19 +914,22 @@ while not stdout_queue.empty():
         #    os.remove(tempiostream.name);
         #sys.stdout.write(tempiostream.getvalue());
         #sys.stdout.flush();
-        if kwargs['templocal']:
-            tempiostream.truncate(0);
-        if kwargs['writelocal'] or kwargs['statslocal']:
-            outiostream.write(iostream.getvalue());
-            outiostream.flush();
         if kwargs['logging']:
             sys.stdout.write(logiostream.getvalue());
             sys.stdout.flush();
+            logiostream.truncate(0);
+        if kwargs['templocal']:
+            name=tempiostream.name;
+            tempiostream.close();
+            os.remove(name);
+            tempiostream=open(name,"w");
+        if kwargs['writelocal'] or kwargs['statslocal']:
+            outiostream.write(iostream.getvalue());
+            outiostream.flush();
+            iostream.truncate(0);
         #fcntl.flock(sys.stdout,fcntl.LOCK_UN);
         bulkdict={};
         #tempiostream=open(workpath+"/"+stepname+".temp","w");
-        iostream.truncate(0);
-        logiostream.truncate(0);
         countresult=0;
         nbatch=randint(1,kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch'];
         os.remove(lockfile);
@@ -946,13 +956,17 @@ while not stderr_queue.empty():
 
 if kwargs['input_file']!=None:
     stdin_iter_file.close();
-if kwargs['writelocal'] or kwargs['statslocal']:
-    outiostream.close();
-    if kwargs['templocal']:
-        tempiostream.close();
-iostream.close();
+
 if kwargs['logging']:
     logiostream.close();
+if kwargs['templocal']:
+    if not tempiostream.closed:
+        tempiostream.close();
+    if os.path.exists(tempiostream.name):
+        os.remove(tempiostream.name);
+if kwargs['writelocal'] or kwargs['statslocal']:
+    outiostream.close();
+    iostream.close();
 
 stdout_reader.join();
 stderr_reader.join();
