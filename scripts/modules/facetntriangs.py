@@ -207,8 +207,12 @@ def FSRT_facet_from_resolved_verts(resverts,facet):
 
 def n_FSRT_facet_from_resolved_verts(facetpts):
     pc=PointConfiguration(facetpts);
-    triangs=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).triangulations_list();
-    return len(triangs);
+    #triangs=pc.restrict_to_regular_triangulations(regular=True).restrict_to_fine_triangulations(fine=True).triangulations_list();
+    pc_fine=pc.restrict_to_fine_triangulations(fine=True);
+    pc_fine_reg=pc_fine.restrict_to_regular_triangulations(regular=True);
+    triangs_fine=pc_fine.triangulations_list();
+    triangs_fine_reg=pc_fine_reg.triangulations_list();
+    return [len(triangs_fine),len(triangs_fine_reg)];
 
 #################################################################################
 #Main body
@@ -225,13 +229,13 @@ try:
         facet=LatticePolytope(facetverts);
         facetpts=[list(x) for x in facet.boundary_points()];
         try:
-            with time_limit(60):
-                facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
+            with time_limit(3600):
+                facetntriang_fine,facetntriang_fine_reg=n_FSRT_facet_from_resolved_verts(facetpts);
         except TimeoutException("Timed out!"):
             pass;
         else:
             facetntriang=n_FSRT_facet_from_resolved_verts(facetpts);
-            print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang},separators=(',',':')));
+            print("+MAXCONE."+json.dumps({'NORMALFORM':py2mat(nform)},separators=(',',':'))+">"+json.dumps({'FACETNTRIANG':facetntriang_fine,'FACETNREGTRIANG':facetntriang_fine_reg},separators=(',',':')));
             print("@");#print("@"+basecoll+"."+json.dumps(dict([(x,maxconedoc[x]) for x in dbindexes]),separators=(',',':')));
             sys.stdout.flush();
 except Exception as e:

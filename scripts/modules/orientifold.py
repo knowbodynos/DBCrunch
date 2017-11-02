@@ -2517,7 +2517,7 @@ for line in iter(sys.stdin.readline,''):
         algorithm = 'macaulay2:gb'
     
     #query, output = main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat, algorithm=algorithm)
-    query, output = main_one_check(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat, algorithm=algorithm)
+    query, output = main_one(polyid, geonum, trinum, invnum, h11, h21, invol, basisinds, dresverts, sr, rwmat, algorithm=algorithm)
 
     print("+INVOL."+json.dumps(query,separators=(',',':'))+">"+json.dumps(output,separators=(',',':')))
     print("@");#print("@INVOL."+json.dumps(dict([(x,involdoc[x]) for x in dbindexes]),separators=(',',':')))
