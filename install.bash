@@ -27,6 +27,7 @@ python setup.py install --user --record filespy.txt
 sage --python setup.py install --user --record filessage.txt
 
 cd ${pythonpath}/mongolink
+git submodule update --init --recursive
 python setup.py install --user --record filespy.txt
 sage --python setup.py install --user --record filessage.txt
 cd ${currdir}
