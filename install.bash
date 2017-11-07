@@ -9,12 +9,10 @@ pythonpath="${SLURMONGO_ROOT}/packages/python"
 
 currdir=$(pwd)
 cd ${pythonpath}
-rm -r ${pythonpath}/mongo-python-driver-2.8 2>/dev/null
-wget https://github.com/mongodb/mongo-python-driver/archive/2.8.tar.gz
+rm -r ${pythonpath}/pymongo 2>/dev/null
+git clone git://github.com/mongodb/mongo-python-driver.git pymongo
 wait
-tar xzfv 2.8
-rm 2.8
-cd mongo-python-driver-2.8
+cd pymongo
 python setup.py install --user --record filespy.txt
 sage --python setup.py install --user --record filessage.txt
 cd ${pythonpath}/mongolink

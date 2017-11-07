@@ -20,25 +20,26 @@ def time_limit(seconds):
 
 def collectionfind(db,collection,query,projection,options={},formatresult="ITERATOR"):
     "Query specific collection in database."
-    if ("COUNT" in options.keys()) and options['COUNT']:
-        result=db[collection].find(query,timeout=False).count();
+    if len(projection)==0:
+        result=db[collection].find(query,no_cursor_timeout=True,allow_partial_results=True);
     else:
-        if len(projection)==0:
-            result=db[collection].find(query,timeout=False);
-        else:
-            result=db[collection].find(query,projection,timeout=False);
-        if "HINT" in options.keys():
-            result=result.hint(options['HINT']);
-        if "SORT" in options.keys():
-            result=result.sort(options['SORT']);
-        if "LIMIT" in options.keys():
-            result=result.limit(options['LIMIT']);
-        #if formatresult=="string":
-        #    result=stringresult;
-        #elif formatresult=="expression":
-        #    result=parse.string2expression(stringresult);
-        #else:
-        #    result=None;
+        result=db[collection].find(query,projection,no_cursor_timeout=True,allow_partial_results=True);
+    if "HINT" in options.keys():
+        result=result.hint(options['HINT']);
+    if "SORT" in options.keys():
+        result=result.sort(options['SORT']);
+    if "SKIP" in options.keys():
+        result=result.skip(options['SKIP']);
+    if "LIMIT" in options.keys():
+        result=result.limit(options['LIMIT']);
+    if ("COUNT" in options.keys()) and options['COUNT']:
+        result=result.count(with_limit_and_skip=True);
+    #if formatresult=="string":
+    #    result=stringresult;
+    #elif formatresult=="expression":
+    #    result=parse.string2expression(stringresult);
+    #else:
+    #    result=None;
     #return [dict(zip(y.keys(),[mat2py(y[x]) for x in y.keys()])) for y in result];
         if formatresult=="STRING":
             result=list(result);
@@ -98,7 +99,7 @@ def gettierfromdoc(db,doc):
 
 def collectionfieldexists(db,collection,field):
     "Check if specific field exists in the collection."
-    result=db[collection].find({},{"_id":0,field:1},timeout=False).limit(1).next()!={};
+    result=db[collection].find({},{"_id":0,field:1},no_cursor_timeout=True,allow_partial_results=True).limit(1).next()!={};
     return result;
 
 #def listindexes(db,commonindexes,distribfilter,filters):

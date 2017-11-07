@@ -26,3 +26,5 @@ polyfacetntriangs
 faceinfo
 maxcones
 facetntriangs
+facetnfinetriangs
+facetnallfinetriangs

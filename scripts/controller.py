@@ -1097,9 +1097,9 @@ def writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,
     jobstring+="#Number of nodes to distribute n tasks across\n";
     jobstring+="#SBATCH -N "+str(nnodes)+"\n";
     jobstring+="#################\n";
-    jobstring+="#Lock down N nodes for job\n";
-    jobstring+="#SBATCH --exclusive\n";
-    jobstring+="#################\n";
+    #jobstring+="#Lock down N nodes for job\n";
+    #jobstring+="#SBATCH --exclusive\n";
+    #jobstring+="#################\n";
     jobstring+="\n";
     jobstring+="#Job info\n";
     #jobstring+="modname=\""+modname+"\"\n";
