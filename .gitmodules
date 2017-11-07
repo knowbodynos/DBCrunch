@@ -1,0 +1,3 @@
+[submodule "packages/python/mongolink"]
+	path = packages/python/mongolink
+	url = git@github.com:knowbodynos/mongolink.git
