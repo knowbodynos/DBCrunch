@@ -1,1 +1,4 @@
+packages/Mathematica/cohomCalg
+packages/python/mpi4py
+packages/python/pymongo
 modules/**
