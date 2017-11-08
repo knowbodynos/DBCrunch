@@ -2,6 +2,7 @@
 **/Thumbs.db
 **/*_bkp*
 packages/Mathematica/cohomCalg
+packages/Mathematica/MongoLink/*.jar
 packages/python/mpi4py
 packages/python/pymongo
 modules/**
