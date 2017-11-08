@@ -1,5 +1,8 @@
+.DS_Store
 **/.DS_Store
+Thumbs.db
 **/Thumbs.db
+*_bkp*
 **/*_bkp*
 packages/Mathematica/cohomCalg
 packages/Mathematica/MongoLink/*.jar
