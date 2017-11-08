@@ -1,9 +1,9 @@
 #!/bin/bash
 
 initfile=$(math -noprompt -run "WriteString[\$Output,\$UserBaseDirectory<>\"/Kernel/init.m\"];Exit[];" 2>/dev/null)
-echo $(cat $initfile | grep -v "SLURMONGO_ROOT") > $initfile
-echo "AppendTo[\$Path, Environment[\"SLURMONGO_ROOT\"]<>\"/packages/Mathematica/cohomCalg\"]" >> $initfile
-echo "AppendTo[\$Path, Environment[\"SLURMONGO_ROOT\"]<>\"/packages/Mathematica/MongoLink\"]" >> $initfile
+echo $(cat ${initfile} | grep -v "SLURMONGO_ROOT") > $initfile
+echo "AppendTo[\$Path, Environment[\"SLURMONGO_ROOT\"]<>\"/packages/Mathematica/cohomCalg\"]" >> ${initfile}
+echo "AppendTo[\$Path, Environment[\"SLURMONGO_ROOT\"]<>\"/packages/Mathematica/MongoLink\"]" >> ${initfile}
 
 localpath="${USER_LOCAL}"
 pythonpath="${SLURMONGO_ROOT}/packages/python"
