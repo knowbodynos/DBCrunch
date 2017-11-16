@@ -1,87 +1,138 @@
 #!/bin/bash
 
-initfile=$(math -noprompt -run "WriteString[\$Output,\$UserBaseDirectory<>\"/Kernel/init.m\"];Exit[];" 2>/dev/null)
-echo $(cat ${initfile} | grep -v "SLURMONGO_ROOT") > $initfile
-echo "AppendTo[\$Path, Environment[\"SLURMONGO_ROOT\"]<>\"/packages/Mathematica/cohomCalg\"]" >> ${initfile}
-echo "AppendTo[\$Path, Environment[\"SLURMONGO_ROOT\"]<>\"/packages/Mathematica/MongoLink\"]" >> ${initfile}
+USER_LOCAL="\${HOME}/opt"
+CRUNCH_ROOT="$(cd $(dirname ${BASH_SOURCE[0]}); pwd -P)"
 
-localpath="${USER_LOCAL}"
-pythonpath="${SLURMONGO_ROOT}/packages/python"
+SHORTOPTS="u:c:" 
+LONGOPTS="USER_LOCAL:,CRUNCH_ROOT:" 
 
-currdir=$(pwd)
-cd ${SLURMONGO_ROOT}
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@" ) 
+
+eval set -- "$ARGS" 
+
+while true
+do
+    case $1 in
+        -u|--USER_LOCAL)
+            USER_LOCAL=$2
+            shift
+            ;;
+        -c|--CRUNCH_ROOT)
+            CRUNCH_ROOT=$2
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            shift
+            break
+            ;;
+    esac
+    shift
+done
+
+USER_LOCAL="${USER_LOCAL}"
+pythonpath="${CRUNCH_ROOT}/packages/python"
+softwarepath="${CRUNCH_ROOT}/modules/software"
+currpath=$(pwd)
+
+if ! [ -f ${HOME}/.bashrc ]
+then
+    touch ${HOME}/.bashrc
+fi
+
+rm ${HOME}/.newbashrc 2>/dev/null
+firstline=true
+prevline=""
+while IFS=$'\n' read -r line
+do
+    if ! ${firstline} && [[ "${prevline}" == "" ]] && ! [[ "${line}" =~ .*"# DBCrunch environment variables".* ]]
+    then
+        printf '%s\n' "${prevline}" >> ${HOME}/.newbashrc
+    fi
+
+    if [[ "${line}" != "" ]] && ! [[ "${line}" =~ .*"# DBCrunch environment variables".* ]] && ! [[ "${line}" =~ .*"export USER_LOCAL".* ]] && ! [[ "${line}" =~ .*"export CRUNCH_ROOT".* ]] && ! [[ "${line}" =~ .*"export PATH".*"CRUNCH_ROOT".* ]]
+    then
+        printf '%s\n' "${line}" >> ${HOME}/.newbashrc
+    fi
+    firstline=false
+    prevline=${line}
+done < ${HOME}/.bashrc
+
+echo "" >> ${HOME}/.newbashrc
+echo "# DBCrunch environment variables" >> ${HOME}/.newbashrc
+echo "export USER_LOCAL=${USER_LOCAL}" >> ${HOME}/.newbashrc
+echo "export CRUNCH_ROOT="$(echo ${CRUNCH_ROOT} | sed 's|'"${HOME}"'|${HOME}|g' | sed 's|'"${USER}"'|${USER}|g') >> ${HOME}/.newbashrc
+echo "export PATH=\${USER_LOCAL}/bin:\${CRUNCH_ROOT}/bin:\${PATH}" >> ${HOME}/.newbashrc
+
+mv ${HOME}/.bashrc ${HOME}/.oldbashrc
+mv ${HOME}/.newbashrc ${HOME}/.bashrc
+
+wait
+source ${HOME}/.bashrc
+wait
+
+#Update submodules
+cd ${CRUNCH_ROOT}
 git submodule update --init --recursive
 
+#Install external software
+for file in $(find ${softwarepath}/ -type f 2>/dev/null)
+do
+    ${file}
+    wait
+done
+
+#Install mpi4py
 if $(python -c "import mpi4py" |& grep -q "ImportError" && echo true || echo false)
 then
-	cd ${pythonpath}
-	rm -r ${pythonpath}/mpi4py 2>/dev/null
-	git clone https://github.com/mpi4py/mpi4py.git mpi4py
-	wait
-	cd mpi4py
-	git checkout 2.0.0
-	wait
-	rm -rf .git
-	python setup.py install --user --record filespy.txt
-	sage --python setup.py install --user --record filessage.txt
+    cd ${HOME}
+    rm -r ${HOME}/mpi4py 2>/dev/null
+    git clone https://github.com/mpi4py/mpi4py.git mpi4py
+    wait
+    cd mpi4py
+    git checkout 2.0.0
+    wait
+    rm -rf .git
+    python setup.py install --user
+    if [[ "$(command -v sage)" != "" ]]
+    then
+        sage --python setup.py install --user
+    fi
+    wait
+    cd ..
+    rm -rf pymongo
 fi
 
+#Install pymongo
 if $(python -c "import pymongo" |& grep -q "ImportError" && echo true || echo false)
 then
-	cd ${pythonpath}
-	rm -r ${pythonpath}/pymongo 2>/dev/null
-	git clone https://github.com/mongodb/mongo-python-driver.git pymongo
-	wait
-	cd pymongo
-	git checkout 3.5.1
-	wait
-	rm -rf .git
-	python setup.py install --user --record filespy.txt
-	sage --python setup.py install --user --record filessage.txt
+    cd ${HOME}
+    rm -r ${HOME}/pymongo 2>/dev/null
+    git clone https://github.com/mongodb/mongo-python-driver.git pymongo
+    wait
+    cd pymongo
+    git checkout 3.5.1
+    wait
+    rm -rf .git
+    python setup.py install --user
+    if [[ "$(command -v sage)" != "" ]]
+    then
+        sage --python setup.py install --user
+    fi
+    wait
+    cd ..
+    rm -rf pymongo
 fi
 
+#Install mongolink
 cd ${pythonpath}/mongolink
 python setup.py install --user --record filespy.txt
-sage --python setup.py install --user --record filessage.txt
-cd ${currdir}
-
-if [ "$(command -v M2)" != "" ]
+if [[ "$(command -v sage)" != "" ]]
 then
-	cd ${HOME}
-	wget http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Generic/Macaulay2-1.6-x86_64-Linux-Generic.tar.gz
-	wget http://www2.macaulay2.com/Macaulay2/Downloads/Common/Macaulay2-1.6-common.tar.gz
-	wait
-	tar xzfv Macaulay2-1.6-x86_64-Linux-Generic.tar.gz --strip-components 1 --directory ${localpath}/
-	tar xzfv Macaulay2-1.6-common.tar.gz --strip-components 1 --directory ${localpath}/
-	wait
-	rm Macaulay2*.tar.gz
+    sage --python setup.py install --user
 fi
 
-if [ "$(command -v points2ntriangs)" != "" ]
-then
-	cd ${HOME}
-	wget http://www.rambau.wm.uni-bayreuth.de/Software/TOPCOM-0.17.8.tar.gz
-	wait
-	tar xzfv TOPCOM-0.17.8.tar.gz
-	wait
-	rm TOPCOM-0.17.8.tar.gz
-	cd topcom-0.17.8
-	./configure --prefix=${localpath}
-	wait
-	make
-	wait
-	make install
-	wait
-	cd ..
-	rm -r topcom-0.17.8
-fi
-
-if [ "$(command -v jq)" != "" ]
-then
-	cd ${localpath}/bin
-	wget http://stedolan.github.io/jq/download/linux64/jq
-	wait
-	chmod +x jq
-fi
-
-cd ${currdir}
+cd ${currpath}
