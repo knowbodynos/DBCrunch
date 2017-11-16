@@ -1,18 +1,70 @@
 #!/bin/bash
 
-mainpath=$1
-workpath="${mainpath}/jobs"
+case $# in
+    1)
+        controllerpath=$1
+        ;;
+    2)
+        controllerpath=$1
+        controllername=$2
+        
+        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
+        then
+            controllerpath="${controllerpath}/${controllername}"
+        fi
+        ;;
+    3)
+        controllerpath=$1
+        modname=$2
+        controllername=$3
+
+        if ! [[ "${controllerpath}" =~ .*"/${modname}/".* ]] && ! [[ "${controllerpath}" =~ ^"${modname}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${modname}"$ ]]
+        then
+            controllerpath="${controllerpath}/${modname}"
+        fi
+
+        if [ ! -d "${controllerpath}" ]
+        then
+            mkdir ${controllerpath}
+        fi
+
+        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
+        then
+            controllerpath="${controllerpath}/${controllername}"
+        fi
+        ;;
+esac
+
+if [[ "${controllerpath}" =~ .*"/jobs"$ ]]
+then
+    workpath="${controllerpath}"
+    controllerpath="$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)"
+else
+    workpath="${controllerpath}/jobs"
+fi
+
+if [ ! -d "${controllerpath}" ]
+then
+    mkdir ${controllerpath}
+fi
+
+if [ ! -d "${workpath}" ]
+then
+    mkdir ${workpath}
+fi
+
+#workpath="${controllerpath}/jobs"
 #mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
 #toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
-rm ${mainpath}/*.out ${mainpath}/*.err tmp* 2>/dev/null
+rm ${controllerpath}/*.out ${controllerpath}/*.err tmp* 2>/dev/null
 rm -r ${workpath}/* 2>/dev/null
-rm ${mainpath}/querystate* 2>/dev/null
-rm ${mainpath}/reloadstate* 2>/dev/null
+rm ${controllerpath}/querystate* 2>/dev/null
+rm ${controllerpath}/reloadstate* 2>/dev/null
 
-echo "JobStep,ExitCode,Resubmit?" > ${mainpath}/skipped 2>/dev/null
-echo -e "BatchCounter,StepCounter\n1,1" > ${mainpath}/batchcounter 2>/dev/null
-echo "Pending" > ${mainpath}/status 2>/dev/null
+echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
+echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
+echo "Pending" > ${controllerpath}/status 2>/dev/null
 
 #currdir=$(pwd)
 #cd ${mongolinkpath}
@@ -20,9 +72,9 @@ echo "Pending" > ${mainpath}/status 2>/dev/null
 #sage --python setup.py install --user --record filessage.txt
 #cd ${currdir}
 
-#mongouri=$(cat ${mainpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
-#basecollection=$(cat ${mainpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
-#modname=$(cat ${mainpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
-#markdone=$(cat ${mainpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
-#h11=$(cat ${mainpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
+#mongouri=$(cat ${controllerpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
+#basecollection=$(cat ${controllerpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
+#modname=$(cat ${controllerpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
+#markdone=$(cat ${controllerpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
+#h11=$(cat ${controllerpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
 #python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"

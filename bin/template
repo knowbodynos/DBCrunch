@@ -1,19 +1,51 @@
 #!/bin/bash
 
-modulespath="${CRUNCH_ROOT}/modules"
+templatespath="${CRUNCH_ROOT}/modules/templates"
 #binpath="${CRUNCH_ROOT}/bin"
 
-modname=$1
-controllername=$2
+case $# in
+    1)
+        controllerpath=$1
 
-modpath=$(pwd)
+        modname="$(echo ${controllerpath} | rev | cut -d'/' -f2 | rev)"
+        controllername="$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)"
+        ;;
+    2)
+        controllerpath=$1
+        controllername=$2
+        
+        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
+        then
+            controllerpath="${controllerpath}/${controllername}"
+        fi
+        modname="$(echo ${controllerpath} | rev | cut -d'/' -f2 | rev)"
+        ;;
+    3)
+        controllerpath=$1
+        modname=$2
+        controllername=$3
 
-if [ ! -d "${modpath}" ]
+        if ! [[ "${controllerpath}" =~ .*"/${modname}/".* ]] && ! [[ "${controllerpath}" =~ ^"${modname}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${modname}"$ ]]
+        then
+            controllerpath="${controllerpath}/${modname}"
+        fi
+
+        if [ ! -d "${controllerpath}" ]
+        then
+            mkdir ${controllerpath}
+        fi
+
+        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
+        then
+            controllerpath="${controllerpath}/${controllername}"
+        fi
+        ;;
+esac
+
+if [[ "${controllerpath}" =~ .*"/jobs"$ ]]
 then
-    mkdir ${modpath}
+    controllerpath="$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)"
 fi
-
-controllerpath="${modpath}/${modname}/${controllername}"
 
 if [ ! -d "${controllerpath}" ]
 then
@@ -21,7 +53,7 @@ then
 fi
 
 #cp "${binpath}/reset.bash" "${controllerpath}/"
-cp -T "${modulespath}/templates/${modname}.job" "${controllerpath}/controller_${modname}_${controllername}.job"
+cp -T "${templatespath}/${modname}.job" "${controllerpath}/controller_${modname}_${controllername}.job"
 echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
 echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
 echo "Pending" > ${controllerpath}/status 2>/dev/null

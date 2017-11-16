@@ -17,15 +17,30 @@ sub_help(){
 }
   
 sub_template(){
-    ${ProgDir}/template $1 $2
+    if [ ! -d "$1" ]
+    then
+        ${ProgDir}/template $(pwd) ${@}
+    else
+        ${ProgDir}/template ${@}
+    fi
 }
   
 sub_reset(){
-    ${ProgDir}/reset $(pwd)
+    if [ ! -d "$1" ]
+    then
+        ${ProgDir}/reset $(pwd) ${@}
+    else
+        ${ProgDir}/reset ${@}
+    fi
 }
 
 sub_requeue(){
-    ${ProgDir}/requeue $(pwd)
+    if [ ! -d "$1" ]
+    then
+        ${ProgDir}/requeue $(pwd) ${@}
+    else
+        ${ProgDir}/requeue ${@}
+    fi
 }
 
 sub_monitor(){
