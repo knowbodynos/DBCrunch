@@ -1,3 +1,6 @@
 [submodule "packages/python/mongolink"]
 	path = packages/python/mongolink
 	url = git@github.com:knowbodynos/mongolink.git
+[submodule "modules"]
+	path = modules
+	url = https://github.com/knowbodynos/stringmods.git
