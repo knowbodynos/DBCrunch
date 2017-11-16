@@ -1,5 +1,5 @@
-# SLURMongo
-This package in an API linking the SLURM workload manager with MongoDB, in order to optimize the staged, parallel processing of large amounts of data.
+# DBCrunch
+This package is an API linking the SLURM workload manager with MongoDB, in order to optimize the staged, parallel processing of large amounts of data.
 The data is streamed directly from a remote MongoDB database, processed on a high-performance computing cluster running SLURM, and fed directly back to the remote database along with statistics such as CPU time, max memory used, and storage.
 
 ------------------------------------------------------------------------------------------------------------
@@ -23,14 +23,17 @@ Installation instructions for the Massachusetts Green High Performance Computing
    module load gnu-4.8.1-compilers
    module load boost-1.55.0
    module load python-2.7.5
+   module load oracle_java_1.7u40
+   module load hadoop-2.4.1
    module load mathematica-10
+   module load cuda-7.0
    module load sage-7.4
 
+   export USER_LOCAL=${HOME}/opt
    #export SAGE_ROOT=/shared/apps/sage/sage-5.12
    export SAGE_ROOT=/shared/apps/sage-7.4
-   export M2_ROOT=${HOME}
-   export SLURMONGO_ROOT=/gss_gpfs_scratch/${USER}/SLURMongo
-   export PATH=${PATH}:${M2_ROOT}/Macaulay2-1.6/bin
+   export CRUNCH_ROOT=/gss_gpfs_scratch/${USER}/DBCrunch
+   export PATH=${USER_LOCAL}/bin:${CRUNCH_ROOT}/bin:${PATH}
 ```
 
 3) Restart your Discovery session OR run the command `source ${HOME}/.bashrc`.
@@ -69,10 +72,10 @@ Installation instructions for the Massachusetts Green High Performance Computing
    
       You will see an "*Activate online*" window. Select the "*Other ways to activate*" button. Then select the third option "*Connect to a network license server*". In the Server name box enter `discovery2` and then select the "*Activate*" button. After this check the "*I accept the terms of the agreement*" box and select the "*OK*" button. Now your user account is configured to use Mathematica 10.0.2 on the Discovery Cluster.
 
-5) Install Mathematica and Python components by running the command `${SLURMONGO_ROOT}/install.bash` from a login node.
+5) Install Mathematica and Python components by running the command `${CRUNCH_ROOT}/install.bash` from a login node.
 
 
-6) View the available modules using `ls ${SLURMONGO_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template.job*) that you wish to run.
+6) View the available modules using `ls ${CRUNCH_ROOT}/templates` and choose the module (i.e., *controller_(some_module_name)_template.job*) that you wish to run.
 
    The MongoDB database name, username, and password will be defined in this file (dbname, dbusername, dbpassword). If your database is unauthenticated, leave dbusername blank.
 
@@ -95,14 +98,14 @@ Installation instructions for the Massachusetts Green High Performance Computing
 7) To copy the template to a usable format, run the following command:
    
 ```
-   ${SLURMONGO_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)
+   ${CRUNCH_ROOT}/scripts/tools/copy_template.bash (some_module_name) (some_controller_name)
 ```
    
    where, in practice, *(some_controller_name)* is the value of H11 (i.e., 1 through 6) that we wish to run the module on.
 
-   *(Note: If you choose to copy the template manually, you will also have to expand `${SLURMONGO_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)*
+   *(Note: If you choose to copy the template manually, you will also have to expand `${CRUNCH_ROOT}` inside the `#SBATCH -D` keyword of the `controller_(some_module_name)_template.job` file in order for SLURM to be able to process it.)*
 
-8) The template has now been copied to the directory `${SLURMONGO_ROOT}/modules/(some_module_name)/(some_controller_name)`. Navigate here, and you can now submit the job using the command:
+8) The template has now been copied to the directory `${CRUNCH_ROOT}/modules/(some_module_name)/(some_controller_name)`. Navigate here, and you can now submit the job using the command:
 
 ```
    sbatch controller_(some_module_name)_(some_controller_name).job
@@ -221,7 +224,7 @@ _bwatchjobs() {
     do
         modname=$(echo ${controller} | cut -d'_' -f1)
         controllername=$(echo ${controller} | cut -d'_' -f2)
-        workpath="${SLURMONGO_ROOT}/modules/${modname}/${controllername}/jobs"
+        workpath="${CRUNCH_ROOT}/modules/${modname}/${controllername}/jobs"
         temps=$(cat ${workpath}/*.log 2>/dev/null | grep "<TEMP" | wc -l)
         outs=$(cat ${workpath}/*.log 2>/dev/null | grep "<OUT" | wc -l)
         docs=$(cat ${workpath}/*.docs 2>/dev/null | wc -l)
@@ -342,18 +345,18 @@ _step2job(){
     herepath=$(pwd)
     if [[ "${modname}" == "" ]] || [[ "${controllername}" == "" ]]
     then
-        if [[ "${herepath}" == "${SLURMONGO_ROOT}/modules/"* ]]
+        if [[ "${herepath}" == "${CRUNCH_ROOT}/modules/"* ]]
         then
-            read modname controllername <<<$(echo "${herepath/${SLURMONGO_ROOT}\/modules\//}" | tr '/' ' ' | cut -d' ' -f1,2)
+            read modname controllername <<<$(echo "${herepath/${CRUNCH_ROOT}\/modules\//}" | tr '/' ' ' | cut -d' ' -f1,2)
             if [[ "${modname}" != "" ]] && [[ "${controllername}" != "" ]]
             then
-                parentids=$(cat "${SLURMONGO_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep "${jobstepname}" | perl -pe 's/^.*job step (.*?)\..*$/\1/g' | tr '\n' '|' | head -c -1)
-                cat "${SLURMONGO_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep -E "Submitted batch job (${parentids})" | perl -pe 's/^.* as (.*?) on.*$/\1/g'
+                parentids=$(cat "${CRUNCH_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep "${jobstepname}" | perl -pe 's/^.*job step (.*?)\..*$/\1/g' | tr '\n' '|' | head -c -1)
+                cat "${CRUNCH_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep -E "Submitted batch job (${parentids})" | perl -pe 's/^.* as (.*?) on.*$/\1/g'
             fi
         fi
     else
-        parentids=$(cat "${SLURMONGO_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep "${jobstepname}" | perl -pe 's/^.*job step (.*?)\..*$/\1/g' | tr '\n' '|' | head -c -1)
-        cat "${SLURMONGO_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep -E "Submitted batch job (${parentids})" | perl -pe 's/^.* as (.*?) on.*$/\1/g'
+        parentids=$(cat "${CRUNCH_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep "${jobstepname}" | perl -pe 's/^.*job step (.*?)\..*$/\1/g' | tr '\n' '|' | head -c -1)
+        cat "${CRUNCH_ROOT}/modules/${modname}/${controllername}/controller_${modname}_${controllername}.out" | grep -E "Submitted batch job (${parentids})" | perl -pe 's/^.* as (.*?) on.*$/\1/g'
     fi
 }
 
