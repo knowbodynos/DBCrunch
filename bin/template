@@ -1,23 +1,23 @@
 #!/bin/bash
 
-modulespath="${SLURMONGO_ROOT}/modules"
-#binpath="${SLURMONGO_ROOT}/bin"
+modulespath="${CRUNCH_ROOT}/modules"
+#binpath="${CRUNCH_ROOT}/bin"
 
 modname=$1
 controllername=$2
 
-modpath="$(pwd)"
+modpath=$(pwd)
 
 if [ ! -d "${modpath}" ]
 then
-  mkdir ${modpath}
+    mkdir ${modpath}
 fi
 
-controllerpath="${modpath}/${controllername}"
+controllerpath="${modpath}/${modname}/${controllername}"
 
 if [ ! -d "${controllerpath}" ]
 then
-  mkdir ${controllerpath}
+    mkdir ${controllerpath}
 fi
 
 #cp "${binpath}/reset.bash" "${controllerpath}/"
@@ -28,14 +28,15 @@ echo "Pending" > ${controllerpath}/status 2>/dev/null
 
 if [ ! -d "${controllerpath}/jobs" ]
 then
-  mkdir ${controllerpath}/jobs
+    mkdir ${controllerpath}/jobs
 fi
 
 files=$(find "${controllerpath}/" -mindepth 1 -type f)
 for file in ${files}
     do
-    	perl -i -pe 's|#SBATCH(.*)\${SLURMONGO_ROOT}|#SBATCH\1'"${SLURMONGO_ROOT}"'|g' ${file}
-    	sed -i "s/template/${controllername}/g" ${file}
-    	#newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
-    	#mv ${file} ${newfile} 2>/dev/null
+        #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
+        sed -i "s|path\_to\_module|${modpath}|g" ${file}
+        sed -i "s|template|${controllername}|g" ${file}
+        #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
+        #mv ${file} ${newfile} 2>/dev/null
     done

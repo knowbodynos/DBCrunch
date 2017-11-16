@@ -349,7 +349,6 @@ parser=ArgumentParser();
 
 parser.add_argument('--mod',dest='modname',action='store',default=None,help='');
 parser.add_argument('--controller',dest='controllername',action='store',default=None,help='');
-parser.add_argument('--jobname',dest='jobname',action='store',default=None,help='');
 parser.add_argument('--stepid',dest='stepid',action='store',default="1",help='');
 
 parser.add_argument('--nbatch','-n',dest='nbatch',action='store',default=1,help='');
@@ -413,7 +412,7 @@ else:
 
 script=" ".join(kwargs['scriptcommand']+kwargs['scriptargs']);
 
-if kwargs['jobname']==None:
+if kwargs['controllername']==None:
     mainpath=os.getcwd();
     workpath=mainpath;
     dbhost=kwargs['dbhost'];
@@ -423,7 +422,7 @@ if kwargs['jobname']==None:
     dbname=kwargs['dbname'];
     basecoll=kwargs['basecoll'];
 else:
-    mainpath=os.environ['SLURMONGO_ROOT'];
+    mainpath=os.environ['CRUNCH_ROOT'];
     #softwarefile=mainpath+"/state/software";
     #with open(softwarefile,"r") as softwarestream:
     #    softwarestream.readline();
@@ -439,12 +438,11 @@ else:
     #        if " "+modname+ext+" " in kwargs['scriptcommand'] or "/"+modname+ext+" " in kwargs['scriptcommand']:
     #            break;
     #controllerpath=mainpath+"/modules/"+modname+"/"+kwargs['controllername'];
-    controllerpath=Popen("squeue -h -j "+kwargs['stepid']+" -o '%Z' | head -c -1",shell=True,stdout=PIPE).communicate()[0];
+    controllerpath="/".join(Popen("squeue -h -j "+kwargs['stepid']+" -o '%Z' | head -c -1",shell=True,stdout=PIPE).communicate()[0].split("/")[:-1]);
     workpath=controllerpath+"/jobs";
     if not os.path.isdir(workpath):
         os.mkdir(workpath);
-    #controllerfile=controllerpath+"/controller_"+modname+"_"+kwargs['controllername']+".job";
-    controllerfile=controllerpath+"/"+jobname;
+    controllerfile=controllerpath+"/controller_"+modname+"_"+kwargs['controllername']+".job";
     with open(controllerfile,"r") as controllerstream:
         for controllerline in controllerstream:
             if "dbtype=" in controllerline:
@@ -767,11 +765,11 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
 
     while not stderr_queue.empty():
         stderr_line=stderr_queue.get();
-        if kwargs['jobname']!=None:
+        if kwargs['controllername']!=None:
             exitstring="sacct -n -o 'ExitCode' -j \""+kwargs['stepid']+"\" | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2";
             exitcode=Popen(exitstring,shell=True,stdout=PIPE).communicate()[0];
         with open(filename+".err","a") as errstream:
-            if kwargs['jobname']!=None:
+            if kwargs['controllername']!=None:
                 errstream.write("ExitCode: "+exitcode+"\n");
             errstream.write(stderr_line)
             errstream.flush();
@@ -1001,11 +999,11 @@ while not stdout_queue.empty():
 
 while not stderr_queue.empty():
     stderr_line=stderr_queue.get();
-    if kwargs['jobname']!=None:
+    if kwargs['controllername']!=None:
         exitstring="sacct -n -o 'ExitCode' -j \""+kwargs['stepid']+"\" | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2";
         exitcode=Popen(exitstring,shell=True,stdout=PIPE).communicate()[0];
     with open(filename+".err","a") as errstream:
-        if kwargs['jobname']!=None:
+        if kwargs['controllername']!=None:
             errstream.write("ExitCode: "+exitcode+"\n");
         errstream.write(stderr_line)
         errstream.flush();

@@ -3,16 +3,16 @@
 monitorjobs() {
     jobs=$(squeue -u ${USER} -o "%.130Z %.10i %.13P %.100j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" 2>/dev/null | tr '\n' '!')
 
-    for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v "(null)" | grep -v " controller_" | sed 's/\s\s*/ /g' | cut -d' ' -f1,5 | sed 's/\s/&/g')
+    for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v "(null)" | grep " controller_" | sed 's/\s\s*/ /g' | cut -d' ' -f2,5 | sed 's/\s/\&/g')
     do
         controllerpath=$(echo ${controller} | cut -d'&' -f1)
-        modname=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f1)
-        controllername=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f2)
+        modname=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f2)
+        controllername=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f3)
         workpath="${controllerpath}/jobs"
         temps=$(cat ${workpath}/*.log 2>/dev/null | grep "<TEMP" | wc -l)
         outs=$(cat ${workpath}/*.log 2>/dev/null | grep "<OUT" | wc -l)
         docs=$(cat ${workpath}/*.docs 2>/dev/null | wc -l)
-        echo "${controller}"
+        echo "${modname}_${controllername}"
         if [ "${docs}" -gt 0 ]
         then 
             tempsperc=$(echo "scale=2;(100*${temps})/${docs}" | bc)

@@ -38,7 +38,11 @@ case $subcommand in
         sub_help
         ;;
     "")
-        sbatch ${ProgDir}/*.job
+        jobs=$(find $(pwd)/ -type f -name "*.job")
+        for job in ${jobs}
+        do
+            sbatch ${job}
+        done
         ;;
     *)
         shift
