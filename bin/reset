@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mainpath=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+mainpath=$1
 workpath="${mainpath}/jobs"
 #mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
 #toolspath="${SLURMONGO_ROOT}/scripts/tools"
@@ -10,9 +10,9 @@ rm -r ${workpath}/* 2>/dev/null
 rm ${mainpath}/querystate* 2>/dev/null
 rm ${mainpath}/reloadstate* 2>/dev/null
 
-echo "JobStep,ExitCode,Resubmit?" > ${mainpath}/skippedstate 2>/dev/null
-echo -e "BatchCounter,StepCounter\n1,1" > ${mainpath}/counterstate 2>/dev/null
-echo "Pending" > ${mainpath}/statusstate 2>/dev/null
+echo "JobStep,ExitCode,Resubmit?" > ${mainpath}/skipped 2>/dev/null
+echo -e "BatchCounter,StepCounter\n1,1" > ${mainpath}/batchcounter 2>/dev/null
+echo "Pending" > ${mainpath}/status 2>/dev/null
 
 #currdir=$(pwd)
 #cd ${mongolinkpath}

@@ -36,6 +36,7 @@ h11="template"
 #Input controller info
 modname="orientifold"
 controllername="${h11}"
+jobname=$(basename "${BASH_SOURCE[0]}")
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
 storagelimit="10G"
@@ -78,4 +79,4 @@ niters="1"
 nbatch="1"
 nworkers="1"
 
-python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${jobname}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"

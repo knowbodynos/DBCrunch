@@ -1,0 +1,24 @@
+#!/bin/bash
+
+mainpath=$1
+
+#loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
+loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev)
+#loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
+#mkdir ${mainpath}/jobs/requeued 2>/dev/null
+#for patt in ${loadfilejobpatt}
+#do
+#    mv ${mainpath}/jobs/${patt}* ${mainpath}/jobs/requeued/ 2>/dev/null
+#done
+#for loadfilename in $(echo ${loadfilenames} | tr ',' '\n')
+for loadfilename in ${loadfilenames}
+do
+    if [[ "${loadfilename}" =~ .*".err".* ]]
+    then
+        #errcode=$(cat ${mainpath}/jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+        errcode=$(cat ${mainpath}/jobs/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+    else
+        errcode="-1:0"
+    fi
+    echo "${loadfilename},${errcode},True"
+done >> ${mainpath}/skipped

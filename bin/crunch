@@ -1,0 +1,52 @@
+#!/bin/bash
+
+ProgName=$(basename "${BASH_SOURCE[0]}")
+ProgDir=$(dirname "${BASH_SOURCE[0]}")
+  
+sub_help(){
+    echo "Usage: $ProgName <subcommand> [options]\n"
+    echo "Subcommands:"
+    echo "    template   Create new controller for a module from a template"
+    echo "    reset      Reset controller for a module"
+    echo "    requeue    Requeue jobs skipped by controller"
+    echo "    monitor    Monitor all controller jobs"
+    echo ""
+    echo "For help with each subcommand run:"
+    echo "$ProgName <subcommand> -h|--help"
+    echo ""
+}
+  
+sub_template(){
+    ${ProgDir}/template $1 $2
+}
+  
+sub_reset(){
+    ${ProgDir}/reset $(pwd)
+}
+
+sub_requeue(){
+    ${ProgDir}/requeue $(pwd)
+}
+
+sub_monitor(){
+    ${ProgDir}/monitor $1
+}
+  
+subcommand=$1
+case $subcommand in
+    "-h" | "--help")
+        sub_help
+        ;;
+    "")
+        sbatch ${ProgDir}/*.job
+        ;;
+    *)
+        shift
+        sub_${subcommand} $@
+        if [ $? = 127 ]; then
+            echo "Error: '$subcommand' is not a known subcommand." >&2
+            echo "       Run '$ProgName --help' for a list of known subcommands." >&2
+            exit 1
+        fi
+        ;;
+esac

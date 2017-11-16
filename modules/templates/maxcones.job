@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #Job name
-#SBATCH -J "controller_facetntriangs_template"
+#SBATCH -J "controller_maxcones_template"
 #################
 #Working directory
-#SBATCH -D "${SLURMONGO_ROOT}/modules/facetntriangs/template"
+#SBATCH -D "${SLURMONGO_ROOT}/modules/maxcones/template"
 #################
 #Job output file
-#SBATCH -o "controller_facetntriangs_template.out"
+#SBATCH -o "controller_maxcones_template.out"
 #################
 #Job error file
-#SBATCH -e "controller_facetntriangs_template.err"
+#SBATCH -e "controller_maxcones_template.err"
 #################
 #Job file write mode
 #SBATCH --open-mode="append"
@@ -19,7 +19,7 @@
 #SBATCH --time="1-00:00:00"
 #################
 #Partition (queue) to use for job
-#SBATCH --partition="ser-par-10g-4"
+#SBATCH --partition="ser-par-10g"
 #################
 #Number of tasks (CPUs) allocated for job
 #SBATCH -n 1
@@ -31,11 +31,10 @@
 #SBATCH --exclusive
 #################
 
-h11="template"
-
 #Input controller info
-modname="facetntriangs"
-controllername="${h11}"
+modname="maxcones"
+controllername="template"
+jobname=$(basename "${BASH_SOURCE[0]}")
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
 storagelimit="10G"
@@ -57,10 +56,9 @@ dbpassword="toric"
 dbhost="129.10.135.170"
 dbport="27017"
 dbname="MLEARN"
-dbusername="manager"
-dbpassword="toric"
-queries="[['MAXCONE',{'${modname}MARK':{'\$exists':False}},{'NORMALFORM':1}]]"
-basecollection="MAXCONE"
+queries="[['POLY',{'H11':{'\$lte':10},'${modname}MARK':{'\$exists':False}},{'POLYID':1,'NVERTS':1},{'HINT':[('H11',1)]}]]"
+#,{'SORT':[('POLYID',1)]}]]"
+basecollection="POLY"
 nthreadsfield=""
 
 #Options
@@ -72,9 +70,9 @@ writedb="True"
 statslocal="True"
 statsdb="True"
 markdone="MARK"
-cleanup=""
-niters="20"
+cleanup="100"
+niters="200"
 nbatch="5"
 nworkers="2"
 
-python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${jobname}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"

@@ -31,11 +31,10 @@
 #SBATCH --exclusive
 #################
 
-h11="template"
-
 #Input controller info
 modname="facetnallfinetriangs"
-controllername="${h11}"
+controllername="template"
+jobname=$(basename "${BASH_SOURCE[0]}")
 controllerjobid="${SLURM_JOBID}"
 controllerbuffertime="00:05:00"
 storagelimit="10G"
@@ -77,4 +76,4 @@ niters="20"
 nbatch="5"
 nworkers="2"
 
-python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
+python ${SLURMONGO_ROOT}/scripts/controller.py "${modname}" "${controllername}" "${jobname}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
