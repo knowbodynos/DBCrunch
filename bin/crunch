@@ -44,7 +44,12 @@ sub_requeue(){
 }
 
 sub_monitor(){
-    ${ProgDir}/monitor $1
+    if [ "$#" -eq 0 ]
+    then
+        ${ProgDir}/monitor 1
+    else
+        ${ProgDir}/monitor $1
+    fi
 }
   
 subcommand=$1

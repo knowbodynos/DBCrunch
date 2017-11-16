@@ -1,50 +1,51 @@
 #!/bin/bash
 
-templatespath="${CRUNCH_ROOT}/modules/templates"
+modulespath="${CRUNCH_ROOT}/modules"
 #binpath="${CRUNCH_ROOT}/bin"
 
 case $# in
     1)
-        controllerpath=$1
+        startpath=$(cd $1; pwd -P)
 
-        modname="$(echo ${controllerpath} | rev | cut -d'/' -f2 | rev)"
-        controllername="$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)"
+        if [[ "${startpath}" =~ .*"/jobs"$ ]]
+        then
+            workpath="${startpath}"
+            startpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
+        else
+            workpath="${startpath}/jobs"
+        fi
+
+        controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+        modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+        
+        controllerpath="${startpath}"
+        modpath=$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)
         ;;
     2)
-        controllerpath=$1
+        startpath=$(cd $1; pwd -P)
         controllername=$2
-        
-        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
-        then
-            controllerpath="${controllerpath}/${controllername}"
-        fi
-        modname="$(echo ${controllerpath} | rev | cut -d'/' -f2 | rev)"
+
+        modpath=$(echo ${startpath} | sed -E "s/\/${controllername}(\/.*|$)//g")
+        modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+        controllerpath="${modpath}/${controllername}"
+        workpath="${controllerpath}/jobs"
         ;;
     3)
-        controllerpath=$1
+        startpath=$(cd $1; pwd -P)
         modname=$2
         controllername=$3
 
-        if ! [[ "${controllerpath}" =~ .*"/${modname}/".* ]] && ! [[ "${controllerpath}" =~ ^"${modname}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${modname}"$ ]]
-        then
-            controllerpath="${controllerpath}/${modname}"
-        fi
+        startpath=$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")
 
-        if [ ! -d "${controllerpath}" ]
-        then
-            mkdir ${controllerpath}
-        fi
-
-        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
-        then
-            controllerpath="${controllerpath}/${controllername}"
-        fi
+        modpath="${startpath}/${modname}"
+        controllerpath="${modpath}/${controllername}"
+        workpath="${controllerpath}/jobs"
         ;;
 esac
 
-if [[ "${controllerpath}" =~ .*"/jobs"$ ]]
+if [ ! -d "${modpath}" ]
 then
-    controllerpath="$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)"
+    mkdir ${modpath}
 fi
 
 if [ ! -d "${controllerpath}" ]
@@ -52,22 +53,24 @@ then
     mkdir ${controllerpath}
 fi
 
+if [ ! -d "${workpath}" ]
+then
+    mkdir ${workpath}
+fi
+
 #cp "${binpath}/reset.bash" "${controllerpath}/"
-cp -T "${templatespath}/${modname}.job" "${controllerpath}/controller_${modname}_${controllername}.job"
+cp -T "${modulespath}/templates/${modname}.job" "${controllerpath}/controller_${modname}_${controllername}.job"
 echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
 echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
 echo "Pending" > ${controllerpath}/status 2>/dev/null
 
-if [ ! -d "${controllerpath}/jobs" ]
-then
-    mkdir ${controllerpath}/jobs
-fi
+modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
 
 files=$(find "${controllerpath}/" -mindepth 1 -type f)
 for file in ${files}
     do
         #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
-        sed -i "s|path\_to\_module|${modpath}|g" ${file}
+        sed -i "s|path\_to\_module|${modulesworkpath}|g" ${file}
         sed -i "s|template|${controllername}|g" ${file}
         #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
         #mv ${file} ${newfile} 2>/dev/null

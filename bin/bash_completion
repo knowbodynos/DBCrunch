@@ -1,0 +1,25 @@
+_crunch()
+{
+    local cur prev
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev=${COMP_WORDS[COMP_CWORD-1]}
+    case ${COMP_CWORD} in
+        1)
+            COMPREPLY=($(compgen -W "template reset requeue monitor" -- ${cur}))
+            ;;
+        #2)
+        #    case ${prev} in
+        #        configure)
+        #            COMPREPLY=($(compgen -W "CM DSP NPU" -- ${cur}))
+        #            ;;
+        #        show)
+        #            COMPREPLY=($(compgen -W "some other args" -- ${cur}))
+        #            ;;
+        #    esac
+        #    ;;
+        *)
+            COMPREPLY=()
+            ;;
+    esac
+}
+complete -F _crunch crunch

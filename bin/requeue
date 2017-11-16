@@ -2,45 +2,57 @@
 
 case $# in
     1)
-        controllerpath=$1
+        startpath=$(cd $1; pwd -P)
+
+        if [[ "${startpath}" =~ .*"/jobs"$ ]]
+        then
+            workpath="${startpath}"
+            startpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
+        else
+            workpath="${startpath}/jobs"
+        fi
+
+        controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+        modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+        
+        controllerpath="${startpath}"
+        modpath=$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)
         ;;
     2)
-        controllerpath=$1
+        startpath=$(cd $1; pwd -P)
         controllername=$2
-        
-        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
-        then
-            controllerpath="${controllerpath}/${controllername}"
-        fi
+
+        modpath=$(echo ${startpath} | sed -E "s/\/${controllername}(\/.*|$)//g")
+        modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+        controllerpath="${modpath}/${controllername}"
+        workpath="${controllerpath}/jobs"
         ;;
     3)
-        controllerpath=$1
+        startpath=$(cd $1; pwd -P)
         modname=$2
         controllername=$3
 
-        if ! [[ "${controllerpath}" =~ .*"/${modname}/".* ]] && ! [[ "${controllerpath}" =~ ^"${modname}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${modname}"$ ]]
-        then
-            controllerpath="${controllerpath}/${modname}"
-        fi
+        startpath=$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")
 
-        if [ ! -d "${controllerpath}" ]
-        then
-            mkdir ${controllerpath}
-        fi
-
-        if ! [[ "${controllerpath}" =~ .*"/${controllername}/".* ]] && ! [[ "${controllerpath}" =~ ^"${controllername}/".* ]] && ! [[ "${controllerpath}" =~ .*"/${controllername}"$ ]]
-        then
-            controllerpath="${controllerpath}/${controllername}"
-        fi
+        modpath="${startpath}/${modname}"
+        controllerpath="${modpath}/${controllername}"
+        workpath="${controllerpath}/jobs"
         ;;
 esac
 
-if [[ "${controllerpath}" =~ .*"/jobs"$ ]]
+if [ ! -d "${modpath}" ]
 then
-    workpath="${controllerpath}"
-    controllerpath="$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)"
-else
-    workpath="${controllerpath}/jobs"
+    mkdir ${modpath}
+fi
+
+if [ ! -d "${controllerpath}" ]
+then
+    mkdir ${controllerpath}
+fi
+
+if [ ! -d "${workpath}" ]
+then
+    mkdir ${workpath}
 fi
 
 #loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')

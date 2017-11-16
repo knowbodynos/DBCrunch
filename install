@@ -74,6 +74,39 @@ wait
 source ${HOME}/.bashrc
 wait
 
+if [ ! -d "${HOME}/.bash_completion" ]
+then
+    touch ${HOME}/.bash_completion
+fi
+rm ${HOME}/.newbash_completion 2>/dev/null
+firstline=true
+prevline=""
+while IFS=$'\n' read -r line
+do
+    if ! ${firstline} && [[ "${prevline}" == "" ]] && ! [[ "${line}" =~ .*"# DBCrunch completions".* ]]
+    then
+        printf '%s\n' "${prevline}" >> ${HOME}/.newbash_completion
+    fi
+
+    if [[ "${line}" != "" ]] && ! [[ "${line}" =~ .*"# DBCrunch completions".* ]] && ! [[ "${line}" =~ .*". ${CRUNCH_ROOT}/bin/bash_completion".* ]]
+    then
+        printf '%s\n' "${line}" >> ${HOME}/.newbash_completion
+    fi
+    firstline=false
+    prevline=${line}
+done < ${HOME}/.bash_completion
+
+echo "" >> ${HOME}/.newbash_completion
+echo "# DBCrunch completions" >> ${HOME}/.newbash_completion
+echo ". ${CRUNCH_ROOT}/bin/bash_completion" >> ${HOME}/.newbash_completion
+
+mv ${HOME}/.bash_completion ${HOME}/.oldbash_completion
+mv ${HOME}/.newbash_completion ${HOME}/.bash_completion
+
+wait
+source ${HOME}/.bash_completion
+wait
+
 #Update submodules
 cd ${CRUNCH_ROOT}
 git submodule update --init --recursive

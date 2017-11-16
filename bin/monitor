@@ -1,7 +1,7 @@
 #!/bin/bash
 
 monitorjobs() {
-    jobs=$(squeue -u ${USER} -o "%.130Z %.10i %.13P %.100j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" 2>/dev/null | tr '\n' '!')
+    jobs=$(squeue -u ${USER} -o "%.130Z %.10i %.13P %.40j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" 2>/dev/null | tr '\n' '!')
 
     for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v "(null)" | grep " controller_" | sed 's/\s\s*/ /g' | cut -d' ' -f2,5 | sed 's/\s/\&/g')
     do
@@ -29,7 +29,7 @@ monitorjobs() {
             npendcontrollerjobs=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
             controllersteps=$(sacct -n -o "JobID%30,JobName%130,State" 2>/dev/null | grep " ${modname}_${controllername}_job_.*_step_" | tr '\n' '!')
             nruncontrollersteps=$(echo ${controllersteps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
-            pendcontrollersteps=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
+            pendcontrollersteps=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f5 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
             if [[ "${pendcontrollersteps}" == "" ]]
             then
                 npendcontrollersteps=0
@@ -42,7 +42,7 @@ monitorjobs() {
             nruncontrollersteps=0
             npendcontrollersteps=0
         fi
-        ncontrollersteps=$(($nruncontrollersteps+$npendcontrollersteps))
+        ncontrollersteps=$((${nruncontrollersteps}+${npendcontrollersteps}))
         echo "# Jobs: ${ncontrollerjobs}   # Run Jobs: ${nruncontrollerjobs}   # Pend Jobs: ${npendcontrollerjobs}"
         echo "# Steps: ${ncontrollersteps}   # Run Steps: ${nruncontrollersteps}   # Pend Steps: ${npendcontrollersteps}"
         echo ""
@@ -55,7 +55,7 @@ monitorjobs() {
         npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | wc -l)
         steps=$(sacct -n -o "JobID%30,JobName%130,State" 2>/dev/null | grep "_job_.*_step_" | tr '\n' '!')
         nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep "RUNNING" | wc -l)
-        pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f4 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
+        pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep "_steps_" | grep " PD " | sed "s/\s\s*/ /g" | cut -d" " -f5 | rev | cut -d"_" -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr "\n" "+" | head -c -1)
         if [[ "${pendsteps}" == "" ]]
         then
             npendsteps=0
@@ -68,7 +68,7 @@ monitorjobs() {
         nrunsteps=0
         npendsteps=0
     fi
-    nsteps=$(($nrunsteps+$npendsteps))
+    nsteps=$((${nrunsteps}+${npendsteps}))
     echo "# Jobs: ${njobs}   # Run Jobs: ${nrunjobs}   # Pend Jobs: ${npendjobs}"
     echo "# Steps: ${nsteps}   # Run Steps: ${nrunsteps}   # Pend Steps: ${npendsteps}"
     echo ""
