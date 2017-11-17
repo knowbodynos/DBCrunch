@@ -1,7 +1,7 @@
 # DBCrunch
-A package facilitating the staged, parallel processing of large amounts of data stored. DBCrunch is unique in that it optimizes performance on a shared/public High-Performance Computing cluster with data stored in a remote database.
+A package facilitating the staged, parallel processing of large amounts of data stored. `DBCrunch` is unique in that it optimizes performance on a shared/public High-Performance Computing cluster with data stored in a remote database.
 
-In the current version, the local HPC cluster is assumed to be running the SLURM workload manager, and the remote data is stored in a MongoDB database.
+In the current version, the local HPC cluster is assumed to be running the `SLURM` workload manager, and the remote data is stored in a `MongoDB` database.
 
 The data is streamed directly from the remote database, processed on the local HPC cluster, and fed directly back to the remote database along with statistics such as CPU time, max memory used, and storage.
 
@@ -9,7 +9,7 @@ The data is streamed directly from the remote database, processed on the local H
 
 Installation instructions:
 
-1) Download the DBCrunch package
+1) Download the `DBCrunch` package
 
 ```
    git clone https://github.com/knowbodynos/DBCrunch.git
@@ -21,7 +21,7 @@ Installation instructions:
    cd DBCrunch
 ```
 
-3) Install DBCrunch (optional arguments --USER_LOCAL and --CRUNCH_ROOT)
+3) Install `DBCrunch` (optional arguments `--USER_LOCAL` and `--CRUNCH_ROOT`)
 
 ```
    ./install [--USER_LOCAL ~/opt] [--CRUNCH_ROOT .]
@@ -29,7 +29,7 @@ Installation instructions:
 
 ------------------------------------------------------------------------------------------------------------
 
-Using DBCrunch:
+Using `DBCrunch`:
 
 1) Write a new module (script or compiled program) or use an existing one to process the records in your database and place it in the `${CRUNCH_ROOT}/modules/scripts` directory.
 
@@ -159,7 +159,7 @@ where `<controller>` is a name you choose for the segment of your database that 
    crunch monitor <s>
 ```
 
-where `<s>` is the refresh interval. Use Ctrl-C to exit.
+where `<s>` is the refresh interval. Use `Ctrl-C` to exit.
 
 10) If you need to terminate the process for any reason, use:
 
