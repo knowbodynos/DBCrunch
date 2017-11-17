@@ -165,7 +165,7 @@ cd ${pythonpath}/mongolink
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
-    sage --python setup.py install --user
+    sage --python setup.py install --user --record filessage.txt
 fi
 
 cd ${currpath}
