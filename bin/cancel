@@ -1,7 +1,8 @@
 #!/bin/bash
 
 startpath=$(cd $1; pwd -P)
-depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' | grep -o / | wc -l' \; | uniq | head -n1)
+origdepth=$(echo ${startpath} | grep -o / | wc -l)
+depth=$(($(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' | grep -o / | wc -l' \; | uniq | head -n1)-${origdepth}))
 
 case $# in
     1)
