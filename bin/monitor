@@ -11,14 +11,15 @@ monitorjobs() {
         workpath="${controllerpath}/jobs"
         temps=$(cat ${workpath}/*.log 2>/dev/null | grep "<TEMP" | wc -l)
         outs=$(cat ${workpath}/*.log 2>/dev/null | grep "<OUT" | wc -l)
-        docs=$(cat ${workpath}/*.docs 2>/dev/null | wc -l)
+        #docs=$(cat ${workpath}/*.docs 2>/dev/null | wc -l)
+        reads=$(($(cat ${controllerpath}/batchcounter | tail -n +2 | cut -d',' -f2)-1))
         echo "${modname}_${controllername}"
-        if [ "${docs}" -gt 0 ]
+        if [ "${reads}" -gt 0 ]
         then 
-            tempsperc=$(echo "scale=2;(100*${temps})/${docs}" | bc)
-            echo "${tempsperc}% Processing: ${temps} of ${docs}"
-            outsperc=$(echo "scale=2;(100*${outs})/${docs}" | bc)
-            echo "${outsperc}% Finished: ${outs} of ${docs}"
+            tempsperc=$(echo "scale=2;(100*${temps})/${reads}" | bc)
+            echo "${tempsperc}% Processing: ${temps} of ${reads}"
+            outsperc=$(echo "scale=2;(100*${outs})/${reads}" | bc)
+            echo "${outsperc}% Finished: ${outs} of ${reads}"
         fi
         echo "Size: $(du -ch ${workpath} 2>/dev/null | tail -n1 | sed 's/\s\s*/ /g' | cut -d' ' -f1)"
         controllerjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep " ${modname}_${controllername}_job_" | tr '\n' '!')
