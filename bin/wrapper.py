@@ -781,7 +781,7 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
         #        sleep(0.01);
         sys.stderr.write(stderr_line);
         sys.stderr.flush();
-        fcntl.flock(sys.stderr,fcntl.LOCK_UN);
+        #fcntl.flock(sys.stderr,fcntl.LOCK_UN);
 
     sleep(kwargs['delay']);
 
@@ -1015,7 +1015,7 @@ while not stderr_queue.empty():
     #        sleep(0.01);
     sys.stderr.write(stderr_line);
     sys.stderr.flush();
-    fcntl.flock(sys.stderr,fcntl.LOCK_UN);
+    #fcntl.flock(sys.stderr,fcntl.LOCK_UN);
 
 while len(bulkrequestslist)>0:
     while len(glob.glob(workpath+"/*.lock"))>=kwargs['nworkers']:

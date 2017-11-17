@@ -19,7 +19,7 @@ sub_help(){
 }
 
 sub_cancel(){
-    ${ProgDir}/cancel ${@}
+    ${ProgDir}/cancel $(pwd) ${@}
 }
 
 sub_monitor(){

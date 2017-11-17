@@ -66,10 +66,14 @@ loadfilenames=$(find ${workpath}/ -maxdepth 1 -type f -name "*.docs" | rev | cut
 #for loadfilename in $(echo ${loadfilenames} | tr ',' '\n')
 for loadfilename in ${loadfilenames}
 do
-    if [[ "${loadfilename}" =~ .*".err".* ]]
+    if [ -s "${loadfilename/.docs/.err}" ]
     then
         #errcode=$(cat ${mainpath}/jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
-        errcode=$(cat ${workpath}/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+        errcode=$(cat ${workpath}/${loadfilename/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
+        if [[ "${errcode}" == "" ]]
+        then
+            errcode="-1:0"
+        fi
     else
         errcode="-1:0"
     fi

@@ -1,19 +1,68 @@
 #!/bin/bash
 
+startpath=$(cd $1; pwd -P)
+depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' | grep -o / | wc -l' \; | uniq | head -n1)
+
 case $# in
-    0)
-        jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
-        while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | wc -l)" -ne 0 ]
-        do
-            for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -v "(null)" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
-            do
-                scancel ${jobid} 2>/dev/null
-            done
-            jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
-        done
-        ;;
     1)
-        modname=$1
+        case $depth in
+            "")
+                controllername=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+
+                jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | wc -l)" -ne 0 ]
+                do
+                    for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -E "( |_)${modname}_${controllername}( |_|$)" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
+                    do
+                        scancel ${jobid} 2>/dev/null
+                    done
+                    jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                done
+                ;;
+            1)
+                controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+
+                jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | wc -l)" -ne 0 ]
+                do
+                    for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -E "( |_)${modname}_${controllername}( |_|$)" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
+                    do
+                        scancel ${jobid} 2>/dev/null
+                    done
+                    jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                done
+                ;;
+            2)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+                
+                jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | wc -l)" -ne 0 ]
+                do
+                    for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -E "( |_)${modname}_" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
+                    do
+                        scancel ${jobid} 2>/dev/null
+                    done
+                    jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                done
+                ;;
+            3)
+                jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -v '(null)' | wc -l)" -ne 0 ]
+                do
+                    for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -E "( |_)${modname}_" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
+                    do
+                        scancel ${jobid} 2>/dev/null
+                    done
+                    jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
+                done
+                ;;
+        esac
+        ;;
+    2)
+        modname=$2
+
         jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
         while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | wc -l)" -ne 0 ]
         do
@@ -24,9 +73,10 @@ case $# in
             jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
         done
         ;;
-    2)
-        modname=$1
-        controllername=$2
+    3)
+        modname=$2
+        controllername=$3
+
         jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
         while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | wc -l)" -ne 0 ]
         do
