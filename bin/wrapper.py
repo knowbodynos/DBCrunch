@@ -458,7 +458,7 @@ else:
     workpath=controllerpath+"/jobs";
     if not os.path.isdir(workpath):
         os.mkdir(workpath);
-    controllerfile=controllerpath+"/controller_"+modname+"_"+kwargs['controllername']+".job";
+    controllerfile=controllerpath+"/crunch_"+modname+"_"+kwargs['controllername']+"_controller.job";
     with open(controllerfile,"r") as controllerstream:
         for controllerline in controllerstream:
             if "dbtype=" in controllerline:

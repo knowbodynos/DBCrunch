@@ -446,7 +446,7 @@ def pendlicensecount(username,softwarestatefile):
     npendjobthreads=0;
     #grepmods="|".join(modlist);
     #pendjobnamespaths=subprocess.Popen("squeue -h -u "+username+" -o '%T %j %.130Z' | grep 'PENDING' | cut -d' ' -f2,3 | grep -E \"("+grepmods+")\" | grep -v \"controller\" | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
-    pendjobnamespaths=subprocess.Popen("squeue -h -u "+username+" -o '%T %j %.130Z' | grep 'PENDING' | cut -d' ' -f2,3 | grep -v \"controller\" | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+    pendjobnamespaths=subprocess.Popen("squeue -h -u "+username+" -o '%T %j %.130Z' | grep 'crunch_' | grep 'PENDING' | cut -d' ' -f2,3 | grep -v '_controller' | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
     if pendjobnamespaths!="":
         pendjobnamespathsplit=pendjobnamespaths.split(",");
         for pjnp in pendjobnamespathsplit:
@@ -454,9 +454,9 @@ def pendlicensecount(username,softwarestatefile):
             pjnsplit=pjn.split("_");
             modname=pjnsplit[0];
             controllername=pjnsplit[1];
-            if os.path.exists(pjp+"/../controller_"+modname+"_"+controllername+".job"):
+            if os.path.exists(pjp+"/../crunch_"+modname+"_"+controllername+"_controller.job"):
                 nsteps=1-eval(pjnsplit[5]);
-                scriptlanguage=subprocess.Popen("cat "+pjp+"/../controller_"+modname+"_"+controllername+".job | grep 'scriptlanguage=' | cut -d'=' -f2 | cut -d'\"' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+                scriptlanguage=subprocess.Popen("cat "+pjp+"/../crunch_"+modname+"_"+controllername+"_controller.job | grep 'scriptlanguage=' | cut -d'=' -f2 | cut -d'\"' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
                 needslicense=eval(subprocess.Popen("cat "+softwarestatefile+" | grep \""+scriptlanguage+"\" | cut -d',' -f2 | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
                 njobthreads=eval(subprocess.Popen("echo \"$(cat "+pjp+"/"+pjn+".job | grep -E \"njobstepthreads\[[0-9]+\]=\" | cut -d'=' -f2 | tr '\n' '+' | head -c -1)\" | bc | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
                 if needslicense:
@@ -474,9 +474,9 @@ def licensecount(username,softwarestatefile,binpath,scriptlanguage):
     return nlicensesplit;
 
 def clusterjobslotsleft(username,modname,controllername,globalmaxjobcount,localmaxjobcount):
-    nglobaljobs=eval(subprocess.Popen("squeue -h -r -u "+username+" -o \"%.130j %.2t\" | grep -v \" CG \" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+    nglobaljobs=eval(subprocess.Popen("squeue -h -r -u "+username+" -o \"%.130j %.2t\" | grep 'crunch_' | grep -v \" CG \" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
     globaljobsleft=(nglobaljobs<globalmaxjobcount);
-    nlocaljobs=eval(subprocess.Popen("squeue -h -r -u "+username+" -o \"%.130j %.2t\" | grep -v \" CG \" | grep \" "+modname+"_"+controllername+"_job_\" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+    nlocaljobs=eval(subprocess.Popen("squeue -h -r -u "+username+" -o \"%.130j %.2t\" | grep 'crunch_' | grep -v \" CG \" | grep \" "+modname+"_"+controllername+"_job_\" | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
     localjobsleft=(nlocaljobs<localmaxjobcount);
     return (globaljobsleft and localjobsleft);
 
@@ -489,19 +489,19 @@ def clusterlicensesleft(nlicensesplit,minthreads):#,minnsteps=1):
     return licensesleft;
 
 def userjobsrunningq(username,modname,controllername):
-    njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+    njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^crunch_"+modname+"_"+controllername+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
     #print "userjobsrunningq";
     #print "squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | wc -l | head -c -1";
     #print "";
     #sys.stdout.flush();
     return njobsrunning>0;
 
-def prevcontrollersrunningq(username,dependencies,controllername):
+def prevcontrollersrunningq(username,dependencies):
     if len(dependencies)==0:
         njobsrunning=0;
     else:
-        grepstr="\|".join(["^controller_"+x+"_"+controllername for x in dependencies]);
-        njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '"+grepstr+"' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+        grepstr="\|".join(dependencies);
+        njobsrunning=eval(subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^crunch_\("+grepstr+"\)_.*_controller' | wc -l | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0]);
         #print "prevcontrollersrunningq";
         #print "squeue -h -u "+username+" -o '%j' | grep '"+grepstr+"' | wc -l | head -c -1";
         #print "";
@@ -509,7 +509,7 @@ def prevcontrollersrunningq(username,dependencies,controllername):
     return njobsrunning>0;
 
 def userjobsrunninglist(username,modname,controllername):
-    jobsrunningstring=subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
+    jobsrunningstring=subprocess.Popen("squeue -h -u "+username+" -o '%j' | grep '^crunch_"+modname+"_"+controllername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=subprocess.PIPE,preexec_fn=default_sigpipe).communicate()[0];
     #print "userjobsrunninglist";
     #print "squeue -h -u "+username+" -o '%j' | grep '^"+modname+"_"+controllername+"' | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1";
     #print "";
@@ -980,7 +980,7 @@ def requeueskippedreloadjobs(modname,controllername,controllerpath,reloadstatefi
         sys.stdout.flush();
 
 def releaseheldjobs(username,modname,controllername):
-    subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%j %A %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
+    subprocess.Popen("for job in $(squeue -h -u "+username+" -o '%j %A %r' | grep '^crunch_"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done",shell=True,preexec_fn=default_sigpipe);
     #print "releaseheldjobs";
     #print "for job in $(squeue -h -u "+username+" -o '%A %j %r' | grep '^"+modname+"_"+controllername+"' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done";
     #print "";
@@ -1148,7 +1148,7 @@ def writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,
     jobstring+="#File system info\n";
     jobstring+="mainpath=\"${CRUNCH_ROOT}\"\n";
     jobstring+="binpath=\"${mainpath}/bin\"\n";
-    jobstring+="scriptpath=\"${mainpath}/modules/scripts\"\n";
+    jobstring+="scriptpath=\"${mainpath}/modules/modules/${modname}\"\n";
     jobstring+="\n";
     #jobstring+="#Script info\n";
     #jobstring+="scriptlanguage=\""+scriptlanguage+"\"\n";
@@ -1470,9 +1470,9 @@ def doaction(counters,inputdoc,docbatch,querylimit,reloadjob,storagelimit,nthrea
     #if niters==1:
     #    jobstepnames=[indexdoc2jobstepname(x,modname,controllername,dbindexes) for x in docbatchwrite];
     #else:
-    jobstepnames=[modname+"_"+controllername+"_job_"+str(counters[0])+"_step_"+str(i+1) for i in range(len(docbatchwrite))];
+    jobstepnames=["crunch_"+modname+"_"+controllername+"_job_"+str(counters[0])+"_step_"+str(i+1) for i in range(len(docbatchwrite))];
     #jobstepnamescontract=jobstepnamescontract(jobstepnames);
-    jobname=modname+"_"+controllername+"_job_"+str(counters[0])+"_steps_"+str((counters[1]+niters-1)/niters)+"-"+str((counters[1]+niters*len(docbatchwrite)-1)/niters);
+    jobname="crunch_"+modname+"_"+controllername+"_job_"+str(counters[0])+"_steps_"+str((counters[1]+niters-1)/niters)+"-"+str((counters[1]+niters*len(docbatchwrite)-1)/niters);
     #if reloadjob:
     #    jobstepnames=["reload_"+x for x in jobstepnames];
     #    jobname="reload_"+jobname;
@@ -1628,7 +1628,7 @@ try:
     controllerpartition,controllertimelimit,controllernnodes,controllerncores=controllerstats;
 
     print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-    print "Starting job controller_"+modname+"_"+controllername;
+    print "Starting job crunch_"+modname+"_"+controllername+"_controller";
     print "";
     print "";
     sys.stdout.flush();
@@ -1640,7 +1640,7 @@ try:
     workpath=controllerpath+"/jobs";
     if not os.path.isdir(workpath):
         os.mkdir(workpath);
-    dependenciesfile=rootpath+"/modules/dependencies/"+modname;
+    dependenciesfile=rootpath+"/modules/modules/"+modname+"/dependencies";
     resourcesstatefile=statepath+"/resources";
     softwarestatefile=statepath+"/software";
     globalmaxjobsfile=statepath+"/maxjobs";
@@ -1742,7 +1742,7 @@ try:
         raise;
 
     if blocking:
-        while prevcontrollersrunningq(username,dependencies,controllername) and (timeleft(starttime,controllerbuffertimelimit)>0):
+        while prevcontrollersrunningq(username,dependencies) and (timeleft(starttime,controllerbuffertimelimit)>0):
             time.sleep(sleeptime);
 
     reloadjob=(queries[0]=="RELOAD");
@@ -1767,10 +1767,10 @@ try:
     #if querylimit!=None:
     #    niters_orig=min(niters_orig,querylimit);
     
-    firstlastrun=(not (prevcontrollersrunningq(username,dependencies,controllername) or userjobsrunningq(username,modname,controllername)));
+    firstlastrun=(not (prevcontrollersrunningq(username,dependencies) or userjobsrunningq(username,modname,controllername)));
     #counters[0]=1;
     #counters[1]=1;
-    while (prevcontrollersrunningq(username,dependencies,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and ((querylimit==None) or (counters[1]<=querylimit+1)) and (timeleft(starttime,controllerbuffertimelimit)>0):
+    while (prevcontrollersrunningq(username,dependencies) or userjobsrunningq(username,modname,controllername) or firstlastrun) and ((querylimit==None) or (counters[1]<=querylimit+1)) and (timeleft(starttime,controllerbuffertimelimit)>0):
         #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
         #if len(oldqueryresultinds)==0:
         #    oldqueryresult=[];
@@ -1799,7 +1799,7 @@ try:
         #firstrun=False;
         releaseheldjobs(username,modname,controllername);
         if (timeleft(starttime,controllerbuffertimelimit)>0):
-            firstlastrun=(not (prevcontrollersrunningq(username,dependencies,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun));
+            firstlastrun=(not (prevcontrollersrunningq(username,dependencies) or userjobsrunningq(username,modname,controllername) or firstlastrun));
     #while userjobsrunningq(username,modname,controllername) and (timeleft(starttime,controllerbuffertimelimit)>0):
     #    releaseheldjobs(username,modname,controllername);
     #    skippedjobs=skippedjobslist(username,modname,controllername,workpath);
@@ -1808,7 +1808,7 @@ try:
     #        submitjob(workpath,x,controllerpartition,maxmemorypernode,maxmemorypernode,resubmit=True);
     #    time.sleep(sleeptime);
 
-    if (prevcontrollersrunningq(username,dependencies,controllername) or userjobsrunningq(username,modname,controllername) or firstlastrun) and not (timeleft(starttime,controllerbuffertimelimit)>0):
+    if (prevcontrollersrunningq(username,dependencies) or userjobsrunningq(username,modname,controllername) or firstlastrun) and not (timeleft(starttime,controllerbuffertimelimit)>0):
         #Resubmit controller job
         maxmemorypernode=getmaxmemorypernode(resourcesstatefile,controllerpartition);
         
@@ -1827,7 +1827,7 @@ try:
                 skippedstream.write(loadfilename+","+errcode+",True\n");
                 skippedstream.flush();
 
-        submitcontrollerjob(controllerpath,controllernnodes,controllerncores,controllerpartition,maxmemorypernode,resubmit=True);
+        submitcontrollerjob(controllerpath,"crunch_"+modname+"_"+controllername+"_controller",controllernnodes,controllerncores,controllerpartition,maxmemorypernode,resubmit=True);
         with open(statusstatefile,"w") as statusstream:
             statusstream.truncate(0);
             statusstream.write("Resubmitting");
@@ -1840,7 +1840,7 @@ try:
             statusstream.write("Completing");
         print "";
         print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
-        print "Completing job controller_"+modname+"_"+controllername+"\n";
+        print "Completing job crunch_"+modname+"_"+controllername+"_controller\n";
         sys.stdout.flush();
 
     #querystream.close();

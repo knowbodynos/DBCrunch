@@ -3,7 +3,7 @@
 monitorjobs() {
     jobs=$(squeue -u ${USER} -o "%.130Z %.10i %.13P %.40j %.8u %.2t %.10M %.6D %R" -S "P,-t,-p" 2>/dev/null | head -c -1  | tr '\n' '!')
 
-    for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v "(null)" | grep " controller_" | sed 's/\s\s*/ /g' | cut -d' ' -f2,5 | sed 's/\s/\&/g')
+    for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v "(null)" | grep "crunch_.*_controller" | sed 's/\s\s*/ /g' | cut -d' ' -f2,5 | sed 's/\s/\&/g')
     do
         controllerpath=$(echo ${controller} | cut -d'&' -f1)
         modname=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f2)

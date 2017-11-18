@@ -35,7 +35,7 @@ done
 
 USER_LOCAL="${USER_LOCAL}"
 pythonpath="${CRUNCH_ROOT}/packages/python"
-softwarepath="${CRUNCH_ROOT}/modules/software"
+softwarepath="${CRUNCH_ROOT}/modules/install"
 currpath=$(pwd)
 
 if ! [ -f ${HOME}/.bashrc ]

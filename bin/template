@@ -1,6 +1,6 @@
 #!/bin/bash
 
-modulespath="${CRUNCH_ROOT}/modules"
+modulespath="${CRUNCH_ROOT}/modules/modules"
 #binpath="${CRUNCH_ROOT}/bin"
 
 case $# in
@@ -59,7 +59,7 @@ then
 fi
 
 #cp "${binpath}/reset.bash" "${controllerpath}/"
-cp -T "${modulespath}/templates/${modname}.job" "${controllerpath}/controller_${modname}_${controllername}.job"
+cp -T "${modulespath}/${modname}/${modname}_slurm.job" "${controllerpath}/crunch_${modname}_${controllername}_controller.job"
 echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
 echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
 echo "Pending" > ${controllerpath}/status 2>/dev/null
