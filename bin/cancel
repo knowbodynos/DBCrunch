@@ -65,6 +65,10 @@ case $# in
                     jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
                 done
                 ;;
+            *)
+                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
+                exit 1
+                ;;
         esac
         ;;
     2)
@@ -93,5 +97,9 @@ case $# in
             done
             jobs=$(squeue -h -u ${USER} -o '%.10i %.40j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
         done
+        ;;
+    *)
+        echo "Error: You must provide no more than 3 arguments. $# provided."
+        exit 1
         ;;
 esac

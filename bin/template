@@ -2,53 +2,77 @@
 
 modulespath="${CRUNCH_ROOT}/modules/modules"
 startpath=$(cd $1; pwd -P)
-#binpath="${CRUNCH_ROOT}/bin"
+origdepth=$(echo ${startpath} | grep -o / | wc -l)
+depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
+if [[ "${depth}" == "" ]]
+then
+    depthdiff=""
+else
+    depthdiff=$((${depth}-${origdepth}))
+fi
 
 case $# in
     1)
-        if [[ "${startpath}" =~ .*"/jobs"$ ]]
-        then
-            workpath="${startpath}"
-            startpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
-        else
-            workpath="${startpath}/jobs"
-        fi
-
-        controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
-        modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
-        
-        controllerpath="${startpath}"
-        modpath=$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)
+        case ${depthdiff} in
+            "")
+                controllername=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+                ;;
+            1)
+                controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                ;;
+            *)
+                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
+                exit 1
+                ;;
+        esac
         ;;
     2)
         controllername=$2
 
-        modpath=$(echo ${startpath} | sed -E "s/\/${controllername}(\/.*|$)//g")
-        modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-        controllerpath="${modpath}/${controllername}"
-        workpath="${controllerpath}/jobs"
+        case ${depthdiff} in
+            "")
+                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+                ;;
+            1)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                ;;
+            2)
+                modname=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+                ;;
+            *)
+                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
+                exit 1
+                ;;
+        esac
         ;;
     3)
         modname=$2
         controllername=$3
-
-        startpath=$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")
-
-        modpath="${startpath}/${modname}"
-        controllerpath="${modpath}/${controllername}"
-        workpath="${controllerpath}/jobs"
+        ;;
+    *)
+        echo "Error: You must provide no more than 3 arguments. $# provided."
+        exit 1
         ;;
 esac
+
+startpath=$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")
+modpath="${startpath}/${modname}"
 
 if [ ! -d "${modpath}" ]
 then
     mkdir ${modpath}
 fi
 
+controllerpath="${modpath}/${controllername}"
+
 if [ ! -d "${controllerpath}" ]
 then
     mkdir ${controllerpath}
 fi
+
+workpath="${controllername}/jobs"
 
 if [ ! -d "${workpath}" ]
 then
