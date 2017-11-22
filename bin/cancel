@@ -2,11 +2,17 @@
 
 startpath=$(cd $1; pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
-depth=$(($(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null| grep -o / | wc -l' \; | uniq | head -n1)-${origdepth}))
+depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; | uniq | head -n1)
+if [[ "${depth}" == "" ]]
+then
+    depthdiff=""
+else
+    depthdiff=$((${depth}-${origdepth}))
+fi
 
 case $# in
     1)
-        case $depth in
+        case ${depthdiff} in
             "")
                 controllername=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
                 modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
