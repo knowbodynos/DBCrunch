@@ -1106,9 +1106,9 @@ def writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,
     jobstring+="cleanup=\""+cleanup+"\"\n";
     jobstring+="\n";
     jobstring+="#File system info\n";
-    jobstring+="mainpath=\"${CRUNCH_ROOT}\"\n";
-    jobstring+="binpath=\"${mainpath}/bin\"\n";
-    jobstring+="scriptpath=\"${mainpath}/modules/modules/${modname}\"\n";
+    jobstring+="rootpath=\"${CRUNCH_ROOT}\"\n";
+    jobstring+="binpath=\"${rootpath}/bin\"\n";
+    jobstring+="scriptpath=\"${rootpath}/modules/modules/${modname}\"\n";
     jobstring+="\n";
     #jobstring+="#Script info\n";
     #jobstring+="scriptlanguage=\""+scriptlanguage+"\"\n";
@@ -1160,9 +1160,9 @@ def writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,
         jobstring+="\n";
     jobstring+="wait";
     #if reloadjob:
-    #    jobstring+="python \"${binpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\" \"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${mainpath}\" \"${nstepthreads[@]}\"";
+    #    jobstring+="python \"${binpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\" \"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${nstepthreads[@]}\"";
     #else:
-    #    jobstring+="python \"${binpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\"\"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${mainpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
+    #    jobstring+="python \"${binpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\"\"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
     with open(controllerpath+"/jobs/"+jobname+".job","w") as jobstream:
         jobstream.write(jobstring);
         jobstream.flush();
