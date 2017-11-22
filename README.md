@@ -27,20 +27,15 @@ Installation instructions:
    ./install [--USER_LOCAL ~/opt] [--CRUNCH_ROOT .]
 ```
 
+4) Update the `config.yaml` file to reflect your cluster's workload manager, partition names and RAM resources, installed software, and custom max job/step information.
+
 ------------------------------------------------------------------------------------------------------------
 
 Using `DBCrunch`:
 
-1) Write a new module (script or compiled program) or use an existing one to process the records in your database and place it in the `${CRUNCH_ROOT}/modules/scripts` directory.
+1) Write a new module (script or compiled program) or use an existing one to process the records in your database and place it in a new directory `${CRUNCH_ROOT}/modules/modules/<module>`.
 
-2) If your module is compiled or is written in a scripting language you haven't used before, make sure to enter this information into the `${CRUCH_ROOT}/state/software` file. You must enter the following information, for example:
-
-```
-   Script Language,License Required,Extension,Command,Flags
-   bash,False,.bash,,
-   python,False,.py,python,
-   my_program,False,,,
-```
+2) If your module is compiled or is written in a scripting language you haven't used before, make sure to enter this information into the `${CRUCH_ROOT}/config.yaml` file under the *software* key.
 
 3) Write a job script template for your module and add it to the `${CRUNCH_ROOT}/modules/templates` directory. A typical job script template looks like:
 
@@ -171,4 +166,10 @@ where `<s>` is the refresh interval. Use `Ctrl-C` to exit.
 
 ```
    crunch requeue <module> <controller>
+```
+
+12) If you wish to reset the entire controller directory to initial conditions, use:
+
+```
+   crunch reset <module> <controller>
 ```
