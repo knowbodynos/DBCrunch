@@ -1,9 +1,9 @@
 #!/bin/bash
 
+startpath=$(cd $1; pwd -P)
+
 case $# in
     1)
-        startpath=$(cd $1; pwd -P)
-
         if [[ "${startpath}" =~ .*"/jobs"$ ]]
         then
             workpath="${startpath}"
@@ -19,7 +19,6 @@ case $# in
         modpath=$(echo ${controllerpath} | rev | cut -d'/' -f1 --complement | rev)
         ;;
     2)
-        startpath=$(cd $1; pwd -P)
         controllername=$2
 
         modpath=$(echo ${startpath} | sed -E "s/\/${controllername}(\/.*|$)//g")
@@ -28,7 +27,6 @@ case $# in
         workpath="${controllerpath}/jobs"
         ;;
     3)
-        startpath=$(cd $1; pwd -P)
         modname=$2
         controllername=$3
 
