@@ -460,7 +460,7 @@ else:
     with open(rootpath+"/config.yaml","r") as configstream:
         configdoc=yaml.load(configstream);
 
-    if kwargs['scriptlanguage']!=None:
+    if (kwargs['scriptlanguage']!=None) and (kwargs['scriptlanguage'] in configdoc["software"].keys()) and ("ignored-strings" in configdoc["software"][kwargs['scriptlanguage']].keys()):
         ignoredstrings+=configdoc["software"][kwargs['scriptlanguage']]["ignored-strings"];
 
     if configdoc["workload-manager"]=="slurm":
