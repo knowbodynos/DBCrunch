@@ -112,7 +112,7 @@ cd ${CRUNCH_ROOT}
 git submodule update --init --recursive
 
 #Install external software
-for file in $(find ${softwarepath}/ -type f 2>/dev/null)
+for file in $(find ${softwarepath}/ -maxdepth 1 -type f 2>/dev/null)
 do
     ${file}
     wait
@@ -162,6 +162,14 @@ fi
 
 #Install mongolink
 cd ${pythonpath}/mongolink
+python setup.py install --user --record filespy.txt
+if [[ "$(command -v sage)" != "" ]]
+then
+    sage --python setup.py install --user --record filessage.txt
+fi
+
+#Install slurmlink
+cd ${pythonpath}/slurmlink
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
