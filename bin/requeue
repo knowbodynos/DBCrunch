@@ -6,7 +6,7 @@ do_requeue () {
     workpath=$3
 
     #loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
-    loadfilenames=$(find ${workpath}/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev)
+    loadfilenames=$(find ${workpath}/ -maxdepth 1 -type f -name "*.docs" -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev)
     #loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
     #mkdir ${mainpath}/jobs/requeued 2>/dev/null
     #for patt in ${loadfilejobpatt}
@@ -35,7 +35,7 @@ do_requeue () {
 
 startpath=$(cd $1 && pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
-depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
+depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
 if [[ "${depth}" == "" ]]
 then
     depthdiff=0
@@ -59,7 +59,7 @@ case $# in
                 controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
                 ;;
             3)
-                modnames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                modnames=($(find ${startpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
                 controllernames=()
                 ;;
             *)
@@ -111,7 +111,7 @@ case ${#modnames[@]} in
         then
             case ${#controllernames[@]} in
                 0)
-                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
 
                     for controllername in ${controllernames[@]}
                     do
@@ -168,7 +168,7 @@ case ${#modnames[@]} in
 
             if [ -d "${modpath}" ]
             then
-                controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
 
                 for controllername in ${controllernames[@]}
                 do

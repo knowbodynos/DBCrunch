@@ -5,7 +5,7 @@ do_crunch () {
     controllerpath=$2
     workpath=$3
 
-    jobs=$(find ${controllerpath}/ -type f -name "*.job")
+    jobs=$(find ${controllerpath}/ -type f -name "*.job" -not -path '*/\.*' 2>/dev/null)
     for job in ${jobs}
     do
         jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
@@ -120,7 +120,7 @@ case $subcommand in
     "")
         startpath=$(pwd -P)
         origdepth=$(echo ${startpath} | grep -o / | wc -l)
-        depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
+        depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
         if [[ "${depth}" == "" ]]
         then
             depthdiff=0

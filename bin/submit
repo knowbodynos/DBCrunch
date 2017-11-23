@@ -5,7 +5,7 @@ do_submit () {
     controllerpath=$2
     workpath=$3
 
-    jobs=$(find ${controllerpath}/ -type f -name "*.job")
+    jobs=$(find ${controllerpath}/ -type f -name "*.job" -not -path '*/\.*' 2>/dev/null)
     for job in ${jobs}
     do
         jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
@@ -16,7 +16,7 @@ do_submit () {
 
 startpath=$(cd $1 && pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
-depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
+depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
 if [[ "${depth}" == "" ]]
 then
     depthdiff=0
@@ -40,7 +40,7 @@ case $# in
                 controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
                 ;;
             3)
-                modnames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                modnames=($(find ${startpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
                 controllernames=()
                 ;;
             *)
@@ -92,7 +92,7 @@ case ${#modnames[@]} in
         then
             case ${#controllernames[@]} in
                 0)
-                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
 
                     for controllername in ${controllernames[@]}
                     do
@@ -149,7 +149,7 @@ case ${#modnames[@]} in
 
             if [ -d "${modpath}" ]
             then
-                controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
 
                 for controllername in ${controllernames[@]}
                 do

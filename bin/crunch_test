@@ -15,9 +15,9 @@ do_test () {
     echo ""
 }
 
-startpath=$(cd $1; pwd -P)
+startpath=$(cd $1 && pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
-depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
+depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
 if [[ "${depth}" == "" ]]
 then
     depthdiff=0
@@ -41,7 +41,7 @@ case $# in
                 controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
                 ;;
             3)
-                modnames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                modnames=($(find ${startpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
                 controllernames=()
                 ;;
             *)
@@ -89,104 +89,84 @@ case ${#modnames[@]} in
         modname="${modnames[0]}"
         modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
 
-        if [ ! -d "${modpath}" ]
+        if [ -d "${modpath}" ]
         then
-            mkdir ${modpath}
+            case ${#controllernames[@]} in
+                0)
+                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
+
+                    for controllername in ${controllernames[@]}
+                    do
+                        controllerpath="${modpath}/${controllername}"
+
+                        if [ -d "${controllerpath}" ]
+                        then
+                            workpath="${controllerpath}/jobs"
+
+                            if [ -d "${workpath}" ]
+                            then
+                                do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
+                            fi
+                        fi
+                    done
+                    ;;
+                1)
+                    controllername="${controllernames[0]}"
+                    controllerpath="${modpath}/${controllername}"
+
+                    if [ -d "${controllerpath}" ]
+                    then
+                        workpath="${controllerpath}/jobs"
+
+                        if [ -d "${workpath}" ]
+                        then
+                            do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
+                        fi
+                    fi
+                    ;;
+                *)
+                    for controllername in ${controllernames[@]}
+                    do
+                        controllerpath="${modpath}/${controllername}"
+
+                        if [ -d "${controllerpath}" ]
+                        then
+                            workpath="${controllerpath}/jobs"
+
+                            if [ -d "${workpath}" ]
+                            then
+                                do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
+                            fi
+                        fi
+                    done
+                    ;;
+            esac
         fi
-
-        case ${#controllernames[@]} in
-            0)
-                controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
-
-                for controllername in ${controllernames[@]}
-                do
-                    controllerpath="${modpath}/${controllername}"
-
-                    if [ ! -d "${controllerpath}" ]
-                    then
-                        mkdir ${controllerpath}
-                    fi
-
-                    workpath="${controllerpath}/jobs"
-
-                    if [ ! -d "${workpath}" ]
-                    then
-                        mkdir ${workpath}
-                    fi
-
-                    do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
-                done
-                ;;
-            1)
-                controllername="${controllernames[0]}"
-                controllerpath="${modpath}/${controllername}"
-
-                if [ ! -d "${controllerpath}" ]
-                then
-                    mkdir ${controllerpath}
-                fi
-
-                workpath="${controllerpath}/jobs"
-
-                if [ ! -d "${workpath}" ]
-                then
-                    mkdir ${workpath}
-                fi
-
-                do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
-                ;;
-            *)
-                for controllername in ${controllernames[@]}
-                do
-                    controllerpath="${modpath}/${controllername}"
-
-                    if [ ! -d "${controllerpath}" ]
-                    then
-                        mkdir ${controllerpath}
-                    fi
-
-                    workpath="${controllerpath}/jobs"
-
-                    if [ ! -d "${workpath}" ]
-                    then
-                        mkdir ${workpath}
-                    fi
-
-                    do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
-                done
-                ;;
-        esac
         ;;
     *)
         for modname in ${modnames[@]}
         do
             modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
 
-            if [ ! -d "${modpath}" ]
+            if [ -d "${modpath}" ]
             then
-                mkdir ${modpath}
+                controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
+
+                for controllername in ${controllernames[@]}
+                do
+                    controllerpath="${modpath}/${controllername}"
+
+                    if [ -d "${controllerpath}" ]
+                    then
+                        workpath="${controllerpath}/jobs"
+
+                        if [ -d "${workpath}" ]
+                        then
+                            do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
+                        fi
+                    fi
+                done
             fi
-
-            controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
-
-            for controllername in ${controllernames[@]}
-            do
-                controllerpath="${modpath}/${controllername}"
-
-                if [ ! -d "${controllerpath}" ]
-                then
-                    mkdir ${controllerpath}
-                fi
-
-                workpath="${controllerpath}/jobs"
-
-                if [ ! -d "${workpath}" ]
-                then
-                    mkdir ${workpath}
-                fi
-
-                do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
-            done
         done
         ;;
 esac
