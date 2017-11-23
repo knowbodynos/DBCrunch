@@ -1,16 +1,31 @@
 #!/bin/bash
 
+do_crunch () {
+    modpath=$1
+    controllerpath=$2
+    workpath=$3
+
+    jobs=$(find ${controllerpath}/ -type f -name "*.job")
+    for job in ${jobs}
+    do
+        jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
+        jobmsg=$(sbatch ${job} 2>&1)
+        echo "${jobmsg} as ${jobname}."
+    done
+}
+
 ProgName=$(basename "${BASH_SOURCE[0]}")
 ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
   
 sub_help(){
     echo "Usage: $ProgName [<subcommand>] [options]\n"
-    echo "    crunch            Run batch job"
+    echo "    crunch            Submit controller batch job in current directory"
     echo "Subcommands:"
     echo "    crunch cancel     Cancel module or controller jobs"
     echo "    crunch monitor    Monitor all controller jobs"
     echo "    crunch requeue    Requeue jobs skipped by controller"
     echo "    crunch reset      Reset controller for a module"
+    echo "    crunch submit     Submit controller batch job"
     echo "    crunch template   Create new controller for a module from a template"
     echo ""
     echo "For help with each subcommand run:"
@@ -19,7 +34,17 @@ sub_help(){
 }
 
 sub_cancel(){
-    ${ProgDir}/cancel $(pwd) ${@}
+    if [ "$#" -eq 0 ]
+    then
+        ${ProgDir}/cancel $(pwd -P)
+    else
+        if [ ! -d "$1" ]
+        then
+            ${ProgDir}/cancel $(pwd -P) ${@}
+        else
+            ${ProgDir}/cancel ${@}
+        fi
+    fi
 }
 
 sub_monitor(){
@@ -32,29 +57,58 @@ sub_monitor(){
 }
 
 sub_requeue(){
-    if [ ! -d "$1" ]
+    if [ "$#" -eq 0 ]
     then
-        ${ProgDir}/requeue $(pwd) ${@}
+        ${ProgDir}/requeue $(pwd -P)
     else
-        ${ProgDir}/requeue ${@}
+        if [ ! -d "$1" ]
+        then
+            ${ProgDir}/requeue $(pwd -P) ${@}
+        else
+            ${ProgDir}/requeue ${@}
+        fi
     fi
 }
 
 sub_reset(){
-    if [ ! -d "$1" ]
+    if [ "$#" -eq 0 ]
     then
-        ${ProgDir}/reset $(pwd) ${@}
+        ${ProgDir}/reset $(pwd -P)
     else
-        ${ProgDir}/reset ${@}
+        if [ ! -d "$1" ]
+        then
+            ${ProgDir}/reset $(pwd -P) ${@}
+        else
+            ${ProgDir}/reset ${@}
+        fi
+    fi
+}
+
+sub_submit(){
+    if [ "$#" -eq 0 ]
+    then
+        ${ProgDir}/submit $(pwd -P)
+    else
+        if [ ! -d "$1" ]
+        then
+            ${ProgDir}/submit $(pwd -P) ${@}
+        else
+            ${ProgDir}/submit ${@}
+        fi
     fi
 }
 
 sub_template(){
-    if [ ! -d "$1" ]
+    if [ "$#" -eq 0 ]
     then
-        ${ProgDir}/template $(pwd) ${@}
+        ${ProgDir}/template $(pwd -P)
     else
-        ${ProgDir}/template ${@}
+        if [ ! -d "$1" ]
+        then
+            ${ProgDir}/template $(pwd -P) ${@}
+        else
+            ${ProgDir}/template ${@}
+        fi
     fi
 }
   
@@ -64,20 +118,34 @@ case $subcommand in
         sub_help
         ;;
     "")
-        startpath=$(pwd)
-
-        if [[ "${startpath}" =~ .*"/jobs"$ ]]
+        startpath=$(pwd -P)
+        origdepth=$(echo ${startpath} | grep -o / | wc -l)
+        depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
+        if [[ "${depth}" == "" ]]
         then
-            startpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
+            depthdiff=0
+        else
+            depthdiff=$((${depth}-${origdepth}))
         fi
-        
-        controllerpath="${startpath}"
 
-        jobs=$(find ${controllerpath}/ -type f -name "*.job")
-        for job in ${jobs}
-        do
-            sbatch ${job}
-        done
+        case ${depthdiff} in
+            0)
+                modpath=$(echo ${startpath} | rev | cut -d'/' -f1,2 --complement | rev)
+                controllerpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
+                workpath="${controllerpath}/jobs"
+                ;;
+            1)
+                modpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
+                controllerpath="${startpath}"
+                workpath="${controllerpath}/jobs"
+                ;;
+            *)
+                echo "Error: You are currently in the ${startpath} directory. You must be inside a controller directory."
+                exit 1
+                ;;
+        esac
+
+        do_crunch ${modpath} ${controllerpath} ${workpath}
         ;;
     *)
         shift

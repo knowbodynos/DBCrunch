@@ -1,34 +1,21 @@
 #!/bin/bash
 
-do_template () {
-    modpath=$1
-    controllerpath=$2
-    workpath=$3
+do_test () {
+    n=$1
+    depthdiff=$2
+    modpath=$3
+    controllerpath=$4
+    workpath=$5
 
-    modulespath="${CRUNCH_ROOT}/modules/modules"
-
-    #cp "${binpath}/reset.bash" "${controllerpath}/"
-    cp -T "${modulespath}/${modname}/${modname}_slurm.job" "${controllerpath}/crunch_${modname}_${controllername}_controller.job"
-    echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
-    echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-    echo "Pending" > ${controllerpath}/status 2>/dev/null
-
-    modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
-
-    files=$(find "${controllerpath}/" -mindepth 1 -type f)
-    for file in ${files}
-    do
-        #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
-        sed -i "s|path\_to\_module|${modulesworkpath}|g" ${file}
-        sed -i "s|template|${controllername}|g" ${file}
-        #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
-        #mv ${file} ${newfile} 2>/dev/null
-    done
-
-    echo "Finished creating template for ${modname}_${controllername}."
+    echo "\$# = ${n}"
+    echo "\${depthdiff} = ${depthdiff}"
+    echo ${modpath}
+    echo ${controllerpath}
+    echo ${workpath}
+    echo ""
 }
 
-startpath=$(cd $1 && pwd -P)
+startpath=$(cd $1; pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
 depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
 if [[ "${depth}" == "" ]]
@@ -127,7 +114,7 @@ case ${#modnames[@]} in
                         mkdir ${workpath}
                     fi
 
-                    do_template ${modpath} ${controllerpath} ${workpath}
+                    do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
                 done
                 ;;
             1)
@@ -146,7 +133,7 @@ case ${#modnames[@]} in
                     mkdir ${workpath}
                 fi
 
-                do_template ${modpath} ${controllerpath} ${workpath}
+                do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
                 ;;
             *)
                 for controllername in ${controllernames[@]}
@@ -165,7 +152,7 @@ case ${#modnames[@]} in
                         mkdir ${workpath}
                     fi
 
-                    do_template ${modpath} ${controllerpath} ${workpath}
+                    do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
                 done
                 ;;
         esac
@@ -198,7 +185,7 @@ case ${#modnames[@]} in
                     mkdir ${workpath}
                 fi
 
-                do_template ${modpath} ${controllerpath} ${workpath}
+                do_test $# ${depthdiff} ${modpath} ${controllerpath} ${workpath}
             done
         done
         ;;

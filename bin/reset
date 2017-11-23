@@ -1,11 +1,45 @@
 #!/bin/bash
 
-startpath=$(cd $1; pwd -P)
+do_reset () {
+    modpath=$1
+    controllerpath=$2
+    workpath=$3
+
+    #workpath="${controllerpath}/jobs"
+    #mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
+    #toolspath="${SLURMONGO_ROOT}/scripts/tools"
+
+    rm ${controllerpath}/*.out ${controllerpath}/*.err tmp* 2>/dev/null
+    rm -r ${workpath}/* 2>/dev/null
+    rm ${controllerpath}/querystate* 2>/dev/null
+    rm ${controllerpath}/reloadstate* 2>/dev/null
+
+    echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
+    echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
+    echo "Pending" > ${controllerpath}/status 2>/dev/null
+
+    echo "Finished resetting ${modname}_${controllername}."
+
+    #currdir=$(pwd)
+    #cd ${mongolinkpath}
+    #python setup.py install --user --record filespy.txt
+    #sage --python setup.py install --user --record filessage.txt
+    #cd ${currdir}
+
+    #mongouri=$(cat ${controllerpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
+    #basecollection=$(cat ${controllerpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
+    #modname=$(cat ${controllerpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
+    #markdone=$(cat ${controllerpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
+    #h11=$(cat ${controllerpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
+    #python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"
+}
+
+startpath=$(cd $1 && pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
 depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
 if [[ "${depth}" == "" ]]
 then
-    depthdiff=""
+    depthdiff=0
 else
     depthdiff=$((${depth}-${origdepth}))
 fi
@@ -13,13 +47,21 @@ fi
 case $# in
     1)
         case ${depthdiff} in
-            "")
-                controllername=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+            0)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
+                controllernames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
                 ;;
             1)
-                controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
+                controllernames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
+                ;;
+            2)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
+                controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                ;;
+            3)
+                modnames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                controllernames=()
                 ;;
             *)
                 echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
@@ -28,17 +70,22 @@ case $# in
         esac
         ;;
     2)
-        controllername=$2
-
         case ${depthdiff} in
-            "")
-                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+            0)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
+                controllernames=($2)
                 ;;
             1)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
+                controllernames=($2)
                 ;;
             2)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
+                controllernames=($2)
+                ;;
+            3)
+                modnames=($2)
+                controllernames=()
                 ;;
             *)
                 echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
@@ -47,8 +94,8 @@ case $# in
         esac
         ;;
     3)
-        modname=$2
-        controllername=$3
+        modnames=($2)
+        controllernames=($3)
         ;;
     *)
         echo "Error: You must provide no more than 3 arguments. $# provided."
@@ -56,50 +103,89 @@ case $# in
         ;;
 esac
 
-startpath=$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")
-modpath="${startpath}/${modname}"
+case ${#modnames[@]} in
+    1)
+        modname="${modnames[0]}"
+        modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
 
-if [ ! -d "${modpath}" ]
-then
-    mkdir ${modpath}
-fi
+        if [ -d "${modpath}" ]
+        then
+            case ${#controllernames[@]} in
+                0)
+                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
 
-controllerpath="${modpath}/${controllername}"
+                    for controllername in ${controllernames[@]}
+                    do
+                        controllerpath="${modpath}/${controllername}"
 
-if [ ! -d "${controllerpath}" ]
-then
-    mkdir ${controllerpath}
-fi
+                        if [ -d "${controllerpath}" ]
+                        then
+                            workpath="${controllerpath}/jobs"
 
-workpath="${controllername}/jobs"
+                            if [ -d "${workpath}" ]
+                            then
+                                do_reset ${modpath} ${controllerpath} ${workpath}
+                            fi
+                        fi
+                    done
+                    ;;
+                1)
+                    controllername="${controllernames[0]}"
+                    controllerpath="${modpath}/${controllername}"
 
-if [ ! -d "${workpath}" ]
-then
-    mkdir ${workpath}
-fi
+                    if [ -d "${controllerpath}" ]
+                    then
+                        workpath="${controllerpath}/jobs"
 
-#workpath="${controllerpath}/jobs"
-#mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
-#toolspath="${SLURMONGO_ROOT}/scripts/tools"
+                        if [ -d "${workpath}" ]
+                        then
+                            do_reset ${modpath} ${controllerpath} ${workpath}
+                        fi
+                    fi
+                    ;;
+                *)
+                    for controllername in ${controllernames[@]}
+                    do
+                        controllerpath="${modpath}/${controllername}"
 
-rm ${controllerpath}/*.out ${controllerpath}/*.err tmp* 2>/dev/null
-rm -r ${workpath}/* 2>/dev/null
-rm ${controllerpath}/querystate* 2>/dev/null
-rm ${controllerpath}/reloadstate* 2>/dev/null
+                        if [ -d "${controllerpath}" ]
+                        then
+                            workpath="${controllerpath}/jobs"
 
-echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
-echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-echo "Pending" > ${controllerpath}/status 2>/dev/null
+                            if [ -d "${workpath}" ]
+                            then
+                                do_reset ${modpath} ${controllerpath} ${workpath}
+                            fi
+                        fi
+                    done
+                    ;;
+            esac
+        fi
+        ;;
+    *)
+        for modname in ${modnames[@]}
+        do
+            modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
 
-#currdir=$(pwd)
-#cd ${mongolinkpath}
-#python setup.py install --user --record filespy.txt
-#sage --python setup.py install --user --record filessage.txt
-#cd ${currdir}
+            if [ -d "${modpath}" ]
+            then
+                controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
 
-#mongouri=$(cat ${controllerpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
-#basecollection=$(cat ${controllerpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
-#modname=$(cat ${controllerpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
-#markdone=$(cat ${controllerpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
-#h11=$(cat ${controllerpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
-#python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"
+                for controllername in ${controllernames[@]}
+                do
+                    controllerpath="${modpath}/${controllername}"
+
+                    if [ -d "${controllerpath}" ]
+                    then
+                        workpath="${controllerpath}/jobs"
+
+                        if [ -d "${workpath}" ]
+                        then
+                            do_reset ${modpath} ${controllerpath} ${workpath}
+                        fi
+                    fi
+                done
+            fi
+        done
+        ;;
+esac

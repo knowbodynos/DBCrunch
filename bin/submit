@@ -1,24 +1,17 @@
 #!/bin/bash
 
-do_cancel () {
+do_submit () {
     modpath=$1
     controllerpath=$2
     workpath=$3
 
-    jobs=$(squeue -h -u ${USER} -o '%.10i %.100j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
-    if [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | wc -l)" -ne 0 ]
-    then
-        while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | wc -l)" -ne 0 ]
-        do
-            for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
-            do
-                scancel ${jobid} 2>/dev/null
-            done
-            jobs=$(squeue -h -u ${USER} -o '%.10i %.100j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
-        done
-
-        echo "Finished cancelling ${modname}_${controllername}."
-    fi
+    jobs=$(find ${controllerpath}/ -type f -name "*.job")
+    for job in ${jobs}
+    do
+        jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
+        jobmsg=$(sbatch ${job} 2>&1)
+        echo "${jobmsg} as ${jobname}."
+    done
 }
 
 startpath=$(cd $1 && pwd -P)
@@ -111,7 +104,7 @@ case ${#modnames[@]} in
 
                             if [ -d "${workpath}" ]
                             then
-                                do_cancel ${modpath} ${controllerpath} ${workpath}
+                                do_submit ${modpath} ${controllerpath} ${workpath}
                             fi
                         fi
                     done
@@ -126,7 +119,7 @@ case ${#modnames[@]} in
 
                         if [ -d "${workpath}" ]
                         then
-                            do_cancel ${modpath} ${controllerpath} ${workpath}
+                            do_submit ${modpath} ${controllerpath} ${workpath}
                         fi
                     fi
                     ;;
@@ -141,7 +134,7 @@ case ${#modnames[@]} in
 
                             if [ -d "${workpath}" ]
                             then
-                                do_cancel ${modpath} ${controllerpath} ${workpath}
+                                do_submit ${modpath} ${controllerpath} ${workpath}
                             fi
                         fi
                     done
@@ -168,7 +161,7 @@ case ${#modnames[@]} in
 
                         if [ -d "${workpath}" ]
                         then
-                            do_cancel ${modpath} ${controllerpath} ${workpath}
+                            do_submit ${modpath} ${controllerpath} ${workpath}
                         fi
                     fi
                 done

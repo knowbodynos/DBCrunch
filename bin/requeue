@@ -1,11 +1,44 @@
 #!/bin/bash
 
-startpath=$(cd $1; pwd -P)
+do_requeue () {
+    modpath=$1
+    controllerpath=$2
+    workpath=$3
+
+    #loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
+    loadfilenames=$(find ${workpath}/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev)
+    #loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
+    #mkdir ${mainpath}/jobs/requeued 2>/dev/null
+    #for patt in ${loadfilejobpatt}
+    #do
+    #    mv ${mainpath}/jobs/${patt}* ${mainpath}/jobs/requeued/ 2>/dev/null
+    #done
+    #for loadfilename in $(echo ${loadfilenames} | tr ',' '\n')
+    for loadfilename in ${loadfilenames}
+    do
+        if [ -s "${loadfilename/.docs/.err}" ]
+        then
+            #errcode=$(cat ${mainpath}/jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+            errcode=$(cat ${workpath}/${loadfilename/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
+            if [[ "${errcode}" == "" ]]
+            then
+                errcode="-1:0"
+            fi
+        else
+            errcode="-1:0"
+        fi
+        echo "${loadfilename},${errcode},True"
+    done >> ${controllerpath}/skipped
+
+    echo "Finished requeuing ${modname}_${controllername}."
+}
+
+startpath=$(cd $1 && pwd -P)
 origdepth=$(echo ${startpath} | grep -o / | wc -l)
 depth=$(find ${startpath} -mindepth 1 -type d -name jobs -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit)
 if [[ "${depth}" == "" ]]
 then
-    depthdiff=""
+    depthdiff=0
 else
     depthdiff=$((${depth}-${origdepth}))
 fi
@@ -13,13 +46,21 @@ fi
 case $# in
     1)
         case ${depthdiff} in
-            "")
-                controllername=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+            0)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
+                controllernames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
                 ;;
             1)
-                controllername=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
+                controllernames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
+                ;;
+            2)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
+                controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                ;;
+            3)
+                modnames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+                controllernames=()
                 ;;
             *)
                 echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
@@ -28,17 +69,22 @@ case $# in
         esac
         ;;
     2)
-        controllername=$2
-
         case ${depthdiff} in
-            "")
-                modname=$(echo ${startpath} | rev | cut -d'/' -f3 | rev)
+            0)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
+                controllernames=($2)
                 ;;
             1)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f2 | rev)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
+                controllernames=($2)
                 ;;
             2)
-                modname=$(echo ${startpath} | rev | cut -d'/' -f1 | rev)
+                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
+                controllernames=($2)
+                ;;
+            3)
+                modnames=($2)
+                controllernames=()
                 ;;
             *)
                 echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
@@ -47,8 +93,8 @@ case $# in
         esac
         ;;
     3)
-        modname=$2
-        controllername=$3
+        modnames=($2)
+        controllernames=($3)
         ;;
     *)
         echo "Error: You must provide no more than 3 arguments. $# provided."
@@ -56,49 +102,89 @@ case $# in
         ;;
 esac
 
-startpath=$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")
-modpath="${startpath}/${modname}"
+case ${#modnames[@]} in
+    1)
+        modname="${modnames[0]}"
+        modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
 
-if [ ! -d "${modpath}" ]
-then
-    mkdir ${modpath}
-fi
-
-controllerpath="${modpath}/${controllername}"
-
-if [ ! -d "${controllerpath}" ]
-then
-    mkdir ${controllerpath}
-fi
-
-workpath="${controllername}/jobs"
-
-if [ ! -d "${workpath}" ]
-then
-    mkdir ${workpath}
-fi
-
-#loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
-loadfilenames=$(find ${workpath}/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev)
-#loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
-#mkdir ${mainpath}/jobs/requeued 2>/dev/null
-#for patt in ${loadfilejobpatt}
-#do
-#    mv ${mainpath}/jobs/${patt}* ${mainpath}/jobs/requeued/ 2>/dev/null
-#done
-#for loadfilename in $(echo ${loadfilenames} | tr ',' '\n')
-for loadfilename in ${loadfilenames}
-do
-    if [ -s "${loadfilename/.docs/.err}" ]
-    then
-        #errcode=$(cat ${mainpath}/jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
-        errcode=$(cat ${workpath}/${loadfilename/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
-        if [[ "${errcode}" == "" ]]
+        if [ -d "${modpath}" ]
         then
-            errcode="-1:0"
+            case ${#controllernames[@]} in
+                0)
+                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+
+                    for controllername in ${controllernames[@]}
+                    do
+                        controllerpath="${modpath}/${controllername}"
+
+                        if [ -d "${controllerpath}" ]
+                        then
+                            workpath="${controllerpath}/jobs"
+
+                            if [ -d "${workpath}" ]
+                            then
+                                do_requeue ${modpath} ${controllerpath} ${workpath}
+                            fi
+                        fi
+                    done
+                    ;;
+                1)
+                    controllername="${controllernames[0]}"
+                    controllerpath="${modpath}/${controllername}"
+
+                    if [ -d "${controllerpath}" ]
+                    then
+                        workpath="${controllerpath}/jobs"
+
+                        if [ -d "${workpath}" ]
+                        then
+                            do_requeue ${modpath} ${controllerpath} ${workpath}
+                        fi
+                    fi
+                    ;;
+                *)
+                    for controllername in ${controllernames[@]}
+                    do
+                        controllerpath="${modpath}/${controllername}"
+
+                        if [ -d "${controllerpath}" ]
+                        then
+                            workpath="${controllerpath}/jobs"
+
+                            if [ -d "${workpath}" ]
+                            then
+                                do_requeue ${modpath} ${controllerpath} ${workpath}
+                            fi
+                        fi
+                    done
+                    ;;
+            esac
         fi
-    else
-        errcode="-1:0"
-    fi
-    echo "${loadfilename},${errcode},True"
-done >> ${controllerpath}/skipped
+        ;;
+    *)
+        for modname in ${modnames[@]}
+        do
+            modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
+
+            if [ -d "${modpath}" ]
+            then
+                controllernames=($(find ${modpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
+
+                for controllername in ${controllernames[@]}
+                do
+                    controllerpath="${modpath}/${controllername}"
+
+                    if [ -d "${controllerpath}" ]
+                    then
+                        workpath="${controllerpath}/jobs"
+
+                        if [ -d "${workpath}" ]
+                        then
+                            do_requeue ${modpath} ${controllerpath} ${workpath}
+                        fi
+                    fi
+                done
+            fi
+        done
+        ;;
+esac
