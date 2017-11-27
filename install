@@ -54,8 +54,6 @@ then
     echo "export PATH=\${USER_LOCAL}/bin:\${CRUNCH_ROOT}/bin:\${PATH}" >> ${HOME}/.bashrc
 fi
 
-. ${HOME}/.bashrc
-
 # Source DBCrunch bash completions
 
 echo "Sourcing DBCrunch bash completions..."
@@ -76,7 +74,22 @@ then
     echo "fi" >> ${HOME}/.bash_completion
 fi
 
-. ${HOME}/.bash_completion
+# Source all bash completions
+
+echo "Sourcing all bash completions..."
+
+if ! grep -q "# Source bash completions" ${HOME}/.bashrc
+then
+    echo "" >> ${HOME}/.bashrc
+    echo "# Source bash completions" >> ${HOME}/.bashrc
+    echo "" >> ${HOME}/.bashrc
+    echo "if [ -f \${HOME}/.bash_completion ]" >> ${HOME}/.bashrc
+    echo "then" >> ${HOME}/.bashrc
+    echo "    . \${HOME}/.bash_completion" >> ${HOME}/.bashrc
+    echo "fi" >> ${HOME}/.bashrc
+fi
+
+. ${HOME}/.bashrc
 
 currpath=$(pwd)
 

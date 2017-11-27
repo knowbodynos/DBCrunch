@@ -42,11 +42,11 @@ sub_cancel(){
 }
 
 sub_monitor(){
-    if [ "$#" -eq 0 ]
+    if [ "$#" -eq 1 ]
     then
         ${ProgDir}/monitor 1
     else
-        ${ProgDir}/monitor $1
+        ${ProgDir}/monitor $2
     fi
 }
 
