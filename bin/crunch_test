@@ -58,6 +58,10 @@ moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement |
 modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
 controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
 
+echo "\${moddirpath} = ${moddirpath}"
+echo "\${modnames[@]} = ${modnames[@]}"
+echo "\${controllernames[@]} = ${controllernames[@]}"
+
 case $# in
     0)
         ;;

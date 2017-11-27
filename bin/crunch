@@ -213,7 +213,7 @@ case $subcommand in
 
                     if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
                     then
-                        do_test ${modpath} ${controllerpath} ${workpath}
+                        do_crunch ${modpath} ${controllerpath} ${workpath}
                     fi
                 done
             else
@@ -234,7 +234,7 @@ case $subcommand in
 
                 if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
                 then
-                    do_test ${modpath} ${controllerpath} ${workpath}
+                    do_crunch ${modpath} ${controllerpath} ${workpath}
                 fi
             fi
         done
