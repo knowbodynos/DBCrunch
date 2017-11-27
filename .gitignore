@@ -5,9 +5,9 @@ Thumbs.db
 *_bkp*
 **/*_bkp*
 api/Mathematica
-api/**/*.egg-info
-api/**/filessage.txt
-api/**/filespy.txt
-api/**/dist
-api/**/build
-api/**/*.pyc
+api/**/**/*.egg-info
+api/**/**/filessage.txt
+api/**/**/filespy.txt
+api/**/**/dist
+api/**/**/build
+api/**/**/*.pyc

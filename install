@@ -1,7 +1,9 @@
 #!/bin/bash
 
-USER_LOCAL="\${HOME}/opt"
-CRUNCH_ROOT="$(cd $(dirname ${BASH_SOURCE[0]}); pwd -P)"
+# Accept user-specified arguments
+
+USER_LOCAL="${HOME}/opt"
+CRUNCH_ROOT="$(cd $(dirname ${BASH_SOURCE[0]}) && pwd -P)"
 
 SHORTOPTS="u:c:" 
 LONGOPTS="USER_LOCAL:,CRUNCH_ROOT:" 
@@ -33,90 +35,72 @@ do
     shift
 done
 
-softwarepath="${CRUNCH_ROOT}/modules/install"
-currpath=$(pwd)
+# Source DBCrunch environment variables
 
-if ! [ -f ${HOME}/.bashrc ]
+echo "Sourcing DBCrunch environment variables..."
+
+if [ ! -f ${HOME}/.bashrc ]
 then
     touch ${HOME}/.bashrc
 fi
 
-rm ${HOME}/.newbashrc 2>/dev/null
-firstline=true
-prevline=""
-while IFS=$'\n' read -r line
-do
-    if ! ${firstline} && [[ "${prevline}" == "" ]] && ! [[ "${line}" =~ .*"# DBCrunch environment variables".* ]]
-    then
-        printf '%s\n' "${prevline}" >> ${HOME}/.newbashrc
-    fi
+if ! grep -q "# Source DBCrunch environment variables" ${HOME}/.bashrc
+then
+    echo "" >> ${HOME}/.bashrc
+    echo "# Source DBCrunch environment variables" >> ${HOME}/.bashrc
+    echo "" >> ${HOME}/.bashrc
+    echo "export USER_LOCAL="$(echo ${USER_LOCAL} | sed 's|'"${HOME}"'|${HOME}|g' | sed 's|'"${USER}"'|${USER}|g') >> ${HOME}/.bashrc
+    echo "export CRUNCH_ROOT="$(echo ${CRUNCH_ROOT} | sed 's|'"${HOME}"'|${HOME}|g' | sed 's|'"${USER}"'|${USER}|g') >> ${HOME}/.bashrc
+    echo "export PATH=\${USER_LOCAL}/bin:\${CRUNCH_ROOT}/bin:\${PATH}" >> ${HOME}/.bashrc
+fi
 
-    if [[ "${line}" != "" ]] && ! [[ "${line}" =~ .*"# DBCrunch environment variables".* ]] && ! [[ "${line}" =~ .*"export USER_LOCAL".* ]] && ! [[ "${line}" =~ .*"export CRUNCH_ROOT".* ]] && ! [[ "${line}" =~ .*"export PATH".*"CRUNCH_ROOT".* ]]
-    then
-        printf '%s\n' "${line}" >> ${HOME}/.newbashrc
-    fi
-    firstline=false
-    prevline=${line}
-done < ${HOME}/.bashrc
+. ${HOME}/.bashrc
 
-echo "" >> ${HOME}/.newbashrc
-echo "# DBCrunch environment variables" >> ${HOME}/.newbashrc
-echo "export USER_LOCAL=${USER_LOCAL}" >> ${HOME}/.newbashrc
-echo "export CRUNCH_ROOT="$(echo ${CRUNCH_ROOT} | sed 's|'"${HOME}"'|${HOME}|g' | sed 's|'"${USER}"'|${USER}|g') >> ${HOME}/.newbashrc
-echo "export PATH=\${USER_LOCAL}/bin:\${CRUNCH_ROOT}/bin:\${PATH}" >> ${HOME}/.newbashrc
+# Source DBCrunch bash completions
 
-mv ${HOME}/.bashrc ${HOME}/.oldbashrc
-mv ${HOME}/.newbashrc ${HOME}/.bashrc
+echo "Sourcing DBCrunch bash completions..."
 
-wait
-source ${HOME}/.bashrc
-wait
-
-if [ ! -d "${HOME}/.bash_completion" ]
+if [ ! -f ${HOME}/.bash_completion ]
 then
     touch ${HOME}/.bash_completion
 fi
-rm ${HOME}/.newbash_completion 2>/dev/null
-firstline=true
-prevline=""
-while IFS=$'\n' read -r line
-do
-    if ! ${firstline} && [[ "${prevline}" == "" ]] && ! [[ "${line}" =~ .*"# DBCrunch completions".* ]]
-    then
-        printf '%s\n' "${prevline}" >> ${HOME}/.newbash_completion
-    fi
 
-    if [[ "${line}" != "" ]] && ! [[ "${line}" =~ .*"# DBCrunch completions".* ]] && ! [[ "${line}" =~ .*". ${CRUNCH_ROOT}/bin/bash_completion".* ]]
-    then
-        printf '%s\n' "${line}" >> ${HOME}/.newbash_completion
-    fi
-    firstline=false
-    prevline=${line}
-done < ${HOME}/.bash_completion
+if ! grep -q "# Source DBCrunch bash completions" ${HOME}/.bash_completion
+then
+    echo "" >> ${HOME}/.bash_completion
+    echo "# Source DBCrunch bash completions" >> ${HOME}/.bash_completion
+    echo "" >> ${HOME}/.bash_completion
+    echo "if [ -f \${CRUNCH_ROOT}/bin/bash_completion ]" >> ${HOME}/.bash_completion
+    echo "then" >> ${HOME}/.bash_completion
+    echo "    . \${CRUNCH_ROOT}/bin/bash_completion" >> ${HOME}/.bash_completion
+    echo "fi" >> ${HOME}/.bash_completion
+fi
 
-echo "" >> ${HOME}/.newbash_completion
-echo "# DBCrunch completions" >> ${HOME}/.newbash_completion
-echo ". ${CRUNCH_ROOT}/bin/bash_completion" >> ${HOME}/.newbash_completion
+. ${HOME}/.bash_completion
 
-mv ${HOME}/.bash_completion ${HOME}/.oldbash_completion
-mv ${HOME}/.newbash_completion ${HOME}/.bash_completion
+currpath=$(pwd)
 
-wait
-source ${HOME}/.bash_completion
-wait
+# Update submodules
 
-#Update submodules
+echo "Updating submodules..."
+
 cd ${CRUNCH_ROOT}
 git submodule update --init --recursive
 
-#Install external software
-for file in $(find ${softwarepath}/ -maxdepth 1 -type f 2>/dev/null)
+# Install external software
+
+echo "Installing external software..."
+
+for file in $(find ${CRUNCH_ROOT}/modules/install -mindepth 1 -maxdepth 1 -type f 2>/dev/null)
 do
     ${file}
     wait
 done
 
-#Install mpi4py
+#Install mpi4py package
+
+echo "Installing mpi4py package..."
+
 if $(python -c "import mpi4py" |& grep -q "ImportError" && echo true || echo false)
 then
     cd ${HOME}
@@ -137,7 +121,9 @@ then
     rm -rf pymongo
 fi
 
-#Install DB APIs
+#Install database APIs
+
+echo "Installing database APIs..."
 
 #Install pymongo
 if $(python -c "import pymongo" |& grep -q "ImportError" && echo true || echo false)
@@ -168,7 +154,9 @@ then
     sage --python setup.py install --user --record filessage.txt
 fi
 
-#Install Workload APIs
+#Install workload APIs
+
+echo "Installing workload APIs..."
 
 #Install crunch_slurm
 cd ${CRUNCH_ROOT}/api/workload/crunch_slurm
