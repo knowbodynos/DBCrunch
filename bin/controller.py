@@ -1499,7 +1499,7 @@ try:
         configdoc=yaml.load(configstream);
 
     if configdoc["workload-manager"]=="slurm":
-        from slurmlink import *;
+        from crunch_slurm import *;
 
     globalmaxjobcount=get_maxjobcount();
     localmaxstepcount=get_maxstepcount();

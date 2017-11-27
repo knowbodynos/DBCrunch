@@ -464,7 +464,7 @@ else:
         ignoredstrings+=configdoc["software"][kwargs['scriptlanguage']]["ignored-strings"];
 
     if configdoc["workload-manager"]=="slurm":
-        from slurmlink import *;
+        from crunch_slurm import *;
 
     controllerpath="/".join(get_controllerpath(kwargs['stepid']).split("/")[:-1]);
     workpath=controllerpath+"/jobs";
