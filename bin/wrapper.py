@@ -535,7 +535,7 @@ if any([kwargs[x] for x in ['writedb','statsdb']]):
         parser.error("Both --writedb and --statsdb require either the options:\n--controllername --dbindexes,\nor the options:\n--dbtype --dbhost --dbport --dbusername --dbpassword --dbname --basecoll --dbindexes");
     else:
         if dbtype=="mongodb":
-            from mongolink import get_bsonsize;
+            from mongojoin import get_bsonsize;
             from pymongo import MongoClient,UpdateOne,WriteConcern;
             from pymongo.errors import BulkWriteError;
             if dbusername==None:

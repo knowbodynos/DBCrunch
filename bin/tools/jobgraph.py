@@ -1,6 +1,6 @@
 #!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
 
-import sys,re,mongolink,matplotlib;
+import sys,re,mongojoin,matplotlib;
 import networkx as nx;
 matplotlib.use('Agg');
 import matplotlib.pyplot as plt;
@@ -48,13 +48,13 @@ try:
         expandedlast=list(reversed([leavespair[1][:i+1] for i in range(len(leavespair[1])-1)]));
         expandedleaves+=[expandedfirst+leavesbatch+expandedlast];
 
-    orderedexpandedleaves=mongolink.deldup([y for x in expandedleaves for y in x]);
+    orderedexpandedleaves=mongojoin.deldup([y for x in expandedleaves for y in x]);
     expandedleavesindexes=[[orderedexpandedleaves.index(y) for y in x] for x in expandedleaves];
     expandedleavessplitindexes=[];
     for i in range(len(expandedleaves)):
         expandedleavessplitindexbatch=[z+max([0]+[y for x in expandedleavessplitindexes for y in x if len(x)>0])-expandedleavesindexes[i][0]+1 for z in expandedleavesindexes[i]];
         expandedleavessplitindexes+=[expandedleavessplitindexbatch];
-    expandedleavesitems=mongolink.deldup([(expandedleavessplitindexes[i][j],expandedleaves[i][j]) for i in range(len(expandedleaves)) for j in range(len(expandedleaves[i]))]);
+    expandedleavesitems=mongojoin.deldup([(expandedleavessplitindexes[i][j],expandedleaves[i][j]) for i in range(len(expandedleaves)) for j in range(len(expandedleaves[i]))]);
 
     expandedleavespathrules=[(x[i],x[i+1]) for x in expandedleavessplitindexes for i in range(len(x)-1)];
     indexestolabels=[(x[0],x[1][-1]) for x in expandedleavesitems];

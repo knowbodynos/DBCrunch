@@ -377,7 +377,7 @@ def indexdoc2indexsplit(doc,dbindexes):
 #    #elif scriptlanguage=="sage":
 #    #    formatteddoc=doc;
 #    #elif scriptlanguage=="mathematica":
-#    #    formatteddoc=mongolink.pythondictionary2mathematicarules(doc);
+#    #    formatteddoc=mongojoin.pythondictionary2mathematicarules(doc);
 #    #return str(formatteddoc).replace(" ","");
 #    return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
 
@@ -1644,20 +1644,20 @@ try:
     controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,controllertimelimit,controllerbuffertime);
 
     if dbtype=="mongodb":
-        import mongolink;
+        import mongojoin;
         if dbusername==None:
-            dbclient=mongolink.MongoClient("mongodb://"+dbhost+":"+dbport+"/"+dbname);
+            dbclient=mongojoin.MongoClient("mongodb://"+dbhost+":"+dbport+"/"+dbname);
         else:
-            dbclient=mongolink.MongoClient("mongodb://"+dbusername+":"+dbpassword+"@"+dbhost+":"+dbport+"/"+dbname+"?authMechanism=SCRAM-SHA-1");
+            dbclient=mongojoin.MongoClient("mongodb://"+dbusername+":"+dbpassword+"@"+dbhost+":"+dbport+"/"+dbname+"?authMechanism=SCRAM-SHA-1");
 
         #dbname=mongouri.split("/")[-1];
         db=dbclient[dbname];
 
-        dbindexes=mongolink.getintersectionindexes(db,basecollection);
+        dbindexes=mongojoin.getintersectionindexes(db,basecollection);
         #print dbindexes;
         #sys.stdout.flush();
 
-        allindexes=mongolink.getunionindexes(db);
+        allindexes=mongojoin.getunionindexes(db);
     else:
         raise Exception("Only \"mongodb\" is currently supported.");
 
@@ -1735,7 +1735,7 @@ try:
         #if len(oldqueryresultinds)==0:
         #    oldqueryresult=[];
         #else:
-        #    oldqueryresult=mongolink.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
+        #    oldqueryresult=mongojoin.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
         #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,controllername) for y in contractededjobname2jobdocs(x,dbindexes) if len(x)>0];
         #with open(querystatefile,"a") as iostream:
         #    for line in oldqueryresult+oldqueryresultrunning:
@@ -1755,7 +1755,7 @@ try:
             requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefilename,basecollection,counters,counterstatefile,counterheader,dbindexes);
             if (querylimit==None) or (counters[1]<=querylimit):
                 if dbtype=="mongodb":
-                    counters=mongolink.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,basecollection,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,basecollection,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,storagelimit,nthreadsfield,needslicense,username,globalmaxjobcount,localmaxjobcount,controllerpath,localbinpath,licensescript,sublicensescript,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,modname,controllername,dbindexes,logging,cleanup,templocal,writelocal,writedb,statslocal,statsdb,markdone,writemode,scriptcommand,scriptflags,scriptext,scriptargs,querystatefilename,basecollection,counterstatefile,counterheader,niters_orig,nbatch_orig,nworkers_orig),readform=lambda x:indexsplit2indexdoc(x.split("_")[2:],dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit,limittries=10,toplevel=True);
+                    counters=mongojoin.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,basecollection,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,basecollection,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,storagelimit,nthreadsfield,needslicense,username,globalmaxjobcount,localmaxjobcount,controllerpath,localbinpath,licensescript,sublicensescript,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,modname,controllername,dbindexes,logging,cleanup,templocal,writelocal,writedb,statslocal,statsdb,markdone,writemode,scriptcommand,scriptflags,scriptext,scriptargs,querystatefilename,basecollection,counterstatefile,counterheader,niters_orig,nbatch_orig,nworkers_orig),readform=lambda x:indexsplit2indexdoc(x.split("_")[2:],dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit,limittries=10,toplevel=True);
         #print "bye";
         #firstrun=False;
         releaseheldjobs(username,modname,controllername);
