@@ -5,6 +5,9 @@ do_template () {
     controllerpath=$2
     workpath=$3
 
+    modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+    controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+
     modulespath="${CRUNCH_ROOT}/modules/modules"
 
     #cp "${binpath}/reset.bash" "${controllerpath}/"
@@ -15,7 +18,7 @@ do_template () {
 
     modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
 
-    files=$(find "${controllerpath}/" -mindepth 1 -type f -not -path '*/\.*' 2>/dev/null)
+    files=$(find ${controllerpath} -mindepth 1 -path '*/.*' -prune -o -type f -print 2>/dev/null)
     for file in ${files}
     do
         #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
@@ -28,178 +31,145 @@ do_template () {
     echo "Finished creating template for ${modname}_${controllername}."
 }
 
-startpath=$(cd $1 && pwd -P)
-origdepth=$(echo ${startpath} | grep -o / | wc -l)
-depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
-if [[ "${depth}" == "" ]]
-then
-    depthdiff=0
-else
-    depthdiff=$((${depth}-${origdepth}))
-fi
+do_not_dir() {
+    path=$1
+
+    mkdir ${path}
+}
+
+modules_dir=$1
+shift
+
+startpath=$(cd ${modules_dir} && pwd -P)
+
+branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
+maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
+leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | sed 's/\/jobs$//g' | tr '\n' ',')
+moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
+modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
+controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
 
 case $# in
+    0)
+        ;;
     1)
-        case ${depthdiff} in
-            0)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
-                controllernames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
-                ;;
-            1)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
-                controllernames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
-                ;;
-            2)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
-                controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
-                ;;
-            3)
-                modnames=($(find ${startpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
-                controllernames=()
-                ;;
-            *)
-                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
-                exit 1
-                ;;
-        esac
+        if [[ "${moddirpath}" == "${startpath}" ]]
+        then
+            modnames=($1)
+            controllernames=()
+        else
+            stopflag=false
+            for i in ${!controllernames[@]}
+            do
+                if [[ "${controllernames[${i}]}" == "$1" ]]
+                then
+                    modnames=(${modnames[${i}]})
+                    controllernames=(${controllernames[i]})
+                    stopflag=true
+                    break
+                fi
+            done
+            if ! ${stopflag}
+            then
+                for modname in ${modnames[@]}
+                do
+                    if [[ "${modname}" == "$1" ]]
+                    then
+                        modnames=(${modname})
+                        controllernames=()
+                        stopflag=true
+                        break
+                    fi
+                done
+            fi
+            if ! ${stopflag}
+            then
+                for modname in $(find ${moddirpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
+                do
+                    if [[ "${modname}" == "$1" ]]
+                    then
+                        modnames=(${modname})
+                        controllernames=()
+                        stopflag=true
+                        break
+                    fi
+                done
+            fi
+            if ! ${stopflag}
+            then
+                for i in ${!modnames[@]}
+                do
+                    modnames=(${modnames[${i}]})
+                    controllernames=($1)
+                done
+            fi
+        fi
         ;;
     2)
-        case ${depthdiff} in
-            0)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
-                controllernames=($2)
-                ;;
-            1)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
-                controllernames=($2)
-                ;;
-            2)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
-                controllernames=($2)
-                ;;
-            3)
-                modnames=($2)
-                controllernames=()
-                ;;
-            *)
-                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
-                exit 1
-                ;;
-        esac
-        ;;
-    3)
-        modnames=($2)
-        controllernames=($3)
+        modnames=($1)
+        controllernames=($2)
         ;;
     *)
-        echo "Error: You must provide no more than 3 arguments. $# provided."
-        exit 1
+        echo "Error: You must provide no more than 2 arguments. $# provided."
+        exit
         ;;
 esac
 
-case ${#modnames[@]} in
-    1)
-        modname="${modnames[0]}"
-        modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
+for i in ${!modnames[@]}
+do
+    modname=${modnames[${i}]}
 
-        if [ ! -d "${modpath}" ]
-        then
-            mkdir ${modpath}
-        fi
+    modpath="${moddirpath}/${modname}"
 
-        case ${#controllernames[@]} in
-            0)
-                controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
+    if [ ! -d "${modpath}" ]
+    then
+        do_not_dir ${modpath}
+    fi
 
-                for controllername in ${controllernames[@]}
-                do
-                    controllerpath="${modpath}/${controllername}"
+    if [[ "${controllernames[${i}]}" == "" ]]
+    then
+        controllernames=($(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
 
-                    if [ ! -d "${controllerpath}" ]
-                    then
-                        mkdir ${controllerpath}
-                    fi
-
-                    workpath="${controllerpath}/jobs"
-
-                    if [ ! -d "${workpath}" ]
-                    then
-                        mkdir ${workpath}
-                    fi
-
-                    do_template ${modpath} ${controllerpath} ${workpath}
-                done
-                ;;
-            1)
-                controllername="${controllernames[0]}"
-                controllerpath="${modpath}/${controllername}"
-
-                if [ ! -d "${controllerpath}" ]
-                then
-                    mkdir ${controllerpath}
-                fi
-
-                workpath="${controllerpath}/jobs"
-
-                if [ ! -d "${workpath}" ]
-                then
-                    mkdir ${workpath}
-                fi
-
-                do_template ${modpath} ${controllerpath} ${workpath}
-                ;;
-            *)
-                for controllername in ${controllernames[@]}
-                do
-                    controllerpath="${modpath}/${controllername}"
-
-                    if [ ! -d "${controllerpath}" ]
-                    then
-                        mkdir ${controllerpath}
-                    fi
-
-                    workpath="${controllerpath}/jobs"
-
-                    if [ ! -d "${workpath}" ]
-                    then
-                        mkdir ${workpath}
-                    fi
-
-                    do_template ${modpath} ${controllerpath} ${workpath}
-                done
-                ;;
-        esac
-        ;;
-    *)
-        for modname in ${modnames[@]}
+        for controllername in ${controllernames[@]}
         do
-            modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
+            controllerpath="${modpath}/${controllername}"
 
-            if [ ! -d "${modpath}" ]
+            if [ ! -d "${controllerpath}" ]
             then
-                mkdir ${modpath}
+                do_not_dir ${controllerpath}
             fi
 
-            controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
+            workpath="${controllerpath}/jobs"
 
-            for controllername in ${controllernames[@]}
-            do
-                controllerpath="${modpath}/${controllername}"
+            if [ ! -d "${workpath}" ]
+            then
+                do_not_dir ${workpath}
+            fi
 
-                if [ ! -d "${controllerpath}" ]
-                then
-                    mkdir ${controllerpath}
-                fi
-
-                workpath="${controllerpath}/jobs"
-
-                if [ ! -d "${workpath}" ]
-                then
-                    mkdir ${workpath}
-                fi
-
+            if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
+            then
                 do_template ${modpath} ${controllerpath} ${workpath}
-            done
+            fi
         done
-        ;;
-esac
+    else
+        controllername=${controllernames[${i}]}
+        controllerpath="${modpath}/${controllername}"
+
+        if [ ! -d "${controllerpath}" ]
+        then
+            do_not_dir ${controllerpath}
+        fi
+
+        workpath="${controllerpath}/jobs"
+
+        if [ ! -d "${workpath}" ]
+        then
+            do_not_dir ${workpath}
+        fi
+
+        if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
+        then
+            do_template ${modpath} ${controllerpath} ${workpath}
+        fi
+    fi
+done

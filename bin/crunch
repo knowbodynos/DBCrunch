@@ -5,13 +5,17 @@ do_crunch () {
     controllerpath=$2
     workpath=$3
 
-    jobs=$(find ${controllerpath}/ -type f -name "*.job" -not -path '*/\.*' 2>/dev/null)
+    jobs=$(find ${controllerpath} -path '*/.*' -prune -o -type f -name "*.job" -print 2>/dev/null)
     for job in ${jobs}
     do
         jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
         jobmsg=$(sbatch ${job} 2>&1)
         echo "${jobmsg} as ${jobname}."
     done
+}
+
+do_not_dir() {
+    path=$1
 }
 
 ProgName=$(basename "${BASH_SOURCE[0]}")
@@ -34,17 +38,7 @@ sub_help(){
 }
 
 sub_cancel(){
-    if [ "$#" -eq 0 ]
-    then
-        ${ProgDir}/cancel $(pwd -P)
-    else
-        if [ ! -d "$1" ]
-        then
-            ${ProgDir}/cancel $(pwd -P) ${@}
-        else
-            ${ProgDir}/cancel ${@}
-        fi
-    fi
+    ${ProgDir}/cancel ${@}
 }
 
 sub_monitor(){
@@ -57,60 +51,54 @@ sub_monitor(){
 }
 
 sub_requeue(){
-    if [ "$#" -eq 0 ]
-    then
-        ${ProgDir}/requeue $(pwd -P)
-    else
-        if [ ! -d "$1" ]
-        then
-            ${ProgDir}/requeue $(pwd -P) ${@}
-        else
-            ${ProgDir}/requeue ${@}
-        fi
-    fi
+    ${ProgDir}/requeue ${@}
 }
 
 sub_reset(){
-    if [ "$#" -eq 0 ]
-    then
-        ${ProgDir}/reset $(pwd -P)
-    else
-        if [ ! -d "$1" ]
-        then
-            ${ProgDir}/reset $(pwd -P) ${@}
-        else
-            ${ProgDir}/reset ${@}
-        fi
-    fi
+    ${ProgDir}/reset ${@}
 }
 
 sub_submit(){
-    if [ "$#" -eq 0 ]
-    then
-        ${ProgDir}/submit $(pwd -P)
-    else
-        if [ ! -d "$1" ]
-        then
-            ${ProgDir}/submit $(pwd -P) ${@}
-        else
-            ${ProgDir}/submit ${@}
-        fi
-    fi
+    ${ProgDir}/submit ${@}
 }
 
 sub_template(){
-    if [ "$#" -eq 0 ]
-    then
-        ${ProgDir}/template $(pwd -P)
-    else
-        if [ ! -d "$1" ]
-        then
-            ${ProgDir}/template $(pwd -P) ${@}
-        else
-            ${ProgDir}/template ${@}
-        fi
-    fi
+    ${ProgDir}/template ${@}
 }
+
+SHORTOPTS="m:" 
+LONGOPTS="modules_dir:" 
+
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@" ) 
+
+eval set -- "$ARGS" 
+
+modules_dir=$(pwd -P)
+
+while true
+do
+    case $1 in
+        -m | --modules_dir)
+            modules_dir=$2
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            shift
+            break
+            ;;
+    esac
+    shift
+done
+
+if [ ! -d "${modules_dir}" ]
+then
+    echo "Error: Directory \"${modules_dir}\" does not exist."
+    exit
+fi
   
 subcommand=$1
 case $subcommand in
@@ -118,38 +106,142 @@ case $subcommand in
         sub_help
         ;;
     "")
-        startpath=$(pwd -P)
-        origdepth=$(echo ${startpath} | grep -o / | wc -l)
-        depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
-        if [[ "${depth}" == "" ]]
-        then
-            depthdiff=0
-        else
-            depthdiff=$((${depth}-${origdepth}))
-        fi
+        startpath=${modules_dir}
+        branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
+        maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
+        leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | sed 's/\/jobs$//g' | tr '\n' ',')
+        moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
+        modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
+        controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
 
-        case ${depthdiff} in
+        case $# in
             0)
-                modpath=$(echo ${startpath} | rev | cut -d'/' -f1,2 --complement | rev)
-                controllerpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
-                workpath="${controllerpath}/jobs"
                 ;;
             1)
-                modpath=$(echo ${startpath} | rev | cut -d'/' -f1 --complement | rev)
-                controllerpath="${startpath}"
-                workpath="${controllerpath}/jobs"
+                if [[ "${moddirpath}" == "${startpath}" ]]
+                then
+                    modnames=($1)
+                    controllernames=()
+                else
+                    stopflag=false
+                    for i in ${!controllernames[@]}
+                    do
+                        if [[ "${controllernames[${i}]}" == "$1" ]]
+                        then
+                            modnames=(${modnames[${i}]})
+                            controllernames=(${controllernames[i]})
+                            stopflag=true
+                            break
+                        fi
+                    done
+                    if ! ${stopflag}
+                    then
+                        for modname in ${modnames[@]}
+                        do
+                            if [[ "${modname}" == "$1" ]]
+                            then
+                                modnames=(${modname})
+                                controllernames=()
+                                stopflag=true
+                                break
+                            fi
+                        done
+                    fi
+                    if ! ${stopflag}
+                    then
+                        for modname in $(find ${moddirpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
+                        do
+                            if [[ "${modname}" == "$1" ]]
+                            then
+                                modnames=(${modname})
+                                controllernames=()
+                                stopflag=true
+                                break
+                            fi
+                        done
+                    fi
+                    if ! ${stopflag}
+                    then
+                        for i in ${!modnames[@]}
+                        do
+                            modnames=(${modnames[${i}]})
+                            controllernames=($1)
+                        done
+                    fi
+                fi
+                ;;
+            2)
+                modnames=($1)
+                controllernames=($2)
                 ;;
             *)
-                echo "Error: You are currently in the ${startpath} directory. You must be inside a controller directory."
-                exit 1
+                echo "Error: You must provide no more than 2 arguments. $# provided."
+                exit
                 ;;
         esac
 
-        do_crunch ${modpath} ${controllerpath} ${workpath}
+        for i in ${!modnames[@]}
+        do
+            modname=${modnames[${i}]}
+
+            modpath="${moddirpath}/${modname}"
+
+            if [ ! -d "${modpath}" ]
+            then
+                do_not_dir ${modpath}
+            fi
+
+            if [[ "${controllernames[${i}]}" == "" ]]
+            then
+                controllernames=($(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+
+                for controllername in ${controllernames[@]}
+                do
+                    controllerpath="${modpath}/${controllername}"
+
+                    if [ ! -d "${controllerpath}" ]
+                    then
+                        do_not_dir ${controllerpath}
+                    fi
+
+                    workpath="${controllerpath}/jobs"
+
+                    if [ ! -d "${workpath}" ]
+                    then
+                        do_not_dir ${workpath}
+                    fi
+
+                    if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
+                    then
+                        do_test ${modpath} ${controllerpath} ${workpath}
+                    fi
+                done
+            else
+                controllername=${controllernames[${i}]}
+                controllerpath="${modpath}/${controllername}"
+
+                if [ ! -d "${controllerpath}" ]
+                then
+                    do_not_dir ${controllerpath}
+                fi
+
+                workpath="${controllerpath}/jobs"
+
+                if [ ! -d "${workpath}" ]
+                then
+                    do_not_dir ${workpath}
+                fi
+
+                if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
+                then
+                    do_test ${modpath} ${controllerpath} ${workpath}
+                fi
+            fi
+        done
         ;;
     *)
         shift
-        sub_${subcommand} $@
+        sub_${subcommand} ${modules_dir} $@
         if [ $? = 127 ]; then
             echo "Error: '$subcommand' is not a known subcommand." >&2
             echo "       Run '$ProgName --help' for a list of known subcommands." >&2

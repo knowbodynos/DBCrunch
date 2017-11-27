@@ -21,158 +21,143 @@ do_cancel () {
     fi
 }
 
-startpath=$(cd $1 && pwd -P)
-origdepth=$(echo ${startpath} | grep -o / | wc -l)
-depth=$(find ${startpath} -mindepth 1 -type d -name jobs -not -path '*/\.*' -exec bash -c 'echo '{}' 2>/dev/null | grep -o / | wc -l' \; -quit 2>/dev/null)
-if [[ "${depth}" == "" ]]
-then
-    depthdiff=0
-else
-    depthdiff=$((${depth}-${origdepth}))
-fi
+do_not_dir() {
+    path=$1
+}
+
+modules_dir=$1
+shift
+
+startpath=$(cd ${modules_dir} && pwd -P)
+
+branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
+maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
+leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | sed 's/\/jobs$//g' | tr '\n' ',')
+moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
+modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
+controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
 
 case $# in
+    0)
+        ;;
     1)
-        case ${depthdiff} in
-            0)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
-                controllernames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
-                ;;
-            1)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
-                controllernames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
-                ;;
-            2)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
-                controllernames=($(find ${startpath}/ -maxdepth 1 -type d | rev | cut -d'/' -f1 | rev))
-                ;;
-            3)
-                modnames=($(find ${startpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
-                controllernames=()
-                ;;
-            *)
-                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
-                exit 1
-                ;;
-        esac
-        ;;
-    2)
-        case ${depthdiff} in
-            0)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f3 | rev))
-                controllernames=($2)
-                ;;
-            1)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f2 | rev))
-                controllernames=($2)
-                ;;
-            2)
-                modnames=($(echo ${startpath} | rev | cut -d'/' -f1 | rev))
-                controllernames=($2)
-                ;;
-            3)
-                modnames=($2)
-                controllernames=()
-                ;;
-            *)
-                echo "Error: You are currently in the ${startpath} directory. You must be inside a modules directory."
-                exit 1
-                ;;
-        esac
-        ;;
-    3)
-        modnames=($2)
-        controllernames=($3)
-        ;;
-    *)
-        echo "Error: You must provide no more than 3 arguments. $# provided."
-        exit 1
-        ;;
-esac
-
-case ${#modnames[@]} in
-    1)
-        modname="${modnames[0]}"
-        modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
-
-        if [ -d "${modpath}" ]
+        if [[ "${moddirpath}" == "${startpath}" ]]
         then
-            case ${#controllernames[@]} in
-                0)
-                    controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
-
-                    for controllername in ${controllernames[@]}
-                    do
-                        controllerpath="${modpath}/${controllername}"
-
-                        if [ -d "${controllerpath}" ]
-                        then
-                            workpath="${controllerpath}/jobs"
-
-                            if [ -d "${workpath}" ]
-                            then
-                                do_cancel ${modpath} ${controllerpath} ${workpath}
-                            fi
-                        fi
-                    done
-                    ;;
-                1)
-                    controllername="${controllernames[0]}"
-                    controllerpath="${modpath}/${controllername}"
-
-                    if [ -d "${controllerpath}" ]
-                    then
-                        workpath="${controllerpath}/jobs"
-
-                        if [ -d "${workpath}" ]
-                        then
-                            do_cancel ${modpath} ${controllerpath} ${workpath}
-                        fi
-                    fi
-                    ;;
-                *)
-                    for controllername in ${controllernames[@]}
-                    do
-                        controllerpath="${modpath}/${controllername}"
-
-                        if [ -d "${controllerpath}" ]
-                        then
-                            workpath="${controllerpath}/jobs"
-
-                            if [ -d "${workpath}" ]
-                            then
-                                do_cancel ${modpath} ${controllerpath} ${workpath}
-                            fi
-                        fi
-                    done
-                    ;;
-            esac
-        fi
-        ;;
-    *)
-        for modname in ${modnames[@]}
-        do
-            modpath="$(echo ${startpath} | sed -E "s/\/${modname}(\/.*|$)//g")/${modname}"
-
-            if [ -d "${modpath}" ]
+            modnames=($1)
+            controllernames=()
+        else
+            stopflag=false
+            for i in ${!controllernames[@]}
+            do
+                if [[ "${controllernames[${i}]}" == "$1" ]]
+                then
+                    modnames=(${modnames[${i}]})
+                    controllernames=(${controllernames[i]})
+                    stopflag=true
+                    break
+                fi
+            done
+            if ! ${stopflag}
             then
-                controllernames=($(find ${modpath}/ -maxdepth 1 -type d -not -path '*/\.*' 2>/dev/null | rev | cut -d'/' -f1 | rev))
-
-                for controllername in ${controllernames[@]}
+                for modname in ${modnames[@]}
                 do
-                    controllerpath="${modpath}/${controllername}"
-
-                    if [ -d "${controllerpath}" ]
+                    if [[ "${modname}" == "$1" ]]
                     then
-                        workpath="${controllerpath}/jobs"
-
-                        if [ -d "${workpath}" ]
-                        then
-                            do_cancel ${modpath} ${controllerpath} ${workpath}
-                        fi
+                        modnames=(${modname})
+                        controllernames=()
+                        stopflag=true
+                        break
                     fi
                 done
             fi
-        done
+            if ! ${stopflag}
+            then
+                for modname in $(find ${moddirpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
+                do
+                    if [[ "${modname}" == "$1" ]]
+                    then
+                        modnames=(${modname})
+                        controllernames=()
+                        stopflag=true
+                        break
+                    fi
+                done
+            fi
+            if ! ${stopflag}
+            then
+                for i in ${!modnames[@]}
+                do
+                    modnames=(${modnames[${i}]})
+                    controllernames=($1)
+                done
+            fi
+        fi
+        ;;
+    2)
+        modnames=($1)
+        controllernames=($2)
+        ;;
+    *)
+        echo "Error: You must provide no more than 2 arguments. $# provided."
+        exit
         ;;
 esac
+
+for i in ${!modnames[@]}
+do
+    modname=${modnames[${i}]}
+
+    modpath="${moddirpath}/${modname}"
+
+    if [ ! -d "${modpath}" ]
+    then
+        do_not_dir ${modpath}
+    fi
+
+    if [[ "${controllernames[${i}]}" == "" ]]
+    then
+        controllernames=($(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+
+        for controllername in ${controllernames[@]}
+        do
+            controllerpath="${modpath}/${controllername}"
+
+            if [ ! -d "${controllerpath}" ]
+            then
+                do_not_dir ${controllerpath}
+            fi
+
+            workpath="${controllerpath}/jobs"
+
+            if [ ! -d "${workpath}" ]
+            then
+                do_not_dir ${workpath}
+            fi
+
+            if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
+            then
+                do_cancel ${modpath} ${controllerpath} ${workpath}
+            fi
+        done
+    else
+        controllername=${controllernames[${i}]}
+        controllerpath="${modpath}/${controllername}"
+
+        if [ ! -d "${controllerpath}" ]
+        then
+            do_not_dir ${controllerpath}
+        fi
+
+        workpath="${controllerpath}/jobs"
+
+        if [ ! -d "${workpath}" ]
+        then
+            do_not_dir ${workpath}
+        fi
+
+        if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
+        then
+            do_cancel ${modpath} ${controllerpath} ${workpath}
+        fi
+    fi
+done

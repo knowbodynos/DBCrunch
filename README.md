@@ -80,16 +80,7 @@ Using `DBCrunch`:
    controllerbuffertime="00:05:00"
    storagelimit="10G"
    sleeptime="1"
-    
-   #Input script info
-   scriptlanguage="<module_language>"
-   partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
-   writemode="truncate"
-   scriptmemorylimit="500000000"
-   scripttimelimit=""
-   scriptbuffertime="00:01:00"
-   joblimit=""
-    
+
    #Input database info
    dbtype="mongodb"
    dbusername="<db_username>"
@@ -100,6 +91,15 @@ Using `DBCrunch`:
    queries="<mongolink_query>"
    basecollection="<db_collection>"
    nthreadsfield=""
+    
+   #Input script info
+   scriptlanguage="<module_language>"
+   partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
+   writemode="truncate"
+   scriptmemorylimit="500000000"
+   scripttimelimit=""
+   scriptbuffertime="00:01:00"
+   joblimit=""
     
    #Options
    blocking="False"
@@ -115,7 +115,7 @@ Using `DBCrunch`:
    nbatch="5"
    nworkers="2"
     
-   python ${CRUNCH_ROOT}/bin/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${scriptlanguage}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
+   python ${CRUNCH_ROOT}/bin/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${scriptlanguage}" "${scriptargs}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
 ```
 
 Make sure to replace everything in `<...>` with your job information.
