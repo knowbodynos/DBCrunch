@@ -33,8 +33,6 @@ do
     shift
 done
 
-USER_LOCAL="${USER_LOCAL}"
-pythonpath="${CRUNCH_ROOT}/packages/python"
 softwarepath="${CRUNCH_ROOT}/modules/install"
 currpath=$(pwd)
 
@@ -139,6 +137,8 @@ then
     rm -rf pymongo
 fi
 
+#Install DB APIs
+
 #Install pymongo
 if $(python -c "import pymongo" |& grep -q "ImportError" && echo true || echo false)
 then
@@ -161,15 +161,17 @@ then
 fi
 
 #Install mongojoin
-cd ${pythonpath}/mongojoin
+cd ${CRUNCH_ROOT}/api/db/mongojoin
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
     sage --python setup.py install --user --record filessage.txt
 fi
 
+#Install Workload APIs
+
 #Install crunch_slurm
-cd ${pythonpath}/crunch_slurm
+cd ${CRUNCH_ROOT}/api/workload/crunch_slurm
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
