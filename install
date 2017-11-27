@@ -160,16 +160,16 @@ then
     rm -rf pymongo
 fi
 
-#Install mongolink
-cd ${pythonpath}/mongolink
+#Install mongojoin
+cd ${pythonpath}/mongojoin
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
     sage --python setup.py install --user --record filessage.txt
 fi
 
-#Install slurmlink
-cd ${pythonpath}/slurmlink
+#Install crunch_slurm
+cd ${pythonpath}/crunch_slurm
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
