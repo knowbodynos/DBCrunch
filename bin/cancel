@@ -4,6 +4,9 @@ modpath=$1
 controllerpath=$2
 workpath=$3
 
+modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+
 jobs=$(squeue -h -u ${USER} -o '%.10i %.100j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
 if [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | wc -l)" -ne 0 ]
 then

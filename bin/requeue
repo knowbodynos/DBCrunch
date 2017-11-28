@@ -4,6 +4,9 @@ modpath=$1
 controllerpath=$2
 workpath=$3
 
+modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+
 #loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
 loadfilenames=$(find ${workpath} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.docs" -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
 #loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
