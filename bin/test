@@ -1,0 +1,10 @@
+#!/bin/bash
+
+modpath=$1
+controllerpath=$2
+workpath=$3
+
+echo ""
+echo ${modpath}
+echo ${controllerpath}
+echo ${workpath}

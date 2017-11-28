@@ -1,175 +1,30 @@
 #!/bin/bash
 
-do_template () {
-    modpath=$1
-    controllerpath=$2
-    workpath=$3
+modpath=$1
+controllerpath=$2
+workpath=$3
 
-    modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-    controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
-    modulespath="${CRUNCH_ROOT}/modules/modules"
+modulespath="${CRUNCH_ROOT}/modules/modules"
 
-    #cp "${binpath}/reset.bash" "${controllerpath}/"
-    cp -T "${modulespath}/${modname}/${modname}_slurm.job" "${controllerpath}/crunch_${modname}_${controllername}_controller.job"
-    echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
-    echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-    echo "Pending" > ${controllerpath}/status 2>/dev/null
+#cp "${binpath}/reset.bash" "${controllerpath}/"
+cp -T "${modulespath}/${modname}/${modname}_slurm.job" "${controllerpath}/crunch_${modname}_${controllername}_controller.job"
+echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
+echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
+echo "Pending" > ${controllerpath}/status 2>/dev/null
 
-    modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
+modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
 
-    files=$(find ${controllerpath} -mindepth 1 -path '*/.*' -prune -o -type f -print 2>/dev/null)
-    for file in ${files}
-    do
-        #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
-        sed -i "s|path\_to\_module|${modulesworkpath}|g" ${file}
-        sed -i "s|template|${controllername}|g" ${file}
-        #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
-        #mv ${file} ${newfile} 2>/dev/null
-    done
-
-    echo "Finished creating template for ${modname}_${controllername}."
-}
-
-do_not_dir() {
-    path=$1
-
-    mkdir ${path}
-}
-
-modules_dir=$1
-shift
-
-startpath=$(cd ${modules_dir} && pwd -P)
-
-branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
-maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
-leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | sed 's/\/jobs$//g' | tr '\n' ',')
-moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
-modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
-controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
-
-case $# in
-    0)
-        ;;
-    1)
-        if [[ "${moddirpath}" == "${startpath}" ]]
-        then
-            modnames=($1)
-            controllernames=()
-        else
-            stopflag=false
-            for i in ${!controllernames[@]}
-            do
-                if [[ "${controllernames[${i}]}" == "$1" ]]
-                then
-                    modnames=(${modnames[${i}]})
-                    controllernames=(${controllernames[i]})
-                    stopflag=true
-                    break
-                fi
-            done
-            if ! ${stopflag}
-            then
-                for modname in ${modnames[@]}
-                do
-                    if [[ "${modname}" == "$1" ]]
-                    then
-                        modnames=(${modname})
-                        controllernames=()
-                        stopflag=true
-                        break
-                    fi
-                done
-            fi
-            if ! ${stopflag}
-            then
-                for modname in $(find ${moddirpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
-                do
-                    if [[ "${modname}" == "$1" ]]
-                    then
-                        modnames=(${modname})
-                        controllernames=()
-                        stopflag=true
-                        break
-                    fi
-                done
-            fi
-            if ! ${stopflag}
-            then
-                for i in ${!modnames[@]}
-                do
-                    modnames=(${modnames[${i}]})
-                    controllernames=($1)
-                done
-            fi
-        fi
-        ;;
-    2)
-        modnames=($1)
-        controllernames=($2)
-        ;;
-    *)
-        echo "Error: You must provide no more than 2 arguments. $# provided."
-        exit
-        ;;
-esac
-
-for i in ${!modnames[@]}
+files=$(find ${controllerpath} -mindepth 1 -type d -path '*/.*' -prune -o -type f -print 2>/dev/null)
+for file in ${files}
 do
-    modname=${modnames[${i}]}
-
-    modpath="${moddirpath}/${modname}"
-
-    if [ ! -d "${modpath}" ]
-    then
-        do_not_dir ${modpath}
-    fi
-
-    if [[ "${controllernames[${i}]}" == "" ]]
-    then
-        controllernames=($(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
-
-        for controllername in ${controllernames[@]}
-        do
-            controllerpath="${modpath}/${controllername}"
-
-            if [ ! -d "${controllerpath}" ]
-            then
-                do_not_dir ${controllerpath}
-            fi
-
-            workpath="${controllerpath}/jobs"
-
-            if [ ! -d "${workpath}" ]
-            then
-                do_not_dir ${workpath}
-            fi
-
-            if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
-            then
-                do_template ${modpath} ${controllerpath} ${workpath}
-            fi
-        done
-    else
-        controllername=${controllernames[${i}]}
-        controllerpath="${modpath}/${controllername}"
-
-        if [ ! -d "${controllerpath}" ]
-        then
-            do_not_dir ${controllerpath}
-        fi
-
-        workpath="${controllerpath}/jobs"
-
-        if [ ! -d "${workpath}" ]
-        then
-            do_not_dir ${workpath}
-        fi
-
-        if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
-        then
-            do_template ${modpath} ${controllerpath} ${workpath}
-        fi
-    fi
+    #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
+    sed -i "s|path\_to\_module|${modulesworkpath}|g" ${file}
+    sed -i "s|template|${controllername}|g" ${file}
+    #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
+    #mv ${file} ${newfile} 2>/dev/null
 done
+
+echo "Finished creating template for ${modname}_${controllername}."

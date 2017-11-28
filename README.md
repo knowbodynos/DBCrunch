@@ -122,13 +122,19 @@ Make sure to replace everything in `<...>` with your job information.
 
 4) If your module depends on previous modules, add these dependencies to the file `${CRUNCH_ROOT}/modules/dependencies/<module>`, where `<module>` is the name of your module.
 
-5) Create your working directory `<dir>` and navigate to it
+5) Create your working directory `<work_dir>` and navigate to it
 
 ```
-   cd <dir>
+   cd <work_dir>
 ```
 
-6) Copy over your template
+6) Add an empty file `.DBCrunch` to the working directory to designate it as such
+
+```
+   touch .DBCrunch
+```
+
+7) Copy over your template
 
 ```
    crunch template <module> <controller>
@@ -136,19 +142,19 @@ Make sure to replace everything in `<...>` with your job information.
 
 where `<controller>` is a name you choose for the segment of your database that you wish to process.
 
-7) Navigate to the controller directory
+8) Navigate to the controller directory
 
 ```
    cd <module>/<controller>
 ```
 
-8) Begin processing
+9) Begin processing
 
 ```
-   crunch
+   crunch submit
 ```
 
-9) Monitor your progress
+10) Monitor your progress
 
 ```
    crunch monitor <s>
@@ -156,19 +162,19 @@ where `<controller>` is a name you choose for the segment of your database that 
 
 where `<s>` is the refresh interval. Use `Ctrl-C` to exit.
 
-10) If you need to terminate the process for any reason, use:
+11) If you need to terminate the process for any reason, use:
 
 ```
    crunch cancel <module> <controller>
 ```
 
-11) In order to requeue jobs that may have failed, use:
+12) In order to requeue jobs that may have failed, use:
 
 ```
    crunch requeue <module> <controller>
 ```
 
-12) If you wish to reset the entire controller directory to initial conditions, use:
+13) If you wish to reset the entire controller directory to initial conditions, use:
 
 ```
    crunch reset <module> <controller>

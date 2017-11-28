@@ -512,7 +512,7 @@ def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,niters,nbatch,
         #jobid=submitcomm.split(' ')[-1];
         #maketop=Popen("scontrol top "+jobid,shell=True,stdout=PIPE,preexec_fn=default_sigpipe);
         print "";
-        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
         print "Resubmitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+str(nnodes)+" nodes, "+str(ncores)+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
         for jobstepnum in range(len(jobstepnames)):
             #with open(jobpath+"/"+jobstepnames[i]+".error","a") as statstream:
@@ -522,7 +522,7 @@ def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,niters,nbatch,
         print "";
         print "";
     else:
-        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
         print "Submitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+str(nnodes)+" nodes, "+str(ncores)+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
         for jobstepnum in range(len(jobstepnames)):
             #with open(jobpath+"/"+jobstepnames[i]+".error","a") as statstream:
@@ -539,12 +539,12 @@ def submitcontrollerjob(jobpath,jobname,controllernnodes,controllerncores,partit
         #jobid=submitcomm.split(' ')[-1];
         #maketop=Popen("scontrol top "+jobid,shell=True,stdout=PIPE,preexec_fn=default_sigpipe);
         print "";
-        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
         print "Resubmitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+controllernnodes+" nodes, "+controllerncores+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
         print "";
         print "";
     else:
-        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
         print "Submitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+controllernnodes+" nodes, "+controllerncores+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
         print "";
     sys.stdout.flush();
@@ -1047,7 +1047,7 @@ def writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,
     outputlinemarkers=["-","+","&","@","CPUTime:","MaxRSS:","MaxVMSize:","BSONSize:","None"];
     jobstring="#!/bin/bash\n";
     jobstring+="\n";
-    jobstring+="#Created "+str(datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"))+"\n";
+    jobstring+="#Created "+str(datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC"))+"\n";
     jobstring+="\n";
     jobstring+="#Job name\n";
     jobstring+="#SBATCH -J \""+jobname+"\"\n";
@@ -1597,7 +1597,7 @@ try:
         controllerstats=get_controllerstats(controllerjobid);
     controllerpartition,controllertimelimit,controllernnodes,controllerncores=controllerstats;
 
-    print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+    print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
     print "Starting job crunch_"+modname+"_"+controllername+"_controller";
     print "";
     print "";
@@ -1802,7 +1802,7 @@ try:
             statusstream.truncate(0);
             statusstream.write("Completing");
         print "";
-        print datetime.datetime.now().strftime("%Y %m %d %H:%M:%S");
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
         print "Completing job crunch_"+modname+"_"+controllername+"_controller\n";
         sys.stdout.flush();
 

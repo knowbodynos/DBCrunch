@@ -4,9 +4,10 @@ _crunch()
     local cur
     cur=${COMP_WORDS[COMP_CWORD]}
     #prev=${COMP_WORDS[COMP_CWORD-1]}
+
     case ${COMP_CWORD} in
         1)
-            COMPREPLY=($(compgen -W "--modules_dir cancel monitor requeue reset submit template" -- ${cur}))
+            COMPREPLY=($(compgen -W "--modules-dir cancel monitor requeue reset submit template test" -- ${cur}))
             ;;
         #2)
         #    case ${prev} in
@@ -18,84 +19,87 @@ _crunch()
         #            ;;
         #    esac
         #    ;;
-        2)
-            if [[ "${COMP_WORDS[COMP_CWORD-1]}" != "--modules_dir" ]]
-            then
-                modules_dir=$(pwd -P)
-
-                startpath=$(cd ${modules_dir} && pwd -P)
-                branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
-                maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
-                leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | tr '\n' ',')
-                moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
-                #modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
-                #controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
-
-                modcontrollernames=$(find ${moddirpath} -mindepth 1 -path '*/.*' -prune -o -type d -regextype posix-extended -regex ".*/${cur}.*" -print 2>/dev/null | grep -v '/jobs' | rev | cut -d'/' -f1 | rev)
-                
-                COMPREPLY=($(compgen -W "${modcontrollernames}" -- ${cur}))
-            fi
-            ;;
-        3)
-            if [[ "${COMP_WORDS[COMP_CWORD-2]}" != "--modules_dir" ]]
-            then
-                modules_dir=$(pwd -P)
-
-                startpath=$(cd ${modules_dir} && pwd -P)
-                branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
-                maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
-                leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | tr '\n' ',')
-                moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
-
-                modpath="${moddirpath}/${COMP_WORDS[COMP_CWORD-1]}"
-
-                modnames=""
-                controllernames=$(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
-
-                COMPREPLY=($(compgen -W "${modnames} ${controllernames}" -- ${cur}))
-            else
-                COMPREPLY=($(compgen -W "cancel monitor requeue reset submit template" -- ${cur}))
-            fi            
-            ;;
-        4)
-            if [[ "${COMP_WORDS[COMP_CWORD-3]}" == "--modules_dir" ]]
-            then
-                modules_dir=$(eval echo ${COMP_WORDS[COMP_CWORD-2]})
-
-                startpath=$(cd ${modules_dir} && pwd -P)
-                branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
-                maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
-                leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | tr '\n' ',')
-                moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
-                #modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
-                #controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
-
-                modcontrollernames=$(find ${moddirpath} -mindepth 1 -path '*/.*' -prune -o -type d -regextype posix-extended -regex ".*/${cur}.*" -print 2>/dev/null | grep -v '/jobs' | rev | cut -d'/' -f1 | rev)
-                
-                COMPREPLY=($(compgen -W "${modcontrollernames}" -- ${cur}))
-            fi
-            ;;
-        5)
-            if [[ "${COMP_WORDS[COMP_CWORD-4]}" == "--modules_dir" ]]
-            then
-                modules_dir=$(eval echo ${COMP_WORDS[COMP_CWORD-3]})
-
-                startpath=$(cd ${modules_dir} && pwd -P)
-                branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
-                maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
-                leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | tr '\n' ',')
-                moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
-
-                modpath="${moddirpath}/${COMP_WORDS[COMP_CWORD-1]}"
-
-                modnames=""
-                controllernames=$(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
-
-                COMPREPLY=($(compgen -W "${modnames} ${controllernames}" -- ${cur}))
-            fi
-            ;;
         *)
-            COMPREPLY=()
+            case ${COMP_WORDS[1]} in
+                --modules_dir)
+                    modules_dir=$(eval echo ${COMP_WORDS[COMP_CWORD-2]})
+                    right_shift=2
+                    ;;
+                *)
+                    modules_dir=$(pwd -P)
+                    right_shift=0
+                    ;;
+            esac
+
+            startpath=$(cd ${modules_dir} && pwd -P)
+
+            currdir=${startpath}
+
+            module_paths=($(find ${currdir} -mindepth 1 -type d -path '*/.*' -prune -o -type f -name '.DBCrunch' -execdir pwd -P \;))
+
+            currdir=$(cd ${currdir}/.. && pwd -P)
+            dirstats=$(stat -c '%a %U' ${currdir})
+            while [[ "${dirstats}" =~ ^"777 " ]] || [[ "${dirstats}" =~ " ${USER}"$ ]]
+            do
+                if [ -f "${currdir}/.DBCrunch" ]
+                then
+                    module_paths=("${currdir}" "${module_paths[@]}")
+                fi
+                currdir=$(cd ${currdir}/.. && pwd -P)
+                dirstats=$(stat -c '%a %U' ${currdir})
+            done
+
+            if [ "${#module_paths[@]}" -eq 0 ]
+            then
+                echo "Error: No module path detected."
+                exit 1
+            elif [ "${#module_paths[@]}" -gt 1 ]
+            then
+                echo "Error: Multiple module paths detected. Please choose one:"
+                for i in ${!module_paths[@]}
+                do
+                    echo "  ${i}) ${module_paths[${i}]}"
+                done
+                exit 1
+            fi
+
+            moddirpath=${module_paths[0]}
+
+            case ${COMP_CWORD} in
+                $((1+${right_shift})) )
+                    COMPREPLY=($(compgen -W "cancel monitor requeue reset submit template test" -- ${cur}))
+                    ;;
+                *)
+                    case ${COMP_WORDS[1+right_shift]} in
+                        test)
+                            right_shift=$((${right_shift}+1))
+                            ;;
+                    esac
+                            
+                    case ${COMP_CWORD} in
+                        $((1+${right_shift})) )
+                            COMPREPLY=($(compgen -W "true false" -- ${cur}))
+                            ;;
+                        $((2+${right_shift})) )
+                            modcontrollernames=$(find ${moddirpath} -mindepth 1 -type d -path '*/.*' -prune -o -type d -regextype posix-extended -regex ".*/${cur}.*" -print 2>/dev/null | grep -v '/jobs' | rev | cut -d'/' -f1 | rev)
+            
+                            COMPREPLY=($(compgen -W "${modcontrollernames}" -- ${cur}))
+                            ;;
+                        $((3+${right_shift})) )
+                            modpath="${moddirpath}/${COMP_WORDS[COMP_CWORD-1]}"
+
+                            modnames=""
+                            controllernames=$(find ${modpath} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
+
+                            COMPREPLY=($(compgen -W "${modnames} ${controllernames}" -- ${cur}))
+                            ;;
+                        *)
+                            COMPREPLY=()
+                            ;;
+                    esac
+                    ;;
+
+            esac
             ;;
     esac
 }

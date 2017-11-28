@@ -1,176 +1,33 @@
 #!/bin/bash
 
-do_reset () {
-    modpath=$1
-    controllerpath=$2
-    workpath=$3
+modpath=$1
+controllerpath=$2
+workpath=$3
 
-    #workpath="${controllerpath}/jobs"
-    #mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
-    #toolspath="${SLURMONGO_ROOT}/scripts/tools"
+#workpath="${controllerpath}/jobs"
+#mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
+#toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
-    rm ${controllerpath}/*.out ${controllerpath}/*.err tmp* 2>/dev/null
-    rm -r ${workpath}/* 2>/dev/null
-    rm ${controllerpath}/querystate* 2>/dev/null
-    rm ${controllerpath}/reloadstate* 2>/dev/null
+rm ${controllerpath}/*.out ${controllerpath}/*.err tmp* 2>/dev/null
+rm -r ${workpath}/* 2>/dev/null
+rm ${controllerpath}/querystate* 2>/dev/null
+rm ${controllerpath}/reloadstate* 2>/dev/null
 
-    echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
-    echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-    echo "Pending" > ${controllerpath}/status 2>/dev/null
+echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
+echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
+echo "Pending" > ${controllerpath}/status 2>/dev/null
 
-    echo "Finished resetting ${modname}_${controllername}."
+echo "Finished resetting ${modname}_${controllername}."
 
-    #currdir=$(pwd)
-    #cd ${mongolinkpath}
-    #python setup.py install --user --record filespy.txt
-    #sage --python setup.py install --user --record filessage.txt
-    #cd ${currdir}
+#currdir=$(pwd)
+#cd ${mongolinkpath}
+#python setup.py install --user --record filespy.txt
+#sage --python setup.py install --user --record filessage.txt
+#cd ${currdir}
 
-    #mongouri=$(cat ${controllerpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
-    #basecollection=$(cat ${controllerpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
-    #modname=$(cat ${controllerpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
-    #markdone=$(cat ${controllerpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
-    #h11=$(cat ${controllerpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
-    #python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"
-}
-
-do_not_dir() {
-    path=$1
-}
-
-modules_dir=$1
-shift
-
-startpath=$(cd ${modules_dir} && pwd -P)
-
-branches=$(find ${startpath} -path '*/.*' -prune -o -type d -exec bash -c 'echo "$(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g" | grep -o / | wc -l) $(echo '{}' 2>/dev/null | sed "s/\/jobs\$//g")"' \; | grep -v '/jobs/' | sort -u | tr '\n' ',')
-maxdepth=$(echo ${branches} | tr ',' '\n' | cut -d' ' -f1 | sort -u | tail -n1)
-leaves=$(echo ${branches} | tr ',' '\n' | grep "^${maxdepth} " | cut -d' ' -f2 | sed 's/\/jobs$//g' | tr '\n' ',')
-moddirpath=$(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1,2 --complement | rev | head -n1)
-modnames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f2 | rev))
-controllernames=($(echo ${leaves} | tr ',' '\n' | rev | cut -d'/' -f1 | rev))
-
-case $# in
-    0)
-        ;;
-    1)
-        if [[ "${moddirpath}" == "${startpath}" ]]
-        then
-            modnames=($1)
-            controllernames=()
-        else
-            stopflag=false
-            for i in ${!controllernames[@]}
-            do
-                if [[ "${controllernames[${i}]}" == "$1" ]]
-                then
-                    modnames=(${modnames[${i}]})
-                    controllernames=(${controllernames[i]})
-                    stopflag=true
-                    break
-                fi
-            done
-            if ! ${stopflag}
-            then
-                for modname in ${modnames[@]}
-                do
-                    if [[ "${modname}" == "$1" ]]
-                    then
-                        modnames=(${modname})
-                        controllernames=()
-                        stopflag=true
-                        break
-                    fi
-                done
-            fi
-            if ! ${stopflag}
-            then
-                for modname in $(find ${moddirpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
-                do
-                    if [[ "${modname}" == "$1" ]]
-                    then
-                        modnames=(${modname})
-                        controllernames=()
-                        stopflag=true
-                        break
-                    fi
-                done
-            fi
-            if ! ${stopflag}
-            then
-                for i in ${!modnames[@]}
-                do
-                    modnames=(${modnames[${i}]})
-                    controllernames=($1)
-                done
-            fi
-        fi
-        ;;
-    2)
-        modnames=($1)
-        controllernames=($2)
-        ;;
-    *)
-        echo "Error: You must provide no more than 2 arguments. $# provided."
-        exit
-        ;;
-esac
-
-for i in ${!modnames[@]}
-do
-    modname=${modnames[${i}]}
-
-    modpath="${moddirpath}/${modname}"
-
-    if [ ! -d "${modpath}" ]
-    then
-        do_not_dir ${modpath}
-    fi
-
-    if [[ "${controllernames[${i}]}" == "" ]]
-    then
-        controllernames=($(find ${modpath} -mindepth 1 -maxdepth 1 -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
-
-        for controllername in ${controllernames[@]}
-        do
-            controllerpath="${modpath}/${controllername}"
-
-            if [ ! -d "${controllerpath}" ]
-            then
-                do_not_dir ${controllerpath}
-            fi
-
-            workpath="${controllerpath}/jobs"
-
-            if [ ! -d "${workpath}" ]
-            then
-                do_not_dir ${workpath}
-            fi
-
-            if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
-            then
-                do_reset ${modpath} ${controllerpath} ${workpath}
-            fi
-        done
-    else
-        controllername=${controllernames[${i}]}
-        controllerpath="${modpath}/${controllername}"
-
-        if [ ! -d "${controllerpath}" ]
-        then
-            do_not_dir ${controllerpath}
-        fi
-
-        workpath="${controllerpath}/jobs"
-
-        if [ ! -d "${workpath}" ]
-        then
-            do_not_dir ${workpath}
-        fi
-
-        if [ -d "${modpath}" ] && [ -d "${controllerpath}" ] && [ -d "${workpath}" ]
-        then
-            do_reset ${modpath} ${controllerpath} ${workpath}
-        fi
-    fi
-done
+#mongouri=$(cat ${controllerpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
+#basecollection=$(cat ${controllerpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
+#modname=$(cat ${controllerpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
+#markdone=$(cat ${controllerpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
+#h11=$(cat ${controllerpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
+#python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"
