@@ -62,8 +62,22 @@ run_subcommand() {
 
     case $# in
         0)
-            modnames=(${modname})
-            controllernames=(${controllername})
+            if [[ "${modname}" != "" ]]
+            then
+                if [[ "${controllername}" != "" ]] && [ -d "${moddirpath}/${modname}/${controllername}" ]
+                then
+                    modnames=(${modname})
+                    controllernames=(${controllername})
+                else
+                    modnames=(${modname})
+                    controllernames=($(find ${moddirpath}/${modname} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+                fi
+            else
+                modnames=($(find ${moddirpath} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+                controllernames=()
+            fi
+            #modnames=(${modname})
+            #controllernames=(${controllername})
             ;;
         1)
             case $1 in
@@ -72,19 +86,21 @@ run_subcommand() {
                     controllernames=(${controllername})
                     ;;
                 *)
-                    if [ -d ${moddirpath}/${modname}/$1 ]
+                    if [[ "${modname}" != "" ]]
                     then
-                        modnames=(${modname})
-                        controllernames=($1)
-                    elif [[ "${modname}" != "" ]]
-                    then
-                        if ${is_create}
+                        if [ -d "${moddirpath}/${modname}/$1" ]
                         then
                             modnames=(${modname})
                             controllernames=($1)
                         else
-                            modnames=($1)
-                            controllernames=()
+                            if ${is_create}
+                            then
+                                modnames=(${modname})
+                                controllernames=($1)
+                            else
+                                modnames=($1)
+                                controllernames=()
+                            fi
                         fi
                     else
                         modnames=($1)
