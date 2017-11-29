@@ -601,7 +601,7 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                         if newcollection not in bulkcolls.keys():
                             #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                             if dbtype=="mongodb":
-                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                         if newcollection not in bulkrequestslist[-1].keys():
                             bulkrequestslist[-1][newcollection]=[];
                         #bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
@@ -628,7 +628,7 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                         if newcollection not in bulkcolls.keys():
                             #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                             if dbtype=="mongodb":
-                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                         if newcollection not in bulkrequestslist[-1].keys():
                             bulkrequestslist[-1][newcollection]=[];
                         #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
@@ -650,7 +650,7 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                         if newcollection not in bulkcolls.keys():
                             #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                             if dbtype=="mongodb":
-                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                         if newcollection not in bulkrequestslist[-1].keys():
                             bulkrequestslist[-1][newcollection]=[];
                         #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
@@ -701,7 +701,7 @@ while process.poll()==None and stats_reader.is_inprog() and not (stdout_reader.e
                         if newcollection not in bulkcolls.keys():
                             #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                             if dbtype=="mongodb":
-                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                                bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                         if newcollection not in bulkrequestslist[-1].keys():
                             bulkrequestslist[-1][newcollection]=[];
                         #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
@@ -851,7 +851,7 @@ while not stdout_queue.empty():
                     if newcollection not in bulkcolls.keys():
                         #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                         if dbtype=="mongodb":
-                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                     if newcollection not in bulkrequestslist[-1].keys():
                         bulkrequestslist[-1][newcollection]=[];
                     #bulkdict[newcollection].find(newindexdoc).update({"$unset":doc});
@@ -875,7 +875,7 @@ while not stdout_queue.empty():
                     if newcollection not in bulkcolls.keys():
                         #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                         if dbtype=="mongodb":
-                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                     if newcollection not in bulkrequestslist[-1].keys():
                         bulkrequestslist[-1][newcollection]=[];
                     #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":doc});
@@ -897,7 +897,7 @@ while not stdout_queue.empty():
                     if newcollection not in bulkcolls.keys():
                         #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                         if dbtype=="mongodb":
-                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                     if newcollection not in bulkrequestslist[-1].keys():
                         bulkrequestslist[-1][newcollection]=[];
                     #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet":doc});
@@ -948,7 +948,7 @@ while not stdout_queue.empty():
                     if newcollection not in bulkcolls.keys():
                         #bulkdict[newcollection]=db[newcollection].initialize_unordered_bulk_op();
                         if dbtype=="mongodb":
-                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(fsync=True));
+                            bulkcolls[newcollection]=db.get_collection(newcollection,write_concern=WriteConcern(w="majority",fsync=True));
                     if newcollection not in bulkrequestslist[-1].keys():
                         bulkrequestslist[-1][newcollection]=[];
                     #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set":statsmark});
