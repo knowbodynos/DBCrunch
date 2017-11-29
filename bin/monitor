@@ -21,9 +21,15 @@ monitorjobs() {
             outsperc=$(echo "scale=2;(100*${outs})/${reads}" | bc)
             echo "${outsperc}% Finished: ${outs} of ${reads}"
         fi
-        startdate=$(date -u -d "$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.out 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')" "+%s")
-        enddate=$(date -u "+%s")
-        echo "Duration: $(date -u -d @$((${enddate}-${startdate})) +"%H:%M:%S")"
+        controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.out 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')
+        if [[ "${controllertime}" == "" ]]
+        then
+            echo "Duration: $(date -u -d "${controllertime}" +"%H:%M:%S")"
+        else
+            startdate=$(date -u -d "${controllertime}" "+%s")
+            enddate=$(date -u "+%s")
+            echo "Duration: $(date -u -d @$((${enddate}-${startdate})) +"%H:%M:%S")"
+        fi
         echo "Size: $(du -ch ${workpath} 2>/dev/null | tail -n1 | sed 's/\s\s*/ /g' | cut -d' ' -f1)"
         controllerjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | sed 's/^\s*//g' | grep "crunch_${modname}_${controllername}_job_" | head -c -1 | tr '\n' '!')
         ncontrollerjobs=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | wc -l)
