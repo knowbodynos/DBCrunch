@@ -226,7 +226,7 @@ sub_submit(){
 }
 
 sub_template(){
-    is_create=false
+    is_create=true
     run_subcommand ${ProgDir}/template ${is_create} ${@}
 }
 
