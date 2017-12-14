@@ -8,7 +8,7 @@
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    This program is distributed in the hope that it will be useful,
+#    This program is distributed in the hope that it will be useful, 
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
@@ -16,1802 +16,1802 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import time;
+import time
 #Timer initialization
-starttime=time.time();
+starttime = time.time()
 
-import sys,os,glob,errno,re,linecache,fcntl,traceback,operator,functools,datetime,tempfile,json,yaml;
-from signal import signal,SIGPIPE,SIG_DFL;
-from subprocess import Popen,PIPE;
-from contextlib import contextmanager;
-#from pymongo import MongoClient;
+import sys, os, glob, errno, re, linecache, fcntl, traceback, operator, functools, datetime, tempfile, json, yaml
+from signal import signal, SIGPIPE, SIG_DFL
+from subprocess import Popen, PIPE
+from contextlib import contextmanager
+#from pymongo import MongoClient
 
 #Misc. function definitions
 def PrintException():
     "If an exception is raised, print traceback of it to output log."
-    exc_type, exc_obj, tb = sys.exc_info();
-    f = tb.tb_frame;
-    lineno = tb.tb_lineno;
-    filename = f.f_code.co_filename;
-    linecache.checkcache(filename);
-    line = linecache.getline(filename, lineno, f.f_globals);
-    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj);
-    print "More info: ",traceback.format_exc();
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    linecache.checkcache(filename)
+    line = linecache.getline(filename, lineno, f.f_globals)
+    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
+    print "More info: ", traceback.format_exc()
 
 def default_sigpipe():
-    signal(SIGPIPE,SIG_DFL);
+    signal(SIGPIPE, SIG_DFL)
 
 def deldup(lst):
     "Delete duplicate elements in lst."
-    return [lst[i] for i in range(len(lst)) if lst[i] not in lst[:i]];
+    return [lst[i] for i in range(len(lst)) if lst[i] not in lst[:i]]
 
-class TimeoutException(Exception): pass;
+class TimeoutException(Exception): pass
 
 @contextmanager
 def time_limit(seconds):
     def signal_handler(signum, frame):
-        raise TimeoutException("Timed out!");
-    signal.signal(signal.SIGALRM, signal_handler);
-    signal.alarm(seconds);
+        raise TimeoutException("Timed out!")
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
     try:
-        yield;
+        yield
     finally:
-        signal.alarm(0);
+        signal.alarm(0)
 
-def updatereloadstate(reloadstatefilepath,reloadstatefilename,docbatch,endofdocs,filereadform=lambda x:x,filewriteform=lambda x:x,docwriteform=lambda x:x):
+def updatereloadstate(reloadstatefilepath, reloadstatefilename, docbatch, endofdocs, filereadform = lambda x: x, filewriteform = lambda x: x, docwriteform = lambda x: x):
     #Compress docbatch to top tier that has completed
-    endofdocsdone=[];
-    i=len(docbatch)-1;
-    while i>=0:
+    endofdocsdone = []
+    i = len(docbatch)-1
+    while i >= 0:
         if endofdocs[i][1]:
-            endofdocsdone+=[endofdocs[i][0]];
-            with open(reloadstatefilepath+"/"+reloadstatefilename+"FILE","a") as reloadfilesstream:
-                reloadfilesstream.write(filewriteform(endofdocs[i][0])+"\n");
-                reloadfilesstream.flush();
+            endofdocsdone += [endofdocs[i][0]]
+            with open(reloadstatefilepath + "/" + reloadstatefilename + "FILE", "a") as reloadfilesstream:
+                reloadfilesstream.write(filewriteform(endofdocs[i][0]) + "\n")
+                reloadfilesstream.flush()
         else:
             if endofdocs[i][0] not in endofdocsdone:
-                docline="{"+docbatch[i].split("@")[1].split("\n")[0].split(".{")[1].split("<")[0];
-                doc=json.loads(docline);
-                with open(reloadstatefilepath+"/"+reloadstatefilename+"DOC","a") as reloaddocsstream:
-                    reloaddocsstream.write(filewriteform(endofdocs[i][0])+"~"+docwriteform(doc)+"\n");
-                    reloaddocsstream.flush();
-        i-=1;
+                docline = "{" + docbatch[i].split("@")[1].split("\n")[0].split(".{")[1].split("<")[0]
+                doc = json.loads(docline)
+                with open(reloadstatefilepath + "/" + reloadstatefilename + "DOC", "a") as reloaddocsstream:
+                    reloaddocsstream.write(filewriteform(endofdocs[i][0]) + "~" + docwriteform(doc) + "\n")
+                    reloaddocsstream.flush()
+        i -= 1
     #Update reloadstate files by removing the subdocument records of completed documents
     try:
-        with open(reloadstatefilepath+"/"+reloadstatefilename+"DOC","r") as reloaddocsstream, tempfile.NamedTemporaryFile(dir=reloadstatefilepath,delete=False) as tempstream:
+        with open(reloadstatefilepath + "/" + reloadstatefilename + "DOC", "r") as reloaddocsstream, tempfile.NamedTemporaryFile(dir = reloadstatefilepath, delete = False) as tempstream:
             for reloaddocline in reloaddocsstream:
-                fileline=filereadform(reloaddocline.rstrip("\n").split("~")[0]);
+                fileline = filereadform(reloaddocline.rstrip("\n").split("~")[0])
                 #If not a subdocument of any document in the list, keep it
                 if fileline not in endofdocsdone:
-                    tempstream.write(reloaddocline);
-                    tempstream.flush();
-            os.rename(tempstream.name,reloaddocsstream.name);
+                    tempstream.write(reloaddocline)
+                    tempstream.flush()
+            os.rename(tempstream.name, reloaddocsstream.name)
     except IOError:
-        reloaddocsstream=open(reloadstatefilepath+"/"+reloadstatefilename+"DOC","w");
-        reloaddocsstream.close();
+        reloaddocsstream = open(reloadstatefilepath + "/" + reloadstatefilename + "DOC", "w")
+        reloaddocsstream.close()
 
 def printasfunc(*args):
-    docbatch=list(args)[-1];
+    docbatch = list(args)[-1]
     for doc in docbatch:
-        print(doc);
-    sys.stdout.flush();
-    return len(docbatch);
+        print(doc)
+    sys.stdout.flush()
+    return len(docbatch)
 
 def writeasfunc(*args):
-    arglist=list(args);
-    docbatch=arglist[-1];
-    with open(arglist[0],"a") as writestream:
+    arglist = list(args)
+    docbatch = arglist[-1]
+    with open(arglist[0], "a") as writestream:
         for doc in docbatch:
-            writestream.write(doc);
-            writestream.flush();
-        writestream.write("\n");
-        writestream.flush();
-    return len(docbatch);
+            writestream.write(doc)
+            writestream.flush()
+        writestream.write("\n")
+        writestream.flush()
+    return len(docbatch)
 
-def reloadcrawl(reloadpath,reloadpattern,reloadstatefilepath,reloadstatefilename="reloadstate",inputfunc=lambda x:{"nsteps":1},inputdoc={"nsteps":1},action=printasfunc,filereadform=lambda x:x,filewriteform=lambda x:x,docwriteform=lambda x:x,timeleft=lambda:1,counters=[1,1],counterupdate=lambda x:None,resetstatefile=False,limit=None):
-    docbatch=[];
-    endofdocs=[];
+def reloadcrawl(reloadpath, reloadpattern, reloadstatefilepath, reloadstatefilename = "reloadstate", inputfunc = lambda x: {"nsteps": 1}, inputdoc = {"nsteps": 1}, action = printasfunc, filereadform = lambda x: x, filewriteform = lambda x: x, docwriteform = lambda x: x, timeleft = lambda: 1, counters = [1, 1], counterupdate = lambda x: None, resetstatefile = False, limit = None):
+    docbatch = []
+    endofdocs = []
     if resetstatefile:
-        for x in ["FILE","DOC"]:
-            loadstatestream=open(reloadstatefilepath+"/"+reloadstatefilename+x,"w");
-            loadstatestream.close();
-    prevfiles=[];
+        for x in ["FILE", "DOC"]:
+            loadstatestream = open(reloadstatefilepath + "/" + reloadstatefilename + x, "w")
+            loadstatestream.close()
+    prevfiles = []
     try:
-        reloadfilesstream=open(reloadstatefilepath+"/"+reloadstatefilename+"FILE","r");
+        reloadfilesstream = open(reloadstatefilepath + "/" + reloadstatefilename + "FILE", "r")
         for fileline in reloadfilesstream:
-            file=filereadform(fileline.rstrip("\n"));
-            prevfiles+=[file];
+            file = filereadform(fileline.rstrip("\n"))
+            prevfiles += [file]
     except IOError:
-        reloadfilesstream=open(reloadstatefilepath+"/"+reloadstatefilename+"FILE","w");
-        pass;
-    reloadfilesstream.close();
-    prevfiledocs=[];
+        reloadfilesstream = open(reloadstatefilepath + "/" + reloadstatefilename + "FILE", "w")
+        pass
+    reloadfilesstream.close()
+    prevfiledocs = []
     try:
-        reloaddocsstream=open(reloadstatefilepath+"/"+reloadstatefilename+"DOC","r");
+        reloaddocsstream = open(reloadstatefilepath + "/" + reloadstatefilename + "DOC", "r")
         for docline in reloaddocsstream:
-            file=filereadform(docline.rstrip("\n").split("~")[0]);
-            doc=docline.rstrip("\n").split("~")[1];
-            prevfiledocs+=[[file,doc]];
+            file = filereadform(docline.rstrip("\n").split("~")[0])
+            doc = docline.rstrip("\n").split("~")[1]
+            prevfiledocs += [[file, doc]]
     except IOError:
-        reloaddocsstream=open(reloadstatefilepath+"/"+reloadstatefilename+"DOC","w");
-        pass;
-    reloaddocsstream.close();
-    if (limit==None) or (counters[1]<=limit):
-        if timeleft()>0:
-            filescurs=glob.iglob(reloadpath+"/"+reloadpattern);
+        reloaddocsstream = open(reloadstatefilepath + "/" + reloadstatefilename + "DOC", "w")
+        pass
+    reloaddocsstream.close()
+    if (limit == None) or (counters[1] <= limit):
+        if timeleft() > 0:
+            filescurs = glob.iglob(reloadpath + "/" + reloadpattern)
         else:
             try:
                 with time_limit(int(timeleft())):
-                    filescurs=glob.iglob(reloadpath+"/"+reloadpattern);
+                    filescurs = glob.iglob(reloadpath + "/" + reloadpattern)
             except TimeoutException(msg):
-                filescurs=iter(());
-                pass;
+                filescurs = iter(())
+                pass
     else:
-        return counters;
-    filepath=next(filescurs,None);
-    while (filepath!=None) and (timeleft()>0) and ((limit==None) or (counters[1]<=limit)):
-        file=filepath.split("/")[-1];
-        #print(file);
-        #sys.stdout.flush();
+        return counters
+    filepath = next(filescurs, None)
+    while (filepath != None) and (timeleft() > 0) and ((limit == None) or (counters[1] <= limit)):
+        file = filepath.split("/")[-1]
+        #print(file)
+        #sys.stdout.flush()
         if file not in prevfiles:
-            docsstream=open(filepath,"r");
-            docsline=docsstream.readline();
-            while (docsline!="") and (timeleft()>0) and ((limit==None) or (counters[1]<=limit)):
-                docsstring="";
-                while (docsline!="") and ("@" not in docsline):
-                    docsstring+=docsline;
-                    docsline=docsstream.readline();
-                #docsline=docsstream.readline();
-                doc=docwriteform(json.loads("{"+docsline.rstrip("\n").split(".{")[1].split("<")[0]));
-                while [file,doc] in prevfiledocs:
-                    #print([file,doc]);
-                    #sys.stdout.flush();
-                    docsline=docsstream.readline();
-                    while (docsline!="") and any([docsline[:len(x)]==x for x in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
-                        docsline=docsstream.readline();
-                    docsstring="";
-                    while (docsline!="") and ("@" not in docsline):
-                        docsstring+=docsline;
-                        docsline=docsstream.readline();
-                    if docsline=="":
-                        break;
-                    doc=docwriteform(json.loads("{"+docsline.rstrip("\n").split(".{")[1].split("<")[0]));
-                if docsline!="":
-                    #docslinehead=docsline.rstrip("\n").split(".")[0];
-                    #doc=json.loads(".".join(docsline.rstrip("\n").split(".")[1:]));
-                    docsstring+=docsline.rstrip("\n")+"<"+file+"\n";
-                    #print(file+"~"+docsline.rstrip("\n"));
-                    #sys.stdout.flush();
-                    docsline=docsstream.readline();
-                while (docsline!="") and any([docsline[:len(x)]==x for x in ["CPUTime","MaxRSS","MaxVMSize","BSONSize"]]):
-                    docsstring+=docsline;
-                    docsline=docsstream.readline();
-                docbatch+=[docsstring];
-                if docsline=="":
-                    endofdocs+=[[file,True]];
+            docsstream = open(filepath, "r")
+            docsline = docsstream.readline()
+            while (docsline != "") and (timeleft() > 0) and ((limit == None) or (counters[1] <= limit)):
+                docsstring = ""
+                while (docsline != "") and ("@" not in docsline):
+                    docsstring += docsline
+                    docsline = docsstream.readline()
+                #docsline = docsstream.readline()
+                doc = docwriteform(json.loads("{" + docsline.rstrip("\n").split(".{")[1].split("<")[0]))
+                while [file, doc] in prevfiledocs:
+                    #print([file, doc])
+                    #sys.stdout.flush()
+                    docsline = docsstream.readline()
+                    while (docsline != "") and any([docsline[:len(x)] == x for x in ["CPUTime", "MaxRSS", "MaxVMSize", "BSONSize"]]):
+                        docsline = docsstream.readline()
+                    docsstring = ""
+                    while (docsline != "") and ("@" not in docsline):
+                        docsstring += docsline
+                        docsline = docsstream.readline()
+                    if docsline == "":
+                        break
+                    doc = docwriteform(json.loads("{" + docsline.rstrip("\n").split(".{")[1].split("<")[0]))
+                if docsline != "":
+                    #docslinehead = docsline.rstrip("\n").split(".")[0]
+                    #doc = json.loads(".".join(docsline.rstrip("\n").split(".")[1:]))
+                    docsstring += docsline.rstrip("\n") + "<" + file + "\n"
+                    #print(file + "~" + docsline.rstrip("\n"))
+                    #sys.stdout.flush()
+                    docsline = docsstream.readline()
+                while (docsline != "") and any([docsline[:len(x)] == x for x in ["CPUTime", "MaxRSS", "MaxVMSize", "BSONSize"]]):
+                    docsstring += docsline
+                    docsline = docsstream.readline()
+                docbatch += [docsstring]
+                if docsline == "":
+                    endofdocs += [[file, True]]
                 else:
-                    endofdocs+=[[file,False]];
-                if (len(docbatch)==inputdoc["nsteps"]) or not (timeleft()>0):
-                    if (limit!=None) and (counters[1]+len(docbatch)>limit):
-                        docbatch=docbatch[:limit-counters[1]+1];
-                    while len(docbatch)>0:
-                        nextdocind=action(counters,inputdoc,docbatch);
-                        if nextdocind==None:
-                            break;
-                        docbatchpass=docbatch[nextdocind:];
-                        endofdocspass=endofdocs[nextdocind:];
-                        docbatchwrite=docbatch[:nextdocind];
-                        endofdocswrite=endofdocs[:nextdocind];
-                        updatereloadstate(reloadstatefilepath,reloadstatefilename,docbatchwrite,endofdocswrite,filereadform=filereadform,filewriteform=filewriteform,docwriteform=docwriteform);
-                        counters[0]+=1;
-                        counters[1]+=nextdocind;
-                        counterupdate(counters);
-                        docbatch=docbatchpass;
-                        endofdocs=endofdocspass;
-                        inputfuncresult=inputfunc(docbatchpass);
-                        if inputfuncresult==None:
-                            break;
-                        inputdoc.update(inputfuncresult);
-        filepath=next(filescurs,None);
-    while len(docbatch)>0:
-        if (limit!=None) and (counters[1]+len(docbatch)>limit):
-            docbatch=docbatch[:limit-counters[1]+1];
-        nextdocind=action(counters,inputdoc,docbatch);
-        if nextdocind==None:
-            break;
-        docbatchpass=docbatch[nextdocind:];
-        endofdocspass=endofdocs[nextdocind:];
-        docbatchwrite=docbatch[:nextdocind];
-        endofdocswrite=endofdocs[:nextdocind];
-        updatereloadstate(reloadstatefilepath,reloadstatefilename,docbatchwrite,endofdocswrite,filereadform=filereadform,filewriteform=filewriteform,docwriteform=docwriteform);
-        counters[0]+=1;
-        counters[1]+=nextdocind;
-        counterupdate(counters);
-        docbatch=docbatchpass;
-        endofdocs=endofdocspass;
-    return counters;
+                    endofdocs += [[file, False]]
+                if (len(docbatch) == inputdoc["nsteps"]) or not (timeleft() > 0):
+                    if (limit != None) and (counters[1] + len(docbatch) > limit):
+                        docbatch = docbatch[:limit-counters[1] + 1]
+                    while len(docbatch) > 0:
+                        nextdocind = action(counters, inputdoc, docbatch)
+                        if nextdocind == None:
+                            break
+                        docbatchpass = docbatch[nextdocind:]
+                        endofdocspass = endofdocs[nextdocind:]
+                        docbatchwrite = docbatch[:nextdocind]
+                        endofdocswrite = endofdocs[:nextdocind]
+                        updatereloadstate(reloadstatefilepath, reloadstatefilename, docbatchwrite, endofdocswrite, filereadform = filereadform, filewriteform = filewriteform, docwriteform = docwriteform)
+                        counters[0] += 1
+                        counters[1] += nextdocind
+                        counterupdate(counters)
+                        docbatch = docbatchpass
+                        endofdocs = endofdocspass
+                        inputfuncresult = inputfunc(docbatchpass)
+                        if inputfuncresult == None:
+                            break
+                        inputdoc.update(inputfuncresult)
+        filepath = next(filescurs, None)
+    while len(docbatch) > 0:
+        if (limit != None) and (counters[1] + len(docbatch) > limit):
+            docbatch = docbatch[:limit-counters[1] + 1]
+        nextdocind = action(counters, inputdoc, docbatch)
+        if nextdocind == None:
+            break
+        docbatchpass = docbatch[nextdocind:]
+        endofdocspass = endofdocs[nextdocind:]
+        docbatchwrite = docbatch[:nextdocind]
+        endofdocswrite = endofdocs[:nextdocind]
+        updatereloadstate(reloadstatefilepath, reloadstatefilename, docbatchwrite, endofdocswrite, filereadform = filereadform, filewriteform = filewriteform, docwriteform = docwriteform)
+        counters[0] += 1
+        counters[1] += nextdocind
+        counterupdate(counters)
+        docbatch = docbatchpass
+        endofdocs = endofdocspass
+    return counters
 
 '''
 def py2mat(lst):
     "Converts a Python list to a string depicting a list in Mathematica format."
-    return str(lst).replace(" ","").replace("[","{").replace("]","}");
+    return str(lst).replace(" ", "").replace("[", "{").replace("]", "}")
 
 def mat2py(lst):
     "Converts a string depicting a list in Mathematica format to a Python list."
-    return eval(str(lst).replace(" ","").replace("{","[").replace("}","]"));
+    return eval(str(lst).replace(" ", "").replace("{", "[").replace("}", "]"))
 
 def deldup(lst):
     "Delete duplicate elements in lst."
-    return [lst[i] for i in range(len(lst)) if lst[i] not in lst[:i]];
+    return [lst[i] for i in range(len(lst)) if lst[i] not in lst[:i]]
 
 def transpose_list(lst):
     "Get the transpose of a list of lists."
-    return [[lst[i][j] for i in range(len(lst))] for j in range(len(lst[0]))];
+    return [[lst[i][j] for i in range(len(lst))] for j in range(len(lst[0]))]
 
 #Module-specific function definitions
-def collectionfind(db,collection,query,projection):
-    if projection=="Count":
-        result=db[collection].find(query).count();
+def collectionfind(db, collection, query, projection):
+    if projection == "Count":
+        result = db[collection].find(query).count()
     else:
-        result=list(db[collection].find(query,projection));
-    #return [dict(zip(y.keys(),[mat2py(y[x]) for x in y.keys()])) for y in result];
-    return result;
+        result = list(db[collection].find(query, projection))
+    #return [dict(zip(y.keys(), [mat2py(y[x]) for x in y.keys()])) for y in result]
+    return result
 
-def collectionfieldexists(db,collection,field):
-    result=db[collection].find({},{"_id":0,field:1}).limit(1).next()!={};
-    return result;
+def collectionfieldexists(db, collection, field):
+    result = db[collection].find({}, {"_id": 0, field: 1}).limit(1).next() != {}
+    return result
 
-def listindexes(db,collection,filters,indexes=["POLYID","GEOMN","TRIANGN","INVOLN"]):
-    trueindexes=[x for x in indexes if collectionfieldexists(db,collection,x)]
-    if len(trueindexes)==0:
-        return [];
-    indexlist=deldup([dict([(x,z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters]);
-    return indexlist;
+def listindexes(db, collection, filters, indexes = ["POLYID", "GEOMN", "TRIANGN", "INVOLN"]):
+    trueindexes = [x for x in indexes if collectionfieldexists(db, collection, x)]
+    if len(trueindexes) == 0:
+        return []
+    indexlist = deldup([dict([(x, z[x]) for x in trueindexes if all([x in y.keys() for y in filters])]) for z in filters])
+    return indexlist
 
-def sameindexes(filter1,filter2,indexes=["POLYID","GEOMN","TRIANGN","INVOLN"]):
-    return all([filter1[x]==filter2[x] for x in filter1 if (x in indexes) and (x in filter2)]);
+def sameindexes(filter1, filter2, indexes = ["POLYID", "GEOMN", "TRIANGN", "INVOLN"]):
+    return all([filter1[x] == filter2[x] for x in filter1 if (x in indexes) and (x in filter2)])
 
-def querydatabase(db,queries,tiers=["POLY","GEOM","TRIANG","INVOL"]):
-    sortedprojqueries=sorted([y for y in queries if y[2]!="Count"],key=lambda x: (len(x[1]),tiers.index(x[0])),reverse=True);
-    maxcountquery=[] if len(queries)==len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries],key=lambda x: len(x[1]))];
-    sortedqueries=sortedprojqueries+maxcountquery;
-    totalresult=collectionfind(db,*sortedqueries[0]);
-    if sortedqueries[0][2]=="Count":
-        return totalresult;
-    for i in range(1,len(sortedqueries)):
-        indexlist=listindexes(db,sortedqueries[i][0],totalresult);
-        if len(indexlist)==0:
-            orgroup=sortedqueries[i][1];
+def querydatabase(db, queries, tiers = ["POLY", "GEOM", "TRIANG", "INVOL"]):
+    sortedprojqueries = sorted([y for y in queries if y[2] != "Count"], key = lambda x: (len(x[1]), tiers.index(x[0])), reverse = True)
+    maxcountquery = [] if len(queries) == len(sortedprojqueries) else [max([y for y in queries if y not in sortedprojqueries], key = lambda x: len(x[1]))]
+    sortedqueries = sortedprojqueries + maxcountquery
+    totalresult = collectionfind(db, *sortedqueries[0])
+    if sortedqueries[0][2] == "Count":
+        return totalresult
+    for i in range(1, len(sortedqueries)):
+        indexlist = listindexes(db, sortedqueries[i][0], totalresult)
+        if len(indexlist) == 0:
+            orgroup = sortedqueries[i][1]
         else:
-            orgroup=dict(sortedqueries[i][1].items()+{"$or":indexlist}.items());
-        nextresult=collectionfind(db,sortedqueries[i][0],orgroup,sortedqueries[i][2]);
-        if sortedqueries[i][2]=="Count":
-            return nextresult;
-        totalresult=[dict(x.items()+y.items()) for x in totalresult for y in nextresult if sameindexes(x,y)];
-    return totalresult;
+            orgroup = dict(sortedqueries[i][1].items() + {"$or": indexlist}.items())
+        nextresult = collectionfind(db, sortedqueries[i][0], orgroup, sortedqueries[i][2])
+        if sortedqueries[i][2] == "Count":
+            return nextresult
+        totalresult = [dict(x.items() + y.items()) for x in totalresult for y in nextresult if sameindexes(x, y)]
+    return totalresult
 
-def querytofile(db,queries,inputpath,inputfile,tiers=["POLY","GEOM","TRIANG","INVOL"]):
-    results=querydatabase(db,queries,tiers);
-    with open(inputpath+"/"+inputfile,"a") as inputstream:
+def querytofile(db, queries, inputpath, inputfile, tiers = ["POLY", "GEOM", "TRIANG", "INVOL"]):
+    results = querydatabase(db, queries, tiers)
+    with open(inputpath + "/" + inputfile, "a") as inputstream:
         for doc in results:
-            json.dump(doc,inputstream,separators=(',', ':'));
-            inputstream.write("\n");
-            inputstream.flush();
+            json.dump(doc, inputstream, separators = (', ', ':'))
+            inputstream.write("\n")
+            inputstream.flush()
 
 def py2matdict(dic):
-    return str(dic).replace("u'","'").replace(" ","").replace("'","\\\"").replace(":","->");
+    return str(dic).replace("u'", "'").replace(" ", "").replace("'", "\\\"").replace(":", "->")
 '''
 
-def timestamp2unit(timestamp,unit="seconds"):
-    if timestamp=="infinite":
-        return timestamp;
+def timestamp2unit(timestamp, unit = "seconds"):
+    if timestamp == "infinite":
+        return timestamp
     else:
-        days=0;
+        days = 0
         if "-" in timestamp:
-            daysstr,timestamp=timestamp.split("-");
-            days=int(daysstr);
-        hours,minutes,seconds=[int(x) for x in timestamp.split(":")];
-        hours+=days*24;
-        minutes+=hours*60;
-        seconds+=minutes*60;
-        if unit=="seconds":
-            return seconds;
-        elif unit=="minutes":
-            return float(seconds)/60.;
-        elif unit=="hours":
-            return float(seconds)/(60.*60.);
-        elif unit=="days":
-            return float(seconds)/(60.*60.*24.);
+            daysstr, timestamp = timestamp.split("-")
+            days = int(daysstr)
+        hours, minutes, seconds = [int(x) for x in timestamp.split(":")]
+        hours += days * 24
+        minutes += hours * 60
+        seconds += minutes * 60
+        if unit == "seconds":
+            return seconds
+        elif unit == "minutes":
+            return float(seconds) / 60.
+        elif unit == "hours":
+            return float(seconds) / (60.*60.)
+        elif unit == "days":
+            return float(seconds) / (60.*60.*24.)
         else:
-            return 0;
+            return 0
 
 def seconds2timestamp(seconds):
-    timestamp="";
-    days=str(seconds/(60*60*24));
-    remainder=seconds%(60*60*24);
-    hours=str(remainder/(60*60)).zfill(2);
-    remainder=remainder%(60*60);
-    minutes=str(remainder/60).zfill(2);
-    remainder=remainder%60;
-    seconds=str(remainder).zfill(2);
-    if days!="0":
-        timestamp+=days+"-";
-    timestamp+=hours+":"+minutes+":"+seconds;
-    return timestamp;
+    timestamp = ""
+    days = str(seconds / (60 * 60 * 24))
+    remainder = seconds % (60 * 60 * 24)
+    hours = str(remainder / (60 * 60)).zfill(2)
+    remainder = remainder % (60 * 60)
+    minutes = str(remainder / 60).zfill(2)
+    remainder = remainder % 60
+    seconds = str(remainder).zfill(2)
+    if days != "0":
+        timestamp += days + "-"
+    timestamp += hours + ":" + minutes + ":" + seconds
+    return timestamp
 
-#def contractededjobname2jobdocs(jobname,dbindexes):
-#    indexsplit=[[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")];
-#    return [dict([(dbindexes[i],x[i]) for i in range(len(dbindexes))]) for x in indexsplit];
+#def contractededjobname2jobdocs(jobname, dbindexes):
+#    indexsplit = [[eval(y) for y in x.split("_")] for x in jobname.lstrip("[").rstrip("]").split(",")]
+#    return [dict([(dbindexes[i], x[i]) for i in range(len(dbindexes))]) for x in indexsplit]
 
-#def jobstepname2indexdoc(jobstepname,dbindexes):
-#    indexsplit=jobstepname.split("_");
-#    nindexes=min(len(indexsplit)-2,len(dbindexes));
-#    #return dict([(dbindexes[i],eval(indexsplit[i+2])) for i in range(nindexes)]);
-#    return dict([(dbindexes[i],eval(indexsplit[i+2]) if indexsplit[i+2].isdigit() else indexsplit[i+2]) for i in range(nindexes)]);
+#def jobstepname2indexdoc(jobstepname, dbindexes):
+#    indexsplit = jobstepname.split("_")
+#    nindexes = min(len(indexsplit)-2, len(dbindexes))
+#    #return dict([(dbindexes[i], eval(indexsplit[i + 2])) for i in range(nindexes)])
+#    return dict([(dbindexes[i], eval(indexsplit[i + 2]) if indexsplit[i + 2].isdigit() else indexsplit[i + 2]) for i in range(nindexes)])
 
-#def indexdoc2jobstepname(doc,modname,controllername,dbindexes):
-#    return modname+"_"+controllername+"_"+"_".join([str(doc[x]) for x in dbindexes if x in doc.keys()]);
+#def indexdoc2jobstepname(doc, modname, controllername, dbindexes):
+#    return modname + "_" + controllername + "_" + "_".join([str(doc[x]) for x in dbindexes if x in doc.keys()])
 
-def indexsplit2indexdoc(indexsplit,dbindexes):
-    nindexes=min(len(indexsplit),len(dbindexes));
-    return dict([(dbindexes[i],eval(indexsplit[i]) if indexsplit[i].isdigit() else indexsplit[i]) for i in range(nindexes)]);
+def indexsplit2indexdoc(indexsplit, dbindexes):
+    nindexes = min(len(indexsplit), len(dbindexes))
+    return dict([(dbindexes[i], eval(indexsplit[i]) if indexsplit[i].isdigit() else indexsplit[i]) for i in range(nindexes)])
 
-def indexdoc2indexsplit(doc,dbindexes):
-    return [str(doc[x]) for x in dbindexes if x in doc.keys()];
+def indexdoc2indexsplit(doc, dbindexes):
+    return [str(doc[x]) for x in dbindexes if x in doc.keys()]
 
-#def doc2jobjson(doc,dbindexes):
-#    return dict([(y,doc[y]) for y in dbindexes]);
+#def doc2jobjson(doc, dbindexes):
+#    return dict([(y, doc[y]) for y in dbindexes])
 
 #def jobnameexpand(jobname):
-#    bracketexpanded=jobname.rstrip("]").split("[");
-#    return [bracketexpanded[0]+x for x in bracketexpanded[1].split(",")];
+#    bracketexpanded = jobname.rstrip("]").split("[")
+#    return [bracketexpanded[0] + x for x in bracketexpanded[1].split(",")]
 
 #def jobstepnamescontract(jobstepnames):
-#    "3 because modname,controllername are first two."
-#    bracketcontracted=[x.split("_") for x in jobstepnames];
-#    return '_'.join(bracketcontracted[0][:-3]+["["])+','.join(['_'.join(x[-3:]) for x in bracketcontracted])+"]";
+#    "3 because modname, controllername are first two."
+#    bracketcontracted = [x.split("_") for x in jobstepnames]
+#    return '_'.join(bracketcontracted[0][:-3] + ["["]) + ', '.join(['_'.join(x[-3:]) for x in bracketcontracted]) + "]"
 
-#def formatinput(doc):#,scriptlanguage):
-#    #if scriptlanguage=="python":
-#    #    formatteddoc=doc;
-#    #elif scriptlanguage=="sage":
-#    #    formatteddoc=doc;
-#    #elif scriptlanguage=="mathematica":
-#    #    formatteddoc=mongojoin.pythondictionary2mathematicarules(doc);
-#    #return str(formatteddoc).replace(" ","");
-#    return json.dumps(doc,separators=(',',':')).replace("\"","\\\"");
+#def formatinput(doc):#, scriptlanguage):
+#    #if scriptlanguage == "python":
+#    #    formatteddoc = doc
+#    #elif scriptlanguage == "sage":
+#    #    formatteddoc = doc
+#    #elif scriptlanguage == "mathematica":
+#    #    formatteddoc = mongojoin.pythondictionary2mathematicarules(doc)
+#    #return str(formatteddoc).replace(" ", "")
+#    return json.dumps(doc, separators = (',',':')).replace("\"", "\\\"")
 
-def dir_size(start_path='.'):
-    total_size=0;
-    for dirpath,dirnames,filenames in os.walk(start_path):
+def dir_size(start_path = '.'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
         for f in filenames:
-            fp=os.path.join(dirpath,f);
+            fp = os.path.join(dirpath, f)
             try:
-                total_size+=os.stat(fp).st_blocks*512;
+                total_size += os.stat(fp).st_blocks * 512
             except OSError:
-                pass;
-    return total_size;
+                pass
+    return total_size
 
-def storageleft(path,storagelimit):
-    if storagelimit==None:
-        return True;
+def storageleft(path, storagelimit):
+    if storagelimit == None:
+        return True
     else:
-        return dir_size(path)<storagelimit;
+        return dir_size(path) < storagelimit
 
-def getpartitiontimelimit(partition,scripttimelimit,scriptbuffertime):
-    maxtimelimit=get_maxtimelimit(partition);
-    #print "getpartitiontimelimit";
-    #print "sinfo -h -o '%l %P' | grep -E '"+partition+"\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1";
-    #print "";
-    #sys.stdout.flush();
-    if scripttimelimit in ["","infinite"]:
-        partitiontimelimit=maxtimelimit;
+def getpartitiontimelimit(partition, scripttimelimit, scriptbuffertime):
+    maxtimelimit = get_maxtimelimit(partition)
+    #print "getpartitiontimelimit"
+    #print "sinfo -h -o '%l %P' | grep -E '" + partition + "\*?\s*$' | sed 's/\s\s*/ /g' | sed 's/*//g' | cut -d' ' -f1 | head -c -1"
+    #print ""
+    #sys.stdout.flush()
+    if scripttimelimit in ["", "infinite"]:
+        partitiontimelimit = maxtimelimit
     else:
-        if maxtimelimit=="infinite":
-            partitiontimelimit=scripttimelimit;
+        if maxtimelimit == "infinite":
+            partitiontimelimit = scripttimelimit
         else:
-            partitiontimelimit=min(maxtimelimit,scripttimelimit,key=timestamp2unit);
-    if partitiontimelimit=="infinite":
-        buffertimelimit=partitiontimelimit;
+            partitiontimelimit = min(maxtimelimit, scripttimelimit, key = timestamp2unit)
+    if partitiontimelimit == "infinite":
+        buffertimelimit = partitiontimelimit
     else:
-        buffertimelimit=seconds2timestamp(timestamp2unit(partitiontimelimit)-timestamp2unit(scriptbuffertime));
-    return [partitiontimelimit,buffertimelimit];
+        buffertimelimit = seconds2timestamp(timestamp2unit(partitiontimelimit)-timestamp2unit(scriptbuffertime))
+    return [partitiontimelimit, buffertimelimit]
 
-def timeleft(starttime,buffertimelimit):
+def timeleft(starttime, buffertimelimit):
     "Determine if runtime limit has been reached."
-    #print str(time.time()-starttime)+" "+str(timestamp2unit(buffertimelimit));
-    #sys.stdout.flush();
-    if buffertimelimit=="infinite":
-        return 1;
+    #print str(time.time()-starttime) + " " + str(timestamp2unit(buffertimelimit))
+    #sys.stdout.flush()
+    if buffertimelimit == "infinite":
+        return 1
     else:
-        return timestamp2unit(buffertimelimit)-(time.time()-starttime);
+        return timestamp2unit(buffertimelimit)-(time.time()-starttime)
 
-#def timeleftq(controllerjobid,buffertimelimit):
+#def timeleftq(controllerjobid, buffertimelimit):
 #    "Determine if runtime limit has been reached."
-#    if buffertimelimit=="infinite":
-#        return True;
+#    if buffertimelimit == "infinite":
+#        return True
 #    else:
-#        timestats=Popen("sacct -n -j \""+controllerjobid+"\" -o 'Elapsed,Timelimit' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0];
-#        elapsedtime,timelimit=timestats.split(",");
-#        return timestamp2unit(elapsedtime)<timestamp2unit(buffertimelimit);
+#        timestats = Popen("sacct -n -j \"" + controllerjobid + "\" -o 'Elapsed,Timelimit' | head -n1 | sed 's/^\s*//g' | sed 's/\s\s*/ /g' | tr ' ' ',' | tr '\n' ',' | head -c -2", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0]
+#        elapsedtime, timelimit = timestats.split(",")
+#        return timestamp2unit(elapsedtime) < timestamp2unit(buffertimelimit)
 
 #def clusterjobslotsleft(globalmaxjobcount):
-#    njobs=eval(Popen("squeue -h -r | wc -l",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-#    return njobs<globalmaxjobcount;
+#    njobs = eval(Popen("squeue -h -r | wc -l", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
+#    return njobs < globalmaxjobcount
 
-def availlicensecount(localbinpath,licensescript,sublicensescript):
-    if licensescript!=None and os.path.isfile(licensescript):
-        navaillicenses=[eval(Popen(licensescript,shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0])];
+def availlicensecount(localbinpath, licensescript, sublicensescript):
+    if licensescript != None and os.path.isfile(licensescript):
+        navaillicenses = [eval(Popen(licensescript, shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])]
     else:
-        raise IOError(errno.ENOENT,'No license script available.',licensescript);
-    if sublicensescript!=None and os.path.isfile(sublicensescript):
-        navaillicenses+=[eval(Popen(sublicensescript,shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0])];
-    #print "licensecount";
-    #print binpath+"/"+scriptlanguage+"licensecount.bash";
-    #print "";
-    #sys.stdout.flush();
-    return navaillicenses;
+        raise IOError(errno.ENOENT, 'No license script available.', licensescript)
+    if sublicensescript != None and os.path.isfile(sublicensescript):
+        navaillicenses += [eval(Popen(sublicensescript, shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])]
+    #print "licensecount"
+    #print binpath + "/" + scriptlanguage + "licensecount.bash"
+    #print ""
+    #sys.stdout.flush()
+    return navaillicenses
 
-def pendlicensecount(username,needslicense):
-    npendjobsteps=0;
-    npendjobthreads=0;
-    #grepmods="|".join(modlist);
-    #pendjobnamespaths=Popen("squeue -h -u "+username+" -o '%T %j %.130Z' | grep 'PENDING' | cut -d' ' -f2,3 | grep -E \"("+grepmods+")\" | grep -v \"controller\" | tr '\n' ',' | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0];
-    pendjobnamespaths=get_pendjobnamespaths(username);
-    if len(pendjobnamespaths)>0:
-        for pendjobname,pendjobpath in pendjobnamespaths:
-            pendjobnamesplit=pendjobname.split("_");
-            modname=pendjobnamesplit[0];
-            controllername=pendjobnamesplit[1];
-            if os.path.exists(pendjobpath+"/../crunch_"+modname+"_"+controllername+"_controller.job"):
-                nsteps=1-eval(pendjobnamesplit[5]);
-                njobthreads=eval(Popen("echo \"$(cat "+pendjobpath+"/"+pendjobname+".job | grep -E \"njobstepthreads\[[0-9]+\]=\" | cut -d'=' -f2 | tr '\n' '+' | head -c -1)\" | bc | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0]);
+def pendlicensecount(username, needslicense):
+    npendjobsteps = 0
+    npendjobthreads = 0
+    #grepmods = "|".join(modlist)
+    #pendjobnamespaths = Popen("squeue -h -u " + username + " -o '%T %j %.130Z' | grep 'PENDING' | cut -d' ' -f2,3 | grep -E \"(" + grepmods + ")\" | grep -v \"controller\" | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0]
+    pendjobnamespaths = get_pendjobnamespaths(username)
+    if len(pendjobnamespaths) > 0:
+        for pendjobname, pendjobpath in pendjobnamespaths:
+            pendjobnamesplit = pendjobname.split("_")
+            modname = pendjobnamesplit[0]
+            controllername = pendjobnamesplit[1]
+            if os.path.exists(pendjobpath + "/../crunch_" + modname + "_" + controllername + "_controller.job"):
+                nsteps = 1-eval(pendjobnamesplit[5])
+                njobthreads = eval(Popen("echo \"$(cat " + pendjobpath + "/" + pendjobname + ".job | grep -E \"njobstepthreads\[[0-9]+\]=\" | cut -d'=' -f2 | tr '\n' '+' | head -c -1)\" | bc | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
                 if needslicense:
-                    npendjobsteps+=nsteps;
-                    npendjobthreads+=njobthreads;
-    return [npendjobsteps,npendjobthreads];
+                    npendjobsteps += nsteps
+                    npendjobthreads += njobthreads
+    return [npendjobsteps, npendjobthreads]
 
-def licensecount(username,needslicense,localbinpath,licensescript,sublicensescript):
-    navaillicensesplit=availlicensecount(localbinpath,licensescript,sublicensescript);
-    npendlicensesplit=pendlicensecount(username,needslicense);
+def licensecount(username, needslicense, localbinpath, licensescript, sublicensescript):
+    navaillicensesplit = availlicensecount(localbinpath, licensescript, sublicensescript)
+    npendlicensesplit = pendlicensecount(username, needslicense)
     try:
-        nlicensesplit=[navaillicensesplit[i]-npendlicensesplit[i] for i in range(len(navaillicensesplit))];
+        nlicensesplit = [navaillicensesplit[i]-npendlicensesplit[i] for i in range(len(navaillicensesplit))]
     except IndexError:
-        raise;
-    return nlicensesplit;
+        raise
+    return nlicensesplit
 
-def clusterjobslotsleft(username,modname,controllername,globalmaxjobcount,localmaxjobcount):
-    nglobaljobs=get_nglobaljobs(username);
-    globaljobsleft=(nglobaljobs<globalmaxjobcount);
-    nlocaljobs=get_nlocaljobs(username,modname,controllername);
-    localjobsleft=(nlocaljobs<localmaxjobcount);
-    return (globaljobsleft and localjobsleft);
+def clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount):
+    nglobaljobs = get_nglobaljobs(username)
+    globaljobsleft = (nglobaljobs < globalmaxjobcount)
+    nlocaljobs = get_nlocaljobs(username, modname, controllername)
+    localjobsleft = (nlocaljobs < localmaxjobcount)
+    return (globaljobsleft and localjobsleft)
 
-def clusterlicensesleft(nlicensesplit,minthreads):#,minnsteps=1):
-    nlicenses=nlicensesplit[0];
-    licensesleft=(nlicenses>0);#(navaillicenses>=minnsteps));
-    if len(nlicensesplit)>1:
-        nsublicenses=nlicensesplit[1];
-        licensesleft=(licensesleft and (nsublicenses>=minthreads));
-    return licensesleft;
+def clusterlicensesleft(nlicensesplit, minthreads):#, minnsteps = 1):
+    nlicenses = nlicensesplit[0]
+    licensesleft = (nlicenses > 0);#(navaillicenses >= minnsteps))
+    if len(nlicensesplit) > 1:
+        nsublicenses = nlicensesplit[1]
+        licensesleft = (licensesleft and (nsublicenses >= minthreads))
+    return licensesleft
 
-#def islimitreached(controllerpath,querylimit):
-#    if querylimit==None:
-#        return False;
+#def islimitreached(controllerpath, querylimit):
+#    if querylimit == None:
+#        return False
 #    else:
-#        #if niters==1:
-#        #    ntot=eval(Popen("echo \"$(cat "+controllerpath+"/jobs/*.error 2>/dev/null | wc -l)+$(cat "+controllerpath+"/jobs/*.job.log 2>/dev/null | grep 'CPUTime' | wc -l)\" | bc | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-#        #elif niters>1:
-#        ntot=eval(Popen("echo \"$(cat $(find "+controllerpath+"/jobs/ -type f -name '*.docs' -o -name '*.docs.pend' 2>/dev/null) 2>/dev/null | wc -l)+$(cat "+controllerpath+"/jobs/*.job.log 2>/dev/null | grep 'CPUTime' | wc -l)\" | bc | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0]);
-#        return ntot>=querylimit;
+#        #if niters == 1:
+#        #    ntot = eval(Popen("echo \"$(cat " + controllerpath + "/jobs/*.error 2>/dev/null | wc -l)+$(cat " + controllerpath + "/jobs/*.job.log 2>/dev/null | grep 'CPUTime' | wc -l)\" | bc | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
+#        #elif niters > 1:
+#        ntot = eval(Popen("echo \"$(cat $(find " + controllerpath + "/jobs/ -type f -name '*.docs' -o -name '*.docs.pend' 2>/dev/null) 2>/dev/null | wc -l)+$(cat " + controllerpath + "/jobs/*.job.log 2>/dev/null | grep 'CPUTime' | wc -l)\" | bc | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
+#        return ntot >= querylimit
 
-def submitjob(jobpath,jobname,jobstepnames,nnodes,ncores,nthreads,niters,nbatch,partition,memoryperstep,maxmemorypernode,resubmit=False):
-    jobid=get_submitjob(jobpath,jobname);
+def submitjob(jobpath, jobname, jobstepnames, nnodes, ncores, nthreads, niters, nbatch, partition, memoryperstep, maxmemorypernode, resubmit = False):
+    jobid = get_submitjob(jobpath, jobname)
     #Print information about controller job submission
     if resubmit:
-        #jobid=submitcomm.split(' ')[-1];
-        #maketop=Popen("scontrol top "+jobid,shell=True,stdout=PIPE,preexec_fn=default_sigpipe);
-        print "";
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
-        print "Resubmitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+str(nnodes)+" nodes, "+str(ncores)+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
+        #jobid = submitcomm.split(' ')[-1]
+        #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
+        print ""
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
         for jobstepnum in range(len(jobstepnames)):
-            #with open(jobpath+"/"+jobstepnames[i]+".error","a") as statstream:
-            #    statstream.write(jobstepnames[i]+",-1:0,False\n");
-            #    statstream.flush();
-            print "....With job step "+jobid+"."+str(jobstepnum)+" as "+jobstepnames[i]+" in batches of "+str(nbatch)+"/"+str(niters)+" iteration(s) on partition "+partition+" with "+str(nthreads[jobstepnum])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
-        print "";
-        print "";
+            #with open(jobpath + "/" + jobstepnames[i] + ".error", "a") as statstream:
+            #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
+            #    statstream.flush()
+            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobstepnames[i] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + partition + " with " + str(nthreads[jobstepnum]) + " CPU(s) and " + str(memoryperstep / 1000000) + "MB RAM allocated."
+        print ""
+        print ""
     else:
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
-        print "Submitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+str(nnodes)+" nodes, "+str(ncores)+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print "Submitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
         for jobstepnum in range(len(jobstepnames)):
-            #with open(jobpath+"/"+jobstepnames[i]+".error","a") as statstream:
-            #    statstream.write(jobstepnames[i]+",-1:0,False\n");
-            #    statstream.flush();
-            print "....With job step "+jobid+"."+str(jobstepnum)+" as "+jobstepnames[jobstepnum]+" in batches of "+str(nbatch)+"/"+str(niters)+" iteration(s) on partition "+partition+" with "+str(nthreads[jobstepnum])+" CPU(s) and "+str(memoryperstep/1000000)+"MB RAM allocated.";
-        print "";
-    sys.stdout.flush();
+            #with open(jobpath + "/" + jobstepnames[i] + ".error", "a") as statstream:
+            #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
+            #    statstream.flush()
+            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobstepnames[jobstepnum] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + partition + " with " + str(nthreads[jobstepnum]) + " CPU(s) and " + str(memoryperstep / 1000000) + "MB RAM allocated."
+        print ""
+    sys.stdout.flush()
 
-def submitcontrollerjob(jobpath,jobname,controllernnodes,controllerncores,partition,maxmemorypernode,resubmit=False):
-    jobid=get_submitjob(jobpath,jobname);
+def submitcontrollerjob(jobpath, jobname, controllernnodes, controllerncores, partition, maxmemorypernode, resubmit = False):
+    jobid = get_submitjob(jobpath, jobname)
     #Print information about controller job submission
     if resubmit:
-        #jobid=submitcomm.split(' ')[-1];
-        #maketop=Popen("scontrol top "+jobid,shell=True,stdout=PIPE,preexec_fn=default_sigpipe);
-        print "";
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
-        print "Resubmitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+controllernnodes+" nodes, "+controllerncores+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
-        print "";
-        print "";
+        #jobid = submitcomm.split(' ')[-1]
+        #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
+        print ""
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
+        print ""
+        print ""
     else:
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
-        print "Submitted batch job "+jobid+" as "+jobname+" on partition "+partition+" with "+controllernnodes+" nodes, "+controllerncores+" CPU(s), and "+str(maxmemorypernode/1000000)+"MB RAM allocated.";
-        print "";
-    sys.stdout.flush();
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print "Submitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
+        print ""
+    sys.stdout.flush()
 
-#def skippedjobslist(username,modname,controllername,workpath):
-#    jobsrunning=userjobsrunninglist(username,modname,controllername);
-#    blankfilesstring=Popen("find '"+workpath+"' -maxdepth 1 -type f -name '*.out' -empty | rev | cut -d'/' -f1 | rev | cut -d'.' -f1 | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0];
-#    if blankfilesstring=='':
-#        return [];
+#def skippedjobslist(username, modname, controllername, workpath):
+#    jobsrunning = userjobsrunninglist(username, modname, controllername)
+#    blankfilesstring = Popen("find '" + workpath + "' -maxdepth 1 -type f -name '*.out' -empty | rev | cut -d'/' -f1 | rev | cut -d'.' -f1 | cut -d'_' -f1,2 --complement | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0]
+#    if blankfilesstring == '':
+#        return []
 #    else:
-#        blankfiles=blankfilesstring.split(",");
-#        skippedjobs=[modname+"_"+controllername+"_"+x for x in blankfiles if x not in jobsrunning];
-#        return skippedjobs;
+#        blankfiles = blankfilesstring.split(",")
+#        skippedjobs = [modname + "_" + controllername + "_" + x for x in blankfiles if x not in jobsrunning]
+#        return skippedjobs
 
-def requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefilename,basecollection,counters,counterstatefile,counterheader,dbindexes):
+def requeueskippedqueryjobs(modname, controllername, controllerpath, querystatefilename, basecollection, counters, counterstatefile, counterheader, dbindexes):
     try:
-        skippeddoccount=0;
-        skippedjobfiles=[];
-        skippedjobnums=[];
-        skippedjobdocs=[];
-        with open(controllerpath+"/skipped","r") as skippedstream:#, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream:
-            skippedheader=skippedstream.readline();
-            #tempstream.write(skippedheader);
-            #tempstream.flush();
+        skippeddoccount = 0
+        skippedjobfiles = []
+        skippedjobnums = []
+        skippedjobdocs = []
+        with open(controllerpath + "/skipped", "r") as skippedstream:#, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream:
+            skippedheader = skippedstream.readline()
+            #tempstream.write(skippedheader)
+            #tempstream.flush()
             for line in skippedstream:
-                skippedjobfile,exitcode,resubmitq=line.rstrip("\n").split(",");
+                skippedjobfile, exitcode, resubmitq = line.rstrip("\n").split(",")
                 if eval(resubmitq):
-                    skippedjobfilesplit=skippedjobfile.split("_");
-                    if skippedjobfilesplit[:2]==[modname,controllername]:
-                        #if niters==1:
-                        skippedjobnums+=[re.sub(".*_job_([0-9]+)[_\.].*",r"\1",skippedjobfile)];
-                        skippedjobfiles+=[skippedjobfile];
-                        #elif niters>1:
-                        skippedjobfiledocs=[];
-                        with open(controllerpath+"/jobs/"+skippedjobfile,"r") as skippeddocstream:
+                    skippedjobfilesplit = skippedjobfile.split("_")
+                    if skippedjobfilesplit[:2] == [modname, controllername]:
+                        #if niters == 1:
+                        skippedjobnums += [re.sub(".*_job_([0-9] + )[_\.].*", r"\1", skippedjobfile)]
+                        skippedjobfiles += [skippedjobfile]
+                        #elif niters > 1:
+                        skippedjobfiledocs = []
+                        with open(controllerpath + "/jobs/" + skippedjobfile, "r") as skippeddocstream:
                             for docsline in skippeddocstream:
-                                doc=json.loads(docsline.rstrip("\n"));
-                                skippedjobfiledocs+=[modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(doc,dbindexes))];
-                                skippeddoccount+=1;
-                        skippedjobdocs+=[skippedjobfiledocs];
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".docs");
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".docs.in");
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".error");
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".batch.log");
+                                doc = json.loads(docsline.rstrip("\n"))
+                                skippedjobfiledocs += [modname + "_" + controllername + "_" + "_".join(indexdoc2indexsplit(doc, dbindexes))]
+                                skippeddoccount += 1
+                        skippedjobdocs += [skippedjobfiledocs]
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".docs")
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".docs.in")
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".error")
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".batch.log")
                     #else:
-                    #    tempstream.write(line);
-                    #    tempstream.flush();
+                    #    tempstream.write(line)
+                    #    tempstream.flush()
                 #else:
-                #    tempstream.write(line);
-                #    tempstream.flush();
-            #os.rename(tempstream.name,skippedstream.name);
-        if skippeddoccount>0:
-            querystatetierfilenames=Popen("find "+controllerpath+"/ -maxdepth 1 -type f -name '"+querystatefilename+"*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+                #    tempstream.write(line)
+                #    tempstream.flush()
+            #os.rename(tempstream.name, skippedstream.name)
+        if skippeddoccount > 0:
+            querystatetierfilenames = Popen("find " + controllerpath + "/ -maxdepth 1 -type f -name '" + querystatefilename + "*' 2>/dev/null | rev | cut -d'/' -f1 | rev | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(",")
             for querystatetierfilename in querystatetierfilenames:
                 try:
-                    if querystatetierfilename==querystatefilename+basecollection:
-                        #with open(controllerpath+"/"+querystatetierfilename,"a") as querystatefilestream:
+                    if querystatetierfilename == querystatefilename + basecollection:
+                        #with open(controllerpath + "/" + querystatetierfilename, "a") as querystatefilestream:
                         #    for i in range(len(skippedjobs)):
-                        #        line=skippedjobs[i];
-                        #        if i<len(skippedjobs)-1:
-                        #            line+="\n";
-                        #        querystatefilestream.write(line);
-                        #        querystatefilestream.flush();
-                        with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream1:
-                            #print(skippedjobdocs);
-                            #print("");
-                            #sys.stdout.flush();
+                        #        line = skippedjobs[i]
+                        #        if i < len(skippedjobs)-1:
+                        #            line += "\n"
+                        #        querystatefilestream.write(line)
+                        #        querystatefilestream.flush()
+                        with open(controllerpath + "/" + querystatetierfilename, "r") as querystatefilestream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream1:
+                            #print(skippedjobdocs)
+                            #print("")
+                            #sys.stdout.flush()
                             for querystateline in querystatefilestream:
-                                querystatelinestrip=querystateline.rstrip("\n");
-                                skipped=False;
-                                i=0;
-                                #print(linestrip);
-                                #sys.stdout.flush();
-                                while i<len(skippedjobdocs):
+                                querystatelinestrip = querystateline.rstrip("\n")
+                                skipped = False
+                                i = 0
+                                #print(linestrip)
+                                #sys.stdout.flush()
+                                while i < len(skippedjobdocs):
                                     if querystatelinestrip in skippedjobdocs[i]:
-                                        skippedjobdocs[i].remove(querystatelinestrip);
-                                        if len(skippedjobdocs[i])==0:
-                                            skippedjobfile=skippedjobfiles[i];
-                                            skippedjobnum=skippedjobnums[i];
-                                            if not os.path.isdir(controllerpath+"/jobs/reloaded"):
-                                                os.mkdir(controllerpath+"/jobs/reloaded");
-                                            os.rename(controllerpath+"/jobs/"+skippedjobfile,controllerpath+"/jobs/reloaded/"+skippedjobfile);
-                                            del skippedjobdocs[i];
-                                            del skippedjobfiles[i];
-                                            del skippedjobnums[i];
+                                        skippedjobdocs[i].remove(querystatelinestrip)
+                                        if len(skippedjobdocs[i]) == 0:
+                                            skippedjobfile = skippedjobfiles[i]
+                                            skippedjobnum = skippedjobnums[i]
+                                            if not os.path.isdir(controllerpath + "/jobs/reloaded"):
+                                                os.mkdir(controllerpath + "/jobs/reloaded")
+                                            os.rename(controllerpath + "/jobs/" + skippedjobfile, controllerpath + "/jobs/reloaded/" + skippedjobfile)
+                                            del skippedjobdocs[i]
+                                            del skippedjobfiles[i]
+                                            del skippedjobnums[i]
                                             try:
-                                                skippedjobfilein=skippedjobfile.replace(".docs",".in");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfilein,controllerpath+"/jobs/reloaded/"+skippedjobfilein);
+                                                skippedjobfilein = skippedjobfile.replace(".docs", ".in")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfilein, controllerpath + "/jobs/reloaded/" + skippedjobfilein)
                                             except:
-                                                pass;
+                                                pass
                                             try:
-                                                skippedjobfiletemp=skippedjobfile.replace(".docs",".temp");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfiletemp,controllerpath+"/jobs/reloaded/"+skippedjobfiletemp);
+                                                skippedjobfiletemp = skippedjobfile.replace(".docs", ".temp")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfiletemp, controllerpath + "/jobs/reloaded/" + skippedjobfiletemp)
                                             except:
-                                                pass;
+                                                pass
                                             try:
-                                                skippedjobfileout=skippedjobfile.replace(".docs",".out");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfileout,controllerpath+"/jobs/reloaded/"+skippedjobfileout);
+                                                skippedjobfileout = skippedjobfile.replace(".docs", ".out")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfileout, controllerpath + "/jobs/reloaded/" + skippedjobfileout)
                                             except:
-                                                pass;
-                                            if skippedjobnums.count(skippedjobnum)==0:
-                                                for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+"_*"):
-                                                    os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                                for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+".*"):
+                                                pass
+                                            if skippedjobnums.count(skippedjobnum) == 0:
+                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                                    os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                                     if not ((".merge." in file) and (".out" in file)):
-                                                        os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                            with open(controllerpath+"/skipped","r") as skippedstream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream2:
-                                                skippedheader=skippedstream.readline();
-                                                tempstream2.write(skippedheader);
-                                                tempstream2.flush();
+                                                        os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                            with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
+                                                skippedheader = skippedstream.readline()
+                                                tempstream2.write(skippedheader)
+                                                tempstream2.flush()
                                                 for skippedline in skippedstream:
                                                     if not skippedjobfile in skippedline:
-                                                        tempstream2.write(skippedline);
-                                                        tempstream2.flush();
-                                                os.rename(tempstream2.name,skippedstream.name);
-                                            i-=1;
-                                        skipped=True;
-                                    i+=1;
+                                                        tempstream2.write(skippedline)
+                                                        tempstream2.flush()
+                                                os.rename(tempstream2.name, skippedstream.name)
+                                            i -= 1
+                                        skipped = True
+                                    i += 1
                                 if not skipped:
-                                    tempstream1.write(querystateline);
+                                    tempstream1.write(querystateline)
                                     tempstream1.flush();    
-                            os.rename(tempstream1.name,querystatefilestream.name);
+                            os.rename(tempstream1.name, querystatefilestream.name)
                     else:
-                    #if querystatetierfilename!=querystatefilename+basecollection:
-                        with open(controllerpath+"/"+querystatetierfilename,"r") as querystatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream1:
+                    #if querystatetierfilename != querystatefilename + basecollection:
+                        with open(controllerpath + "/" + querystatetierfilename, "r") as querystatefilestream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream1:
                             for querystateline in querystatefilestream:
-                                querystatelinestrip=querystateline.rstrip("\n");
-                                skipped=False;
-                                i=0;
-                                while i<len(skippedjobdocs):
-                                    if any([querystatelinestrip+"_" in x for x in skippedjobdocs[i]]):
+                                querystatelinestrip = querystateline.rstrip("\n")
+                                skipped = False
+                                i = 0
+                                while i < len(skippedjobdocs):
+                                    if any([querystatelinestrip + "_" in x for x in skippedjobdocs[i]]):
                                         for x in skippedjobdocs[i]:
-                                            if querystatelinestrip+"_" in x:
-                                                skippedjobdocs[i].remove(x);
-                                        if len(skippedjobdocs[i])==0:
-                                            skippedjobfile=skippedjobfiles[i];
-                                            skippedjobnum=skippedjobnums[i];
-                                            if not os.path.isdir(controllerpath+"/jobs/reloaded"):
-                                                os.mkdir(controllerpath+"/jobs/reloaded");
-                                            os.rename(controllerpath+"/jobs/"+skippedjobfile,controllerpath+"/jobs/reloaded/"+skippedjobfile);
-                                            del skippedjobdocs[i];
-                                            del skippedjobfiles[i];
-                                            del skippedjobnums[i];
+                                            if querystatelinestrip + "_" in x:
+                                                skippedjobdocs[i].remove(x)
+                                        if len(skippedjobdocs[i]) == 0:
+                                            skippedjobfile = skippedjobfiles[i]
+                                            skippedjobnum = skippedjobnums[i]
+                                            if not os.path.isdir(controllerpath + "/jobs/reloaded"):
+                                                os.mkdir(controllerpath + "/jobs/reloaded")
+                                            os.rename(controllerpath + "/jobs/" + skippedjobfile, controllerpath + "/jobs/reloaded/" + skippedjobfile)
+                                            del skippedjobdocs[i]
+                                            del skippedjobfiles[i]
+                                            del skippedjobnums[i]
                                             try:
-                                                skippedjobfilein=skippedjobfile.replace(".docs",".in");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfilein,controllerpath+"/jobs/reloaded/"+skippedjobfilein);
+                                                skippedjobfilein = skippedjobfile.replace(".docs", ".in")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfilein, controllerpath + "/jobs/reloaded/" + skippedjobfilein)
                                             except:
-                                                pass;
+                                                pass
                                             try:
-                                                skippedjobfiletemp=skippedjobfile.replace(".docs",".temp");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfiletemp,controllerpath+"/jobs/reloaded/"+skippedjobfiletemp);
+                                                skippedjobfiletemp = skippedjobfile.replace(".docs", ".temp")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfiletemp, controllerpath + "/jobs/reloaded/" + skippedjobfiletemp)
                                             except:
-                                                pass;
+                                                pass
                                             try:
-                                                skippedjobfileout=skippedjobfile.replace(".docs",".out");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfileout,controllerpath+"/jobs/reloaded/"+skippedjobfileout);
+                                                skippedjobfileout = skippedjobfile.replace(".docs", ".out")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfileout, controllerpath + "/jobs/reloaded/" + skippedjobfileout)
                                             except:
-                                                pass;
-                                            if skippedjobnums.count(skippedjobnum)==0:
-                                                for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+"_*"):
-                                                    os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                                for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+".*"):
+                                                pass
+                                            if skippedjobnums.count(skippedjobnum) == 0:
+                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                                    os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                                     if not ((".merge." in file) and (".out" in file)):
-                                                        os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                            with open(controllerpath+"/skipped","r") as skippedstream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream2:
-                                                skippedheader=skippedstream.readline();
-                                                tempstream2.write(skippedheader);
-                                                tempstream2.flush();
+                                                        os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                            with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
+                                                skippedheader = skippedstream.readline()
+                                                tempstream2.write(skippedheader)
+                                                tempstream2.flush()
                                                 for skippedline in skippedstream:
                                                     if not skippedjobfile in skippedline:
-                                                        tempstream2.write(skippedline);
-                                                        tempstream2.flush();
-                                                os.rename(tempstream2.name,skippedstream.name);
-                                            i-=1;
-                                        skipped=True;
-                                    i+=1;
+                                                        tempstream2.write(skippedline)
+                                                        tempstream2.flush()
+                                                os.rename(tempstream2.name, skippedstream.name)
+                                            i -= 1
+                                        skipped = True
+                                    i += 1
                                 if not skipped:
-                                    tempstream1.write(querystateline);
-                                    tempstream1.flush();
-                            os.rename(tempstream1.name,querystatefilestream.name);
+                                    tempstream1.write(querystateline)
+                                    tempstream1.flush()
+                            os.rename(tempstream1.name, querystatefilestream.name)
                 except IOError:
-                    print "File path \""+controllerpath+"/"+querystatetierfilename+"\" does not exist.";
-                    sys.stdout.flush();
-            counters[1]-=skippeddoccount;
-            docounterupdate(counters,counterstatefile,counterheader);
+                    print "File path \"" + controllerpath + "/" + querystatetierfilename + "\" does not exist."
+                    sys.stdout.flush()
+            counters[1] -= skippeddoccount
+            docounterupdate(counters, counterstatefile, counterheader)
     except IOError:
-        print "File path \""+controllerpath+"/skipped\" does not exist.";
-        sys.stdout.flush();
+        print "File path \"" + controllerpath + "/skipped\" does not exist."
+        sys.stdout.flush()
 
-def requeueskippedreloadjobs(modname,controllername,controllerpath,reloadstatefilename,reloadpath,counters,counterstatefile,counterheader,dbindexes):
+def requeueskippedreloadjobs(modname, controllername, controllerpath, reloadstatefilename, reloadpath, counters, counterstatefile, counterheader, dbindexes):
     try:
-        skippeddoccount=0;
-        skippedjobfiles=[];
-        skippedjobnums=[];
-        skippeddocs=[];
-        skippedreloadfiles=[];
-        with open(controllerpath+"/skipped","r") as skippedstream:#, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream:
-            skippedheader=skippedstream.readline();
-            #tempstream.write(skippedheader);
-            #tempstream.flush();
+        skippeddoccount = 0
+        skippedjobfiles = []
+        skippedjobnums = []
+        skippeddocs = []
+        skippedreloadfiles = []
+        with open(controllerpath + "/skipped", "r") as skippedstream:#, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream:
+            skippedheader = skippedstream.readline()
+            #tempstream.write(skippedheader)
+            #tempstream.flush()
             for line in skippedstream:
-                skippedjobfile,exitcode,resubmitq=line.rstrip("\n").split(",");
+                skippedjobfile, exitcode, resubmitq = line.rstrip("\n").split(",")
                 if eval(resubmitq):
-                    skippedjobfilesplit=skippedjobfile.split("_");
-                    if skippedjobfilesplit[:2]==[modname,controllername]:
-                        #if niters==1:
-                        #elif niters>1:
-                        with open(controllerpath+"/jobs/"+skippedjobfile,"r") as skippeddocstream:
-                            #skippeddocsline=skippeddocstream.readline();
+                    skippedjobfilesplit = skippedjobfile.split("_")
+                    if skippedjobfilesplit[:2] == [modname, controllername]:
+                        #if niters == 1:
+                        #elif niters > 1:
+                        with open(controllerpath + "/jobs/" + skippedjobfile, "r") as skippeddocstream:
+                            #skippeddocsline = skippeddocstream.readline()
                             for skippeddocsline in skippeddocstream:
                                 if "@" in skippeddocsline:
-                                    #print skippeddocsline;
-                                    #sys.stdout.flush();
-                                    skippedinfoline=("{"+skippeddocsline.rstrip("\n").split(".{")[1]).split("<");
-                                    #print skippedinfoline;
-                                    #sys.stdout.flush();
-                                    skippedjobfiles+=[skippedjobfile];
-                                    skippedjobnums+=[re.sub(".*_job_([0-9]+)[_\.].*",r"\1",skippedjobfile)];
-                                    skippeddocs+=["_".join(indexdoc2indexsplit(json.loads(skippedinfoline[0]),dbindexes))];
-                                    skippedreloadfiles+=[skippedinfoline[1]];
-                                    skippeddoccount+=1;
-                                    #if skippedfileposdoc[reloadstatefilename+"FILE"] in reloadfiles.keys():
-                                    #    reloadpos+=[skippedfileposdoc[reloadstatefilename+"POS"]];
-                                    #skippeddoc=json.loads(skippedjobids);
-                                    #skippedjobfiles+=[skippedjobfile];
-                                    #skippedjobpos+=["_".join(indexdoc2indexsplit(skippeddoc,dbindexes))];
-                                    ##print(skippeddoc);
-                                    ##sys.stdout.flush();
-                                    #skippeddocsline=skippeddocstream.readline();
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".docs");
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".docs.in");
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".error");
-                        #os.remove(controllerpath+"/jobs/"+skippedjob+".batch.log");
+                                    #print skippeddocsline
+                                    #sys.stdout.flush()
+                                    skippedinfoline = ("{" + skippeddocsline.rstrip("\n").split(".{")[1]).split("<")
+                                    #print skippedinfoline
+                                    #sys.stdout.flush()
+                                    skippedjobfiles += [skippedjobfile]
+                                    skippedjobnums += [re.sub(".*_job_([0-9] + )[_\.].*", r"\1", skippedjobfile)]
+                                    skippeddocs += ["_".join(indexdoc2indexsplit(json.loads(skippedinfoline[0]), dbindexes))]
+                                    skippedreloadfiles += [skippedinfoline[1]]
+                                    skippeddoccount += 1
+                                    #if skippedfileposdoc[reloadstatefilename + "FILE"] in reloadfiles.keys():
+                                    #    reloadpos += [skippedfileposdoc[reloadstatefilename + "POS"]]
+                                    #skippeddoc = json.loads(skippedjobids)
+                                    #skippedjobfiles += [skippedjobfile]
+                                    #skippedjobpos += ["_".join(indexdoc2indexsplit(skippeddoc, dbindexes))]
+                                    ##print(skippeddoc)
+                                    ##sys.stdout.flush()
+                                    #skippeddocsline = skippeddocstream.readline()
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".docs")
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".docs.in")
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".error")
+                        #os.remove(controllerpath + "/jobs/" + skippedjob + ".batch.log")
                     #else:
-                    #    tempstream.write(line);
-                    #    tempstream.flush();
+                    #    tempstream.write(line)
+                    #    tempstream.flush()
                 #else:
-                #    tempstream.write(line);
-                #    tempstream.flush();
-            #os.rename(tempstream.name,skippedstream.name);
-            #if len(skippeddocs)>0:
-            #    reloadfilescurs=glob.iglob(controllerpath+"/jobs/"+reloadpattern);
-            #    skippedjobfilescollect=[];
-            #    skippedjobposcollect=[];
+                #    tempstream.write(line)
+                #    tempstream.flush()
+            #os.rename(tempstream.name, skippedstream.name)
+            #if len(skippeddocs) > 0:
+            #    reloadfilescurs = glob.iglob(controllerpath + "/jobs/" + reloadpattern)
+            #    skippedjobfilescollect = []
+            #    skippedjobposcollect = []
             #    for reloadfile in reloadfilescurs:
-            #        #print(reloadfile);
-            #        #sys.stdout.flush();
-            #        with open(reloadfile,"r") as reloaddocstream:
-            #            reloaddocsline=reloaddocstream.readline();
-            #            while (reloaddocsline!="") and (len(skippedjobpos)>0):
-            #                while (reloaddocsline!="") and ("@" not in reloaddocsline):
-            #                    reloaddocsline=reloaddocstream.readline();
+            #        #print(reloadfile)
+            #        #sys.stdout.flush()
+            #        with open(reloadfile, "r") as reloaddocstream:
+            #            reloaddocsline = reloaddocstream.readline()
+            #            while (reloaddocsline != "") and (len(skippedjobpos) > 0):
+            #                while (reloaddocsline != "") and ("@" not in reloaddocsline):
+            #                    reloaddocsline = reloaddocstream.readline()
             #                if "@" in reloaddocsline:
-            #                    reloaddoc=json.loads("{"+reloaddocsline.rstrip("\n").split(".{")[1]);
-            #                    reloadid="_".join(indexdoc2indexsplit(reloaddoc,dbindexes));
+            #                    reloaddoc = json.loads("{" + reloaddocsline.rstrip("\n").split(".{")[1])
+            #                    reloadid = "_".join(indexdoc2indexsplit(reloaddoc, dbindexes))
             #                    if reloadid in skippedjobpos:
-            #                        skippedjobindex=skippedjobpos.index(reloadid);
-            #                        reloadfiles+=[reloadfile.split("/")[-1]];
-            #                        reloadids+=[reloadid];
-            #                        skippeddoccount+=1;
-            #                        #skippedjobdocs.remove(reloaddocsline);
-            #                        skippedjobfilescollect+=[skippedjobfiles[skippedjobindex]];
-            #                        skippedjobposcollect+=[skippedjobpos[skippedjobindex]];
-            #                        del skippedjobfiles[skippedjobindex];
-            #                        del skippedjobpos[skippedjobindex];
-            #                    reloaddocsline=reloaddocstream.readline();
-            #        if len(skippedjobpos)==0:
-            #            break;
-            #        #if len(reloadfilesplits)>0:
-            #        #    reloadids+=[reloadfilesplits];
-            #        #    reloadfiles+=[reloadfile.split("/")[-1]];
-            #    skippedjobfiles+=skippedjobfilescollect;
-            #    skippedjobpos+=skippedjobposcollect;
-            #os.rename(tempstream.name,skippedstream.name);
-        if len(skippeddocs)>0:
+            #                        skippedjobindex = skippedjobpos.index(reloadid)
+            #                        reloadfiles += [reloadfile.split("/")[-1]]
+            #                        reloadids += [reloadid]
+            #                        skippeddoccount += 1
+            #                        #skippedjobdocs.remove(reloaddocsline)
+            #                        skippedjobfilescollect += [skippedjobfiles[skippedjobindex]]
+            #                        skippedjobposcollect += [skippedjobpos[skippedjobindex]]
+            #                        del skippedjobfiles[skippedjobindex]
+            #                        del skippedjobpos[skippedjobindex]
+            #                    reloaddocsline = reloaddocstream.readline()
+            #        if len(skippedjobpos) == 0:
+            #            break
+            #        #if len(reloadfilesplits) > 0:
+            #        #    reloadids += [reloadfilesplits]
+            #        #    reloadfiles += [reloadfile.split("/")[-1]]
+            #    skippedjobfiles += skippedjobfilescollect
+            #    skippedjobpos += skippedjobposcollect
+            #os.rename(tempstream.name, skippedstream.name)
+        if len(skippeddocs) > 0:
             try:
-                with open(controllerpath+"/"+reloadstatefilename+"FILE","r") as reloadstatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream1:
+                with open(controllerpath + "/" + reloadstatefilename + "FILE", "r") as reloadstatefilestream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream1:
                     for reloadstateline in reloadstatefilestream:
-                        reloadstatelinefile=reloadstateline.rstrip("\n");
+                        reloadstatelinefile = reloadstateline.rstrip("\n")
                         if reloadstatelinefile in skippedreloadfiles:
-                            with open(controllerpath+"/"+reloadpath+"/"+reloadstatelinefile,"r") as reloaddocsstream, open(controllerpath+"/"+reloadstatefilename+"DOC","a") as reloadstatedocsstream:
+                            with open(controllerpath + "/" + reloadpath + "/" + reloadstatelinefile, "r") as reloaddocsstream, open(controllerpath + "/" + reloadstatefilename + "DOC", "a") as reloadstatedocsstream:
                                 for reloaddocsline in reloaddocsstream:
                                     if "@" in reloaddocsline:
-                                        reloaddoc=json.loads("{"+reloaddocsline.rstrip("\n").split(".{")[1]);
-                                        reloaddocform="_".join(indexdoc2indexsplit(reloaddoc,dbindexes));
+                                        reloaddoc = json.loads("{" + reloaddocsline.rstrip("\n").split(".{")[1])
+                                        reloaddocform = "_".join(indexdoc2indexsplit(reloaddoc, dbindexes))
                                         if reloaddocform not in skippeddocs:
-                                            reloadstatedocsstream.write(reloadstatelinefile+"~"+reloaddocform+"\n");
-                                            reloadstatedocsstream.flush();
+                                            reloadstatedocsstream.write(reloadstatelinefile + "~" + reloaddocform + "\n")
+                                            reloadstatedocsstream.flush()
                                         else:
-                                            skippeddocindex=skippeddocs.index(reloaddocform);
-                                            skippedjobfile=skippedjobfiles[skippeddocindex];
-                                            skippedjobnum=skippedjobnums[skippeddocindex];
-                                            del skippeddocs[skippeddocindex];
-                                            del skippedjobfiles[skippeddocindex];
-                                            del skippedjobnums[skippeddocindex];
-                                            del skippedreloadfiles[skippeddocindex];
-                                            if skippedjobfiles.count(skippedjobfile)==0:
-                                                if not os.path.isdir(controllerpath+"/jobs/reloaded"):
-                                                    os.mkdir(controllerpath+"/jobs/reloaded");
-                                                os.rename(controllerpath+"/jobs/"+skippedjobfile,controllerpath+"/jobs/reloaded/"+skippedjobfile);
+                                            skippeddocindex = skippeddocs.index(reloaddocform)
+                                            skippedjobfile = skippedjobfiles[skippeddocindex]
+                                            skippedjobnum = skippedjobnums[skippeddocindex]
+                                            del skippeddocs[skippeddocindex]
+                                            del skippedjobfiles[skippeddocindex]
+                                            del skippedjobnums[skippeddocindex]
+                                            del skippedreloadfiles[skippeddocindex]
+                                            if skippedjobfiles.count(skippedjobfile) == 0:
+                                                if not os.path.isdir(controllerpath + "/jobs/reloaded"):
+                                                    os.mkdir(controllerpath + "/jobs/reloaded")
+                                                os.rename(controllerpath + "/jobs/" + skippedjobfile, controllerpath + "/jobs/reloaded/" + skippedjobfile)
                                                 try:
-                                                    skippedjobfilein=skippedjobfile.replace(".docs",".in");
-                                                    os.rename(controllerpath+"/jobs/"+skippedjobfilein,controllerpath+"/jobs/reloaded/"+skippedjobfilein);
+                                                    skippedjobfilein = skippedjobfile.replace(".docs", ".in")
+                                                    os.rename(controllerpath + "/jobs/" + skippedjobfilein, controllerpath + "/jobs/reloaded/" + skippedjobfilein)
                                                 except:
-                                                    pass;
+                                                    pass
                                                 try:
-                                                    skippedjobfiletemp=skippedjobfile.replace(".docs",".temp");
-                                                    os.rename(controllerpath+"/jobs/"+skippedjobfiletemp,controllerpath+"/jobs/reloaded/"+skippedjobfiletemp);
+                                                    skippedjobfiletemp = skippedjobfile.replace(".docs", ".temp")
+                                                    os.rename(controllerpath + "/jobs/" + skippedjobfiletemp, controllerpath + "/jobs/reloaded/" + skippedjobfiletemp)
                                                 except:
-                                                    pass;
+                                                    pass
                                                 try:
-                                                    skippedjobfileout=skippedjobfile.replace(".docs",".out");
-                                                    os.rename(controllerpath+"/jobs/"+skippedjobfileout,controllerpath+"/jobs/reloaded/"+skippedjobfileout);
+                                                    skippedjobfileout = skippedjobfile.replace(".docs", ".out")
+                                                    os.rename(controllerpath + "/jobs/" + skippedjobfileout, controllerpath + "/jobs/reloaded/" + skippedjobfileout)
                                                 except:
-                                                    pass;
-                                                if skippedjobnums.count(skippedjobnum)==0:
-                                                    for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+"_*"):
-                                                        os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                                    for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+".*"):
+                                                    pass
+                                                if skippedjobnums.count(skippedjobnum) == 0:
+                                                    for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                                        os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                                    for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                                         if not ((".merge." in file) and (".out" in file)):
-                                                            os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                                with open(controllerpath+"/skipped","r") as skippedstream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream2:
-                                                    skippedheader=skippedstream.readline();
-                                                    tempstream2.write(skippedheader);
-                                                    tempstream2.flush();
+                                                            os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                                with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
+                                                    skippedheader = skippedstream.readline()
+                                                    tempstream2.write(skippedheader)
+                                                    tempstream2.flush()
                                                     for skippedline in skippedstream:
                                                         if not skippedjobfile in skippedline:
-                                                            tempstream2.write(skippedline);
-                                                            tempstream2.flush();
-                                                    #print("a");
-                                                    #sys.stdout.flush();
-                                                    os.rename(tempstream2.name,skippedstream.name);
-                                                    #print("b");
-                                                    #sys.stdout.flush();
+                                                            tempstream2.write(skippedline)
+                                                            tempstream2.flush()
+                                                    #print("a")
+                                                    #sys.stdout.flush()
+                                                    os.rename(tempstream2.name, skippedstream.name)
+                                                    #print("b")
+                                                    #sys.stdout.flush()
                         else:
-                            tempstream1.write(reloadstateline);
-                            tempstream1.flush();
-                    os.rename(tempstream1.name,reloadstatefilestream.name);
+                            tempstream1.write(reloadstateline)
+                            tempstream1.flush()
+                    os.rename(tempstream1.name, reloadstatefilestream.name)
             except IOError:
-                print "File path \""+controllerpath+"/"+reloadstatefilename+"FILE"+"\" does not exist.";
-                sys.stdout.flush();
+                print "File path \"" + controllerpath + "/" + reloadstatefilename + "FILE" + "\" does not exist."
+                sys.stdout.flush()
             try:
-                with open(controllerpath+"/"+reloadstatefilename+"DOC","r") as reloadstatefilestream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream1:
+                with open(controllerpath + "/" + reloadstatefilename + "DOC", "r") as reloadstatefilestream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream1:
                     for reloadstateline in reloadstatefilestream:
-                        reloadstatelinefile,reloadstatelinedoc=reloadstateline.rstrip("\n").split("~");
+                        reloadstatelinefile, reloadstatelinedoc = reloadstateline.rstrip("\n").split("~")
                         if reloadstatelinedoc in skippeddocs:
-                            skippedindex=skippeddocs.index(reloadstatelinedoc);
-                            if reloadstatelinefile==skippedreloadfiles[skippedindex]:
-                                skippedjobfile=skippedjobfiles[skippedindex];
-                                skippedjobnum=skippedjobnums[skippedindex];
-                                del skippeddocs[skippeddocindex];
-                                del skippedjobfiles[skippeddocindex];
-                                del skippedjobnums[skippeddocindex];
-                                del skippedreloadfiles[skippeddocindex];
-                                if skippedjobfiles.count(skippedjobfile)==0:
-                                    if not os.path.isdir(controllerpath+"/jobs/reloaded"):
-                                        os.mkdir(controllerpath+"/jobs/reloaded");
-                                    os.rename(controllerpath+"/jobs/"+skippedjobfile,controllerpath+"/jobs/reloaded/"+skippedjobfile);
+                            skippedindex = skippeddocs.index(reloadstatelinedoc)
+                            if reloadstatelinefile == skippedreloadfiles[skippedindex]:
+                                skippedjobfile = skippedjobfiles[skippedindex]
+                                skippedjobnum = skippedjobnums[skippedindex]
+                                del skippeddocs[skippeddocindex]
+                                del skippedjobfiles[skippeddocindex]
+                                del skippedjobnums[skippeddocindex]
+                                del skippedreloadfiles[skippeddocindex]
+                                if skippedjobfiles.count(skippedjobfile) == 0:
+                                    if not os.path.isdir(controllerpath + "/jobs/reloaded"):
+                                        os.mkdir(controllerpath + "/jobs/reloaded")
+                                    os.rename(controllerpath + "/jobs/" + skippedjobfile, controllerpath + "/jobs/reloaded/" + skippedjobfile)
                                     try:
-                                        skippedjobfilein=skippedjobfile.replace(".docs",".in");
-                                        os.rename(controllerpath+"/jobs/"+skippedjobfilein,controllerpath+"/jobs/reloaded/"+skippedjobfilein);
+                                        skippedjobfilein = skippedjobfile.replace(".docs", ".in")
+                                        os.rename(controllerpath + "/jobs/" + skippedjobfilein, controllerpath + "/jobs/reloaded/" + skippedjobfilein)
                                     except:
-                                        pass;
+                                        pass
                                     try:
-                                        skippedjobfiletemp=skippedjobfile.replace(".docs",".temp");
-                                        os.rename(controllerpath+"/jobs/"+skippedjobfiletemp,controllerpath+"/jobs/reloaded/"+skippedjobfiletemp);
+                                        skippedjobfiletemp = skippedjobfile.replace(".docs", ".temp")
+                                        os.rename(controllerpath + "/jobs/" + skippedjobfiletemp, controllerpath + "/jobs/reloaded/" + skippedjobfiletemp)
                                     except:
-                                        pass;
+                                        pass
                                     try:
-                                        skippedjobfileout=skippedjobfile.replace(".docs",".out");
-                                        os.rename(controllerpath+"/jobs/"+skippedjobfileout,controllerpath+"/jobs/reloaded/"+skippedjobfileout);
+                                        skippedjobfileout = skippedjobfile.replace(".docs", ".out")
+                                        os.rename(controllerpath + "/jobs/" + skippedjobfileout, controllerpath + "/jobs/reloaded/" + skippedjobfileout)
                                     except:
-                                        pass;
-                                    if skippedjobnums.count(skippedjobnum)==0:
-                                        for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+"_*"):
-                                            os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                        for file in glob.iglob(controllerpath+"/jobs/*_job_"+skippedjobnum+".*"):
+                                        pass
+                                    if skippedjobnums.count(skippedjobnum) == 0:
+                                        for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                            os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                        for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                             if not ((".merge." in file) and (".out" in file)):
-                                                os.rename(file,file.replace("/jobs/","/jobs/reloaded/"));
-                                    with open(controllerpath+"/skipped","r") as skippedstream, tempfile.NamedTemporaryFile(dir=controllerpath,delete=False) as tempstream2:
-                                        skippedheader=skippedstream.readline();
-                                        tempstream2.write(skippedheader);
-                                        tempstream2.flush();
+                                                os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
+                                    with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
+                                        skippedheader = skippedstream.readline()
+                                        tempstream2.write(skippedheader)
+                                        tempstream2.flush()
                                         for skippedline in skippedstream:
                                             if not skippedjobfile in skippedline:
-                                                tempstream2.write(skippedline);
-                                                tempstream2.flush();
-                                        #print("c");
-                                        #sys.stdout.flush();
-                                        os.rename(tempstream2.name,skippedstream.name);
-                                        #print("d");
-                                        #sys.stdout.flush();
+                                                tempstream2.write(skippedline)
+                                                tempstream2.flush()
+                                        #print("c")
+                                        #sys.stdout.flush()
+                                        os.rename(tempstream2.name, skippedstream.name)
+                                        #print("d")
+                                        #sys.stdout.flush()
                         else:
-                            tempstream1.write(reloadstateline);
-                            tempstream1.flush();
-                    os.rename(tempstream1.name,reloadstatefilestream.name);
+                            tempstream1.write(reloadstateline)
+                            tempstream1.flush()
+                    os.rename(tempstream1.name, reloadstatefilestream.name)
             except IOError:
-                print "File path \""+controllerpath+"/"+reloadstatefilename+"DOC"+"\" does not exist.";
-                sys.stdout.flush();
-            counters[1]-=skippeddoccount;
-            docounterupdate(counters,counterstatefile,counterheader);
+                print "File path \"" + controllerpath + "/" + reloadstatefilename + "DOC" + "\" does not exist."
+                sys.stdout.flush()
+            counters[1] -= skippeddoccount
+            docounterupdate(counters, counterstatefile, counterheader)
     except IOError:
-        print "File path \""+controllerpath+"/skipped\" does not exist.";
-        sys.stdout.flush();
+        print "File path \"" + controllerpath + "/skipped\" does not exist."
+        sys.stdout.flush()
 
 def orderpartitions(partitions):
-    partitionsidle=get_partitionsidle(partitions);
-    #partsmix=Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'mix' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
-    #partsalloc=Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'alloc' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0].split(',');
-    #partslist=','.join(partsidle+[x for x in partsmix if x not in partsidle]+[x for x in partsalloc if x not in partsidle+partsmix]);
-    partitionscomp=get_partitionscomp(partitions);
-    partitionsrun=get_partitionsrun(partitions);
-    partitionspend=get_partitionspend(partitions);
-    #print "orderpartitions";
-    #print "for rawpart in $(sinfo -h -o '%t %c %D %P' | grep -E '("+greppartitions+")\*?\s*$' | grep 'idle' | cut -d' ' -f2,3,4 | sed 's/\*//g' | sed 's/\s/,/g'); do echo $(echo $rawpart | cut -d',' -f1,2 | sed 's/,/*/g' | bc),$(echo $rawpart | cut -d',' -f3); done | tr ' ' '\n' | sort -t',' -k1 -n | cut -d',' -f2 | tr '\n' ',' | head -c -1";
-    #print "squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'COMPLETING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1";
-    #print "squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'RUNNING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1";
-    #print "squeue -h -o '%P %T %L' | grep -E '("+greppartitions+")\*?\s*$' | grep 'PENDING' | sort -k2,2 -k3,3n | cut -d' ' -f1 | tr '\n' ',' | head -c -1";
-    #print "";
-    #sys.stdout.flush();
-    orderedpartitions=[x for x in deldup(partitionsidle+partitionscomp+partitionsrun+partitionspend+partitions) if x!=""];
-    return orderedpartitions;
+    partitionsidle = get_partitionsidle(partitions)
+    #partsmix = Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'mix' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(',')
+    #partsalloc = Popen("sinfo -o '%t %P' | grep 'ser-par-10g' | grep 'alloc' | cut -d' ' -f2 | sed 's/\*//g' | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(',')
+    #partslist = ', '.join(partsidle + [x for x in partsmix if x not in partsidle] + [x for x in partsalloc if x not in partsidle + partsmix])
+    partitionscomp = get_partitionscomp(partitions)
+    partitionsrun = get_partitionsrun(partitions)
+    partitionspend = get_partitionspend(partitions)
+    #print "orderpartitions"
+    #print "for rawpart in $(sinfo -h -o '%t %c %D %P' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'idle' | cut -d' ' -f2, 3,4 | sed 's/\*//g' | sed 's/\s/, /g'); do echo $(echo $rawpart | cut -d', ' -f1, 2 | sed 's/, /*/g' | bc), $(echo $rawpart | cut -d', ' -f3); done | tr ' ' '\n' | sort -t', ' -k1 -n | cut -d', ' -f2 | tr '\n' ', ' | head -c -1"
+    #print "squeue -h -o '%P %T %L' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'COMPLETING' | sort -k2, 2 -k3, 3n | cut -d' ' -f1 | tr '\n' ', ' | head -c -1"
+    #print "squeue -h -o '%P %T %L' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'RUNNING' | sort -k2, 2 -k3, 3n | cut -d' ' -f1 | tr '\n' ', ' | head -c -1"
+    #print "squeue -h -o '%P %T %L' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'PENDING' | sort -k2, 2 -k3, 3n | cut -d' ' -f1 | tr '\n' ', ' | head -c -1"
+    #print ""
+    #sys.stdout.flush()
+    orderedpartitions = [x for x in deldup(partitionsidle + partitionscomp + partitionsrun + partitionspend + partitions) if x != ""]
+    return orderedpartitions
 
 def orderfreepartitions(partitions):
-    partitionsidle=get_partitionsidle(partitions);
-    partitionscomp=get_partitionscomp(partitions);
-    orderedfreepartitions=[x for x in deldup(partitionsidle+partitionscomp) if x!=""];
-    return orderedfreepartitions;
+    partitionsidle = get_partitionsidle(partitions)
+    partitionscomp = get_partitionscomp(partitions)
+    orderedfreepartitions = [x for x in deldup(partitionsidle + partitionscomp) if x != ""]
+    return orderedfreepartitions
 
-#def getmaxmemorypernode(resourcesstatefile,partition):
-#    maxmemorypernode=0;
+#def getmaxmemorypernode(resourcesstatefile, partition):
+#    maxmemorypernode = 0
 #    try:
-#        with open(resourcesstatefile,"r") as resourcesstream:
-#            resourcesheader=resourcesstream.readline();
+#        with open(resourcesstatefile, "r") as resourcesstream:
+#            resourcesheader = resourcesstream.readline()
 #            for resourcesstring in resourcesstream:
-#                resources=resourcesstring.rstrip("\n").split(",");
-#                if resources[0]==partition:
-#                    maxmemorypernode=eval(resources[1]);
-#                    break;
+#                resources = resourcesstring.rstrip("\n").split(",")
+#                if resources[0] == partition:
+#                    maxmemorypernode = eval(resources[1])
+#                    break
 #    except IOError:
-#        print "File path \""+resourcesstatefile+"\" does not exist.";
-#        sys.stdout.flush();
-#    return maxmemorypernode;
+#        print "File path \"" + resourcesstatefile + "\" does not exist."
+#        sys.stdout.flush()
+#    return maxmemorypernode
 
-def distributeovernodes(partition,maxmemorypernode,scriptmemorylimit,nnodes,localmaxstepcount,niters):#,maxthreads):
-    #print partitions;
-    #sys.stdout.flush();
-    #partition=partitions[0];
-    partitionncorespernode=get_partitionncorespernode(partition);
-    ncores=nnodes*partitionncorespernode;
-    maxnnodes=get_maxnnodes(partition);
-    #print "distributeovernodes";
-    #print "sinfo -h -p '"+partition+"' -o '%c' | head -n1 | head -c -1";
-    #print "scontrol show partition '"+partition+"' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g' | head -c -1";
-    #print "";
-    #sys.stdout.flush();
-    #maxmemorypernode=getmaxmemorypernode(resourcesstatefile,partition);
-    #tempnnodes=nnodes;
-    #if scriptmemorylimit=="":
-    #    nstepsdistribmempernode=float(maxsteps/tempnnodes);
-    #    while (tempnnodes>1) and (nstepsdistribmempernode<1):
-    #        tempnnodes-=1;
-    #        nstepsdistribmempernode=float(maxsteps/tempnnodes);
+def distributeovernodes(partition, maxmemorypernode, scriptmemorylimit, nnodes, localmaxstepcount, niters):#, maxthreads):
+    #print partitions
+    #sys.stdout.flush()
+    #partition = partitions[0]
+    partitionncorespernode = get_partitionncorespernode(partition)
+    ncores = nnodes * partitionncorespernode
+    maxnnodes = get_maxnnodes(partition)
+    #print "distributeovernodes"
+    #print "sinfo -h -p '" + partition + "' -o '%c' | head -n1 | head -c -1"
+    #print "scontrol show partition '" + partition + "' | grep 'MaxNodes = ' | sed 's/^.*\sMaxNodes = \([0-9]*\)\s.*$/\\1/g' | head -c -1"
+    #print ""
+    #sys.stdout.flush()
+    #maxmemorypernode = getmaxmemorypernode(resourcesstatefile, partition)
+    #tempnnodes = nnodes
+    #if scriptmemorylimit == "":
+    #    nstepsdistribmempernode = float(maxsteps / tempnnodes)
+    #    while (tempnnodes > 1) and (nstepsdistribmempernode < 1):
+    #        tempnnodes -= 1
+    #        nstepsdistribmempernode = float(maxsteps / tempnnodes)
     #else:
-    if (scriptmemorylimit=="") or (eval(scriptmemorylimit)==maxmemorypernode):
-        nsteps=min(nnodes,localmaxstepcount)*niters;
-        #memoryperstep=maxmemorypernode;
-    elif eval(scriptmemorylimit)>maxmemorypernode:
-        return None;
+    if (scriptmemorylimit == "") or (eval(scriptmemorylimit) == maxmemorypernode):
+        nsteps = min(nnodes, localmaxstepcount) * niters
+        #memoryperstep = maxmemorypernode
+    elif eval(scriptmemorylimit) > maxmemorypernode:
+        return None
     else:
-        nstepsdistribmem=nnodes*maxmemorypernode/eval(scriptmemorylimit);
-        #print "a: "+str(nstepsdistribmem);
-        nsteps=min(ncores,localmaxstepcount,nstepsdistribmem)*niters;
-        #print "b: "+str(nsteps);
-        #memoryperstep=nnodes*maxmemorypernode/nsteps;
-        #print "c: "+str(memoryperstep);
+        nstepsdistribmem = nnodes * maxmemorypernode / eval(scriptmemorylimit)
+        #print "a: " + str(nstepsdistribmem)
+        nsteps = min(ncores, localmaxstepcount, nstepsdistribmem) * niters
+        #print "b: " + str(nsteps)
+        #memoryperstep = nnodes * maxmemorypernode / nsteps
+        #print "c: " + str(memoryperstep)
 
-    #nstepsfloat=min(float(ndocsleft),float(partitionncorespernode),nstepsdistribmempernode);
-    #nnodes=int(min(maxnnodes,math.ceil(1./nstepsfloat)));
-    #ncores=nnodes*partitionncorespernode;
-    #nsteps=int(max(1,nstepsfloat));
-    #nnodes=1;
-    #if nstepsdistribmempernode<1:
-    #    if len(partitions)>1:
-    #        return distributeovernodes(resourcesstatefile,partitions[1:],scriptmemorylimit,nnodes,maxsteps,maxthreads);
+    #nstepsfloat = min(float(ndocsleft), float(partitionncorespernode), nstepsdistribmempernode)
+    #nnodes = int(min(maxnnodes, math.ceil(1./nstepsfloat)))
+    #ncores = nnodes * partitionncorespernode
+    #nsteps = int(max(1, nstepsfloat))
+    #nnodes = 1
+    #if nstepsdistribmempernode < 1:
+    #    if len(partitions) > 1:
+    #        return distributeovernodes(resourcesstatefile, partitions[1:], scriptmemorylimit, nnodes, maxsteps, maxthreads)
     #    else:
-    #        print "Memory requirement is too large for this cluster.";
-    #        sys.stdout.flush();
-    #nnodes=tempnnodes;
-    #nsteps=min(ncores,nstepsdistribmem,maxsteps);
-    #nsteps=int(nstepsfloat);
-    #if nsteps>0:
-    #    memoryperstep=nnodes*maxmemorypernode/nsteps;
+    #        print "Memory requirement is too large for this cluster."
+    #        sys.stdout.flush()
+    #nnodes = tempnnodes
+    #nsteps = min(ncores, nstepsdistribmem, maxsteps)
+    #nsteps = int(nstepsfloat)
+    #if nsteps > 0:
+    #    memoryperstep = nnodes * maxmemorypernode / nsteps
     #else:
-    #    memoryperstep=maxmemorypernode;
-    return [ncores,nsteps,maxmemorypernode];
+    #    memoryperstep = maxmemorypernode
+    return ncores, nsteps, maxmemorypernode
 
-def writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,statslocal,statsdb,markdone,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,counters,totmem,ncoresused,scriptlanguage,scriptcommand,scriptflags,scriptext,scriptargs,base,dbindexes,nthreadsfield,nbatch,nworkers,docbatches):
-    ndocbatches=len(docbatches);
-    outputlinemarkers=["-","+","&","@","CPUTime:","MaxRSS:","MaxVMSize:","BSONSize:","None"];
-    jobstring="#!/bin/bash\n";
-    jobstring+="\n";
-    jobstring+="#Created "+str(datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC"))+"\n";
-    jobstring+="\n";
-    jobstring+="#Job name\n";
-    jobstring+="#SBATCH -J \""+jobname+"\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Working directory\n";
-    jobstring+="#SBATCH -D \""+controllerpath+"/jobs\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Job output file\n";
-    jobstring+="#SBATCH -o \""+jobname+".log\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Job error file\n";
-    jobstring+="#SBATCH -e \""+jobname+".err\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Job file write mode\n";
-    jobstring+="#SBATCH --open-mode=\""+writemode+"\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Job max time\n";
-    jobstring+="#SBATCH --time=\""+partitiontimelimit+"\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Partition (queue) to use for job\n";
-    jobstring+="#SBATCH --partition=\""+partition+"\"\n";
-    jobstring+="#################\n";
-    jobstring+="#Number of tasks (CPUs) allocated for job\n";
-    jobstring+="#SBATCH -n "+str(ncoresused)+"\n";
-    jobstring+="#################\n";
-    jobstring+="#Number of nodes to distribute n tasks across\n";
-    jobstring+="#SBATCH -N "+str(nnodes)+"\n";
-    jobstring+="#################\n";
-    #jobstring+="#Lock down N nodes for job\n";
-    #jobstring+="#SBATCH --exclusive\n";
-    #jobstring+="#################\n";
-    jobstring+="\n";
-    jobstring+="#Job info\n";
-    jobstring+="modname=\""+modname+"\"\n";
-    jobstring+="controllername=\""+controllername+"\"\n";
-    #jobstring+="outputlinemarkers=\""+str(outputlinemarkers).replace(" ","")+"\"\n";
-    #jobstring+="jobnum="+str(counters[0])+"\n";
-    jobstring+="nsteps="+str(ncoresused)+"\n";
-    jobstring+="memunit=\"M\"\n";
-    jobstring+="totmem="+str(totmem/1000000)+"\n";
-    #jobstring+="stepmem=$((${totmem}/${nsteps}))\n";
-    jobstring+="steptime=\""+buffertimelimit+"\"\n";
-    jobstring+="scriptlanguage=\""+scriptlanguage+"\"\n";
-    jobstring+="nbatch="+str(nbatch)+"\n";
-    jobstring+="nworkers="+str(min(nworkers,ncoresused))+"\n";
-    jobstring+="\n";
-    jobstring+="#Option info\n";
-    #jobstring+="logging=\""+str(logging)+"\"\n";
-    #jobstring+="cleanup=\""+str(cleanup)+"\"\n";
-    #jobstring+="templocal=\""+str(templocal)+"\"\n";
-    #jobstring+="writelocal=\""+str(writelocal)+"\"\n";
-    #jobstring+="writedb=\""+str(writedb)+"\"\n";
-    #jobstring+="statslocal=\""+str(statslocal)+"\"\n";
-    #jobstring+="statsdb=\""+str(statsdb)+"\"\n";
-    jobstring+="markdone=\""+markdone+"\"\n";
-    jobstring+="cleanup=\""+cleanup+"\"\n";
-    jobstring+="\n";
-    jobstring+="#File system info\n";
-    jobstring+="rootpath=\"${CRUNCH_ROOT}\"\n";
-    jobstring+="binpath=\"${rootpath}/bin\"\n";
-    jobstring+="scriptpath=\"${rootpath}/modules/modules/${modname}\"\n";
-    jobstring+="\n";
-    #jobstring+="#Script info\n";
-    #jobstring+="scriptlanguage=\""+scriptlanguage+"\"\n";
-    #jobstring+="scriptcommand=\""+scriptcommand+"\"\n";
-    #jobstring+="scriptflags=\""+scriptflags+"\"\n";
-    #jobstring+="scriptext=\""+scriptext+"\"\n";
-    #jobstring+="\n";
+def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, jobname, jobstepnames, controllerpath, controllername, writemode, partitiontimelimit, buffertimelimit, partition, nnodes, counters, totmem, ncoresused, scriptlanguage, scriptcommand, scriptflags, scriptext, scriptargs, base, dbindexes, nthreadsfield, nbatch, nworkers, docbatches):
+    ndocbatches = len(docbatches)
+    outputlinemarkers = ["-", " + ", "&", "@", "CPUTime:", "MaxRSS:", "MaxVMSize:", "BSONSize:", "None"]
+    jobstring = "#!/bin/bash\n"
+    jobstring += "\n"
+    jobstring += "# Created " + str(datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")) + "\n"
+    jobstring += "\n"
+    jobstring += "#Job name\n"
+    jobstring += "#SBATCH -J \"" + jobname + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Working directory\n"
+    jobstring += "#SBATCH -D \"" + controllerpath + "/jobs\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job output file\n"
+    jobstring += "#SBATCH -o \"" + jobname + ".log\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job error file\n"
+    jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job file write mode\n"
+    jobstring += "#SBATCH --open-mode=\"" + writemode + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job max time\n"
+    jobstring += "#SBATCH --time=\"" + partitiontimelimit + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Partition (queue) to use for job\n"
+    jobstring += "#SBATCH --partition=\"" + partition + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Number of tasks (CPUs) allocated for job\n"
+    jobstring += "#SBATCH -n " + str(ncoresused) + "\n"
+    jobstring += "#################\n"
+    jobstring += "#Number of nodes to distribute n tasks across\n"
+    jobstring += "#SBATCH -N " + str(nnodes) + "\n"
+    jobstring += "#################\n"
+    #jobstring += "#Lock down N nodes for job\n"
+    #jobstring += "#SBATCH --exclusive\n"
+    #jobstring += "#################\n"
+    jobstring += "\n"
+    jobstring += "# Job info\n"
+    jobstring += "modname=\"" + modname + "\"\n"
+    jobstring += "controllername=\"" + controllername + "\"\n"
+    #jobstring += "outputlinemarkers=\"" + str(outputlinemarkers).replace(" ", "") + "\"\n"
+    #jobstring += "jobnum=" + str(counters[0]) + "\n"
+    jobstring += "nsteps=" + str(ncoresused) + "\n"
+    jobstring += "memunit=\"M\"\n"
+    jobstring += "totmem=" + str(totmem / 1000000) + "\n"
+    #jobstring += "stepmem=$((${totmem}/${nsteps}))\n"
+    jobstring += "steptime=\"" + buffertimelimit + "\"\n"
+    jobstring += "scriptlanguage=\"" + scriptlanguage + "\"\n"
+    jobstring += "nbatch=" + str(nbatch) + "\n"
+    jobstring += "nworkers=" + str(min(nworkers, ncoresused)) + "\n"
+    jobstring += "\n"
+    jobstring += "# Option info\n"
+    #jobstring += "logging=\"" + str(logging) + "\"\n"
+    #jobstring += "cleanup=\"" + str(cleanup) + "\"\n"
+    #jobstring += "templocal=\"" + str(templocal) + "\"\n"
+    #jobstring += "writelocal=\"" + str(writelocal) + "\"\n"
+    #jobstring += "writedb=\"" + str(writedb) + "\"\n"
+    #jobstring += "statslocal=\"" + str(statslocal) + "\"\n"
+    #jobstring += "statsdb=\"" + str(statsdb) + "\"\n"
+    jobstring += "markdone=\"" + markdone + "\"\n"
+    jobstring += "cleanup=\"" + cleanup + "\"\n"
+    jobstring += "\n"
+    jobstring += "# File system info\n"
+    jobstring += "rootpath=\"${CRUNCH_ROOT}\"\n"
+    jobstring += "binpath=\"${rootpath}/bin\"\n"
+    jobstring += "scriptpath=\"${rootpath}/modules/modules/${modname}\"\n"
+    jobstring += "\n"
+    #jobstring += "#Script info\n"
+    #jobstring += "scriptlanguage=\"" + scriptlanguage + "\"\n"
+    #jobstring += "scriptcommand=\"" + scriptcommand + "\"\n"
+    #jobstring += "scriptflags=\"" + scriptflags + "\"\n"
+    #jobstring += "scriptext=\"" + scriptext + "\"\n"
+    #jobstring += "\n"
     #if not reloadjob:
-    #    jobstring+="#Database info\n";
-    #    jobstring+="basecollection=\""+base+"\"\n";
-    #    jobstring+="dbindexes=\""+str([str(x) for x in dbindexes]).replace(" ","")+"\"\n";
-    #    jobstring+="\n";
-    jobstring+="#MPI info\n";
+    #    jobstring += "#Database info\n"
+    #    jobstring += "basecollection=\"" + base + "\"\n"
+    #    jobstring += "dbindexes=\"" + str([str(x) for x in dbindexes]).replace(" ", "") + "\"\n"
+    #    jobstring += "\n"
+    jobstring += "# MPI info\n"
     for i in range(ndocbatches):
-        with open(controllerpath+"/jobs/"+jobstepnames[i]+".docs","w") as docstream:
+        with open(controllerpath + "/jobs/" + jobstepnames[i] + ".docs", "w") as docstream:
             for doc in docbatches[i]:
                 if reloadjob:
-                    docstream.write(doc);
+                    docstream.write(doc)
                 else:
-                    docstream.write(json.dumps(doc,separators=(',',':'))+"\n");
+                    docstream.write(json.dumps(doc, separators = (',',':')) + "\n")
                 docstream.flush()
-        if nthreadsfield!="":
-            nstepthreads=max([x[nthreadsfield] for x in docbatches[i]]);
+        if nthreadsfield != "":
+            nstepthreads = max([x[nthreadsfield] for x in docbatches[i]])
         else:
-            nstepthreads=1;
-        jobstring+="nstepthreads="+str(nstepthreads)+"\n";
-        jobstring+="stepmem=$(((${totmem}*${nstepthreads})/${nsteps}))\n";
+            nstepthreads = 1
+        jobstring += "nstepthreads=" + str(nstepthreads) + "\n"
+        jobstring += "stepmem=$(((${totmem}*${nstepthreads})/${nsteps}))\n"
         if not reloadjob:
-            jobstring+="mpirun -srun -n \"${nstepthreads}\" -J \""+jobstepnames[i]+"\" --mem-per-cpu=\"${stepmem}${memunit}\" ";
-            if buffertimelimit!="infinite":
-                jobstring+="--time=\"${steptime}\" ";
-            jobstring+="python ${binpath}/wrapper.py --mod \"${modname}\" --controller \"${controllername}\" --stepid \"${SLURM_JOBID}."+str(i)+"\" --delay \"0.1\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" --stats-delay \"0.01\" ";
-            if buffertimelimit!="infinite":
-                jobstring+="--time-limit \"${steptime}\" ";
-            jobstring+="--cleanup-after \"${cleanup}\" --nbatch \"${nbatch}\" --nworkers \"${nworkers}\" --random-nbatch --dbindexes "+" ".join(["\""+x+"\"" for x in dbindexes])+" --file \""+jobstepnames[i]+".docs\" ";
+            jobstring += "mpirun -srun -n \"${nstepthreads}\" -J \"" + jobstepnames[i] + "\" --mem-per-cpu=\"${stepmem}${memunit}\" "
+            if buffertimelimit != "infinite":
+                jobstring += "--time=\"${steptime}\" "
+            jobstring += "python ${binpath}/wrapper.py --mod \"${modname}\" --controller \"${controllername}\" --stepid \"${SLURM_JOBID}." + str(i) + "\" --delay \"0.1\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" --stats-delay \"0.01\" "
+            if buffertimelimit != "infinite":
+                jobstring += "--time-limit \"${steptime}\" "
+            jobstring += "--cleanup-after \"${cleanup}\" --nbatch \"${nbatch}\" --nworkers \"${nworkers}\" --random-nbatch --dbindexes " + " ".join(["\"" + x + "\"" for x in dbindexes]) + " --file \"" + jobstepnames[i] + ".docs\" "
             if logging:
-                jobstring+="--logging ";
+                jobstring += "--logging "
             if templocal:
-                jobstring+="--temp-local ";
+                jobstring += "--temp-local "
             if writelocal:
-                jobstring+="--write-local ";
+                jobstring += "--write-local "
             if statslocal:
-                jobstring+="--stats-local ";
+                jobstring += "--stats-local "
             if writedb:
-                jobstring+="--write-db ";
+                jobstring += "--write-db "
             if statsdb:
-                jobstring+="--stats-db ";
-            jobstring+="--script-language \"${scriptlanguage}\" --script "+scriptcommand+scriptflags+"${scriptpath}/"+modname+scriptext+" --args "+scriptargs+" &";
-        jobstring+="\n";
-    jobstring+="wait";
+                jobstring += "--stats-db "
+            jobstring += "--script-language \"${scriptlanguage}\" --script " + scriptcommand + scriptflags + "${scriptpath}/" + modname + scriptext + " --args " + scriptargs + " &"
+        jobstring += "\n"
+    jobstring += "wait"
     #if reloadjob:
-    #    jobstring+="python \"${binpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\" \"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${nstepthreads[@]}\"";
+    #    jobstring += "python \"${binpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\" \"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${nstepthreads[@]}\""
     #else:
-    #    jobstring+="python \"${binpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\"\"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\"";
-    with open(controllerpath+"/jobs/"+jobname+".job","w") as jobstream:
-        jobstream.write(jobstring);
-        jobstream.flush();
+    #    jobstring += "python \"${binpath}/queryjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\"\"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${basecollection}\" \"${dbindexes}\" \"${nstepthreads[@]}\""
+    with open(controllerpath + "/jobs/" + jobname + ".job", "w") as jobstream:
+        jobstream.write(jobstring)
+        jobstream.flush()
 
-def waitforslots(reloadjob,storagelimit,needslicense,username,modname,controllername,controllerpath,querystatefilename,base,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes):
-    #print("dir_size/storagelimit: "+str(dir_size(controllerpath))+"/"+str(storagelimit));
-    #print("storageleft: "+str(storageleft(controllerpath,storagelimit)));
-    #sys.stdout.flush();
-    #needslicense=(licensestream!=None);
+def waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes):
+    #print("dir_size/storagelimit: " + str(dir_size(controllerpath)) + "/" + str(storagelimit))
+    #print("storageleft: " + str(storageleft(controllerpath, storagelimit)))
+    #sys.stdout.flush()
+    #needslicense = (licensestream != None)
     if needslicense:
-        jobslotsleft=clusterjobslotsleft(username,modname,controllername,globalmaxjobcount,localmaxjobcount);
-        nlicensesplit=licensecount(username,needslicense,localbinpath,licensescript,sublicensescript);
-        licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
-        orderedfreepartitions=orderfreepartitions(partitions);
-        releaseheldjobs(username,modname,controllername);
-        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
-            with open(statusstatefile,"w") as statusstream:
-                statusstream.truncate(0);
-                statusstream.write("Waiting");
-                statusstream.flush();
-            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
-                time.sleep(sleeptime);
-                jobslotsleft=clusterjobslotsleft(username,modname,controllername,globalmaxjobcount,localmaxjobcount);
-                nlicensesplit=licensecount(username,needslicense,localbinpath,licensescript,sublicensescript);
-                licensesleft=clusterlicensesleft(nlicensesplit,maxthreads);
-                orderedfreepartitions=orderfreepartitions(partitions);
-                releaseheldjobs(username,modname,controllername);
-        #fcntl.flock(licensestream,fcntl.LOCK_EX);
-        #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a+", so instead use bitwise OR with non-blocking and loop until lock is acquired.
-        while (timeleft(starttime,controllerbuffertimelimit)>0):
-            releaseheldjobs(username,modname,controllername);
+        jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
+        nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
+        licensesleft = clusterlicensesleft(nlicensesplit, maxthreads)
+        orderedfreepartitions = orderfreepartitions(partitions)
+        releaseheldjobs(username, modname, controllername)
+        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+            with open(statusstatefile, "w") as statusstream:
+                statusstream.truncate(0)
+                statusstream.write("Waiting")
+                statusstream.flush()
+            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+                time.sleep(sleeptime)
+                jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
+                nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
+                licensesleft = clusterlicensesleft(nlicensesplit, maxthreads)
+                orderedfreepartitions = orderfreepartitions(partitions)
+                releaseheldjobs(username, modname, controllername)
+        #fcntl.flock(licensestream, fcntl.LOCK_EX)
+        #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-blocking and loop until lock is acquired.
+        while (timeleft(starttime, controllerbuffertimelimit) > 0):
+            releaseheldjobs(username, modname, controllername)
             #try:
-            #    fcntl.flock(licensestream,fcntl.LOCK_EX | fcntl.LOCK_NB);
-            #    break;
+            #    fcntl.flock(licensestream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            #    break
             #except IOError as e:
-            #    if e.errno!=errno.EAGAIN:
-            #        raise;
+            #    if e.errno != errno.EAGAIN:
+            #        raise
             #    else:
-            #        time.sleep(0.1);
-        if not (timeleft(starttime,controllerbuffertimelimit)>0):
-            #print "hi";
-            #sys.stdout.flush();
-            return None;
-        #licensestream.seek(0,0);
-        #licenseheader=licensestream.readline();
-        #print licenseheader;
-        #sys.stdout.flush();
-        #licensestream.truncate(0);
-        #licensestream.seek(0,0);
-        #licensestream.write(licenseheader);
-        #licensestream.write(','.join([str(x) for x in nlicensesplit]));
-        #licensestream.flush();
+            #        time.sleep(0.1)
+        if not (timeleft(starttime, controllerbuffertimelimit) > 0):
+            #print "hi"
+            #sys.stdout.flush()
+            return None
+        #licensestream.seek(0, 0)
+        #licenseheader = licensestream.readline()
+        #print licenseheader
+        #sys.stdout.flush()
+        #licensestream.truncate(0)
+        #licensestream.seek(0, 0)
+        #licensestream.write(licenseheader)
+        #licensestream.write(', '.join([str(x) for x in nlicensesplit]))
+        #licensestream.flush()
     else:
-        jobslotsleft=clusterjobslotsleft(username,modname,controllername,globalmaxjobcount,localmaxjobcount);
-        orderedfreepartitions=orderfreepartitions(partitions);
-        releaseheldjobs(username,modname,controllername);
-        if (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
-            with open(statusstatefile,"w") as statusstream:
-                statusstream.truncate(0);
-                statusstream.write("Waiting");
-                statusstream.flush();
-            while (timeleft(starttime,controllerbuffertimelimit)>0) and not (jobslotsleft and (len(orderedfreepartitions)>0) and storageleft(controllerpath,storagelimit)):
-                time.sleep(sleeptime);
-                jobslotsleft=clusterjobslotsleft(username,modname,controllername,globalmaxjobcount,localmaxjobcount);
-                orderedfreepartitions=orderfreepartitions(partitions);
-                releaseheldjobs(username,modname,controllername);
-        if not (timeleft(starttime,controllerbuffertimelimit)>0):
-            return None;
+        jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
+        orderedfreepartitions = orderfreepartitions(partitions)
+        releaseheldjobs(username, modname, controllername)
+        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+            with open(statusstatefile, "w") as statusstream:
+                statusstream.truncate(0)
+                statusstream.write("Waiting")
+                statusstream.flush()
+            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+                time.sleep(sleeptime)
+                jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
+                orderedfreepartitions = orderfreepartitions(partitions)
+                releaseheldjobs(username, modname, controllername)
+        if not (timeleft(starttime, controllerbuffertimelimit) > 0):
+            return None
 
     if reloadjob:
-        requeueskippedreloadjobs(modname,controllername,controllerpath,querystatefilename,base,counters,counterstatefile,counterheader,dbindexes);
+        requeueskippedreloadjobs(modname, controllername, controllerpath, querystatefilename, base, counters, counterstatefile, counterheader, dbindexes)
     else:
-        requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefilename,base,counters,counterstatefile,counterheader,dbindexes);
+        requeueskippedqueryjobs(modname, controllername, controllerpath, querystatefilename, base, counters, counterstatefile, counterheader, dbindexes)
 
-    return orderedfreepartitions;
+    return orderedfreepartitions
 
-def doinput(docbatch,querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,base,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig):
-    if querylimit==None:
-        niters=niters_orig;
+def doinput(docbatch, querylimit, counters, reloadjob, storagelimit, nthreadsfield, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, dbindexes, niters_orig):
+    if querylimit == None:
+        niters = niters_orig
     else:
-        niters=min(niters_orig,querylimit-counters[1]+1);
-    if len(docbatch)==1:
-        niters=min(niters,len(docbatch[0]));
-    if (len(docbatch)>0) and (nthreadsfield!="") and (not reloadjob):
-        maxthreads=max([x[nthreadsfield] for x in docbatch[0:niters]]);
+        niters = min(niters_orig, querylimit-counters[1] + 1)
+    if len(docbatch) == 1:
+        niters = min(niters, len(docbatch[0]))
+    if (len(docbatch) > 0) and (nthreadsfield != "") and (not reloadjob):
+        maxthreads = max([x[nthreadsfield] for x in docbatch[0:niters]])
     else:
-        maxthreads=1;
-    orderedfreepartitions=waitforslots(reloadjob,storagelimit,needslicense,username,modname,controllername,controllerpath,querystatefilename,base,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
-    if orderedfreepartitions==None:
-        return None;
-    #orderedfreepartitions=orderpartitions(partitions);
-    nnodes=1;
-    i=0;
-    while i<len(orderedfreepartitions):
-        partition=orderedfreepartitions[i];
-        #nnodes=1;
-        distribution=distributeovernodes(partition,partitionsmaxmemory[partition],scriptmemorylimit,nnodes,localmaxstepcount,niters);
-        if distribution==None:
-            i+=1;
+        maxthreads = 1
+    orderedfreepartitions = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+    if orderedfreepartitions == None:
+        return None
+    #orderedfreepartitions = orderpartitions(partitions)
+    nnodes = 1
+    i = 0
+    while i < len(orderedfreepartitions):
+        partition = orderedfreepartitions[i]
+        #nnodes = 1
+        distribution = distributeovernodes(partition, partitionsmaxmemory[partition], scriptmemorylimit, nnodes, localmaxstepcount, niters)
+        if distribution == None:
+            i += 1
         else:
-            break;
-    if i==len(orderedfreepartitions):
-        raise Exception("Memory requirement is too large for this cluster.");
-    ncores,nsteps,maxmemorypernode=distribution;
-    if len(docbatch)>0:
-        maxthreads=0;
-        nextdocind=0;
-        if (nthreadsfield!="") and (not reloadjob):
-            while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-                maxthreads+=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
-                nextdocind+=niters;
-            if nextdocind>len(docbatch):
-                nextdocind=len(docbatch);
-            if maxthreads>ncores:
-                nextdocind-=niters;
-                maxthreads-=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
+            break
+    if i == len(orderedfreepartitions):
+        raise Exception("Memory requirement is too large for this cluster.")
+    ncores, nsteps, maxmemorypernode = distribution
+    if len(docbatch) > 0:
+        maxthreads = 0
+        nextdocind = 0
+        if (nthreadsfield != "") and (not reloadjob):
+            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+                maxthreads += max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
+                nextdocind += niters
+            if nextdocind > len(docbatch):
+                nextdocind = len(docbatch)
+            if maxthreads > ncores:
+                nextdocind -= niters
+                maxthreads -= max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
         else:
-            while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-                maxthreads+=1;
-                nextdocind+=niters;
-            if nextdocind>len(docbatch):
-                nextdocind=len(docbatch);
-            if maxthreads>ncores:
-                nextdocind-=niters;
-                maxthreads-=1;
-        while maxthreads==0:
-            nnodes+=1;
-            orderedfreepartitions=waitforslots(reloadjob,storagelimit,needslicense,username,modname,controllername,controllerpath,querystatefilename,base,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
-            if orderedfreepartitions==None:
-                return None;
-            #orderedfreepartitions=orderpartitions(partitions);
-            i=0;
-            while i<len(orderedfreepartitions):
-                partition=orderedfreepartitions[i];
-                #nnodes=1;
-                distribution=distributeovernodes(partition,partitionsmaxmemory[partition],scriptmemorylimit,nnodes,localmaxstepcount,niters);
-                if distribution==None:
-                    i+=1;
+            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+                maxthreads += 1
+                nextdocind += niters
+            if nextdocind > len(docbatch):
+                nextdocind = len(docbatch)
+            if maxthreads > ncores:
+                nextdocind -= niters
+                maxthreads -= 1
+        while maxthreads == 0:
+            nnodes += 1
+            orderedfreepartitions = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+            if orderedfreepartitions == None:
+                return None
+            #orderedfreepartitions = orderpartitions(partitions)
+            i = 0
+            while i < len(orderedfreepartitions):
+                partition = orderedfreepartitions[i]
+                #nnodes = 1
+                distribution = distributeovernodes(partition, partitionsmaxmemory[partition], scriptmemorylimit, nnodes, localmaxstepcount, niters)
+                if distribution == None:
+                    i += 1
                 else:
-                    break;
-            if i==len(orderedfreepartitions):
-                raise Exception("Memory requirement is too large for this cluster.");
-            ncores,nsteps,maxmemorypernode=distribution;
-            maxthreads=0;
-            nextdocind=0;
-            if (nthreadsfield!="") and (not reloadjob):
-                while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-                    maxthreads+=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
-                    nextdocind+=niters;
-                if nextdocind>len(docbatch):
-                    nextdocind=len(docbatch);
-                if maxthreads>ncores:
-                    nextdocind-=niters;
-                    maxthreads-=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
+                    break
+            if i == len(orderedfreepartitions):
+                raise Exception("Memory requirement is too large for this cluster.")
+            ncores, nsteps, maxmemorypernode = distribution
+            maxthreads = 0
+            nextdocind = 0
+            if (nthreadsfield != "") and (not reloadjob):
+                while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+                    maxthreads += max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
+                    nextdocind += niters
+                if nextdocind > len(docbatch):
+                    nextdocind = len(docbatch)
+                if maxthreads > ncores:
+                    nextdocind -= niters
+                    maxthreads -= max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
             else:
-                while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-                    maxthreads+=1;
-                    nextdocind+=niters;
-                if nextdocind>len(docbatch):
-                    nextdocind=len(docbatch);
-                if maxthreads>ncores:
-                    nextdocind-=niters;
-                    maxthreads-=1;
-        #nsteps=0;
-    #print {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"maxmemorypernode":maxmemorypernode};
-    #sys.stdout.flush();
-    return {"partition":partition,"nnodes":nnodes,"ncores":ncores,"nsteps":nsteps,"maxmemorypernode":maxmemorypernode};
+                while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+                    maxthreads += 1
+                    nextdocind += niters
+                if nextdocind > len(docbatch):
+                    nextdocind = len(docbatch)
+                if maxthreads > ncores:
+                    nextdocind -= niters
+                    maxthreads -= 1
+        #nsteps = 0
+    #print {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
+    #sys.stdout.flush()
+    return {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
 
-def doaction(counters,inputdoc,docbatch,querylimit,reloadjob,storagelimit,nthreadsfield,needslicense,username,globalmaxjobcount,localmaxjobcount,controllerpath,localbinpath,licensescript,sublicensescript,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,modname,controllername,dbindexes,logging,cleanup,emplocal,writelocal,writedb,statslocal,statsdb,markdone,writemode,scriptcommand,scriptflags,scriptext,scriptargs,querystatefilename,base,counterstatefile,counterheader,niters_orig,nbatch_orig,nworkers_orig):
-    partition=inputdoc['partition'];
-    nnodes=inputdoc['nnodes'];
-    ncores=inputdoc['ncores'];
-    nsteps=inputdoc['nsteps'];
-    maxmemorypernode=inputdoc["maxmemorypernode"];
-    #print(docbatch);
-    #sys.stdout.flush();
-    if querylimit==None:
-        niters=niters_orig;
+def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, nthreadsfield, needslicense, username, globalmaxjobcount, localmaxjobcount, controllerpath, localbinpath, licensescript, sublicensescript, scriptlanguage, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, modname, controllername, dbindexes, logging, cleanup, emplocal, writelocal, writedb, statslocal, statsdb, markdone, writemode, scriptcommand, scriptflags, scriptext, scriptargs, querystatefilename, base, counterstatefile, counterheader, niters_orig, nbatch_orig, nworkers_orig):
+    partition = inputdoc['partition']
+    nnodes = inputdoc['nnodes']
+    ncores = inputdoc['ncores']
+    nsteps = inputdoc['nsteps']
+    maxmemorypernode = inputdoc["maxmemorypernode"]
+    #print(docbatch)
+    #sys.stdout.flush()
+    if querylimit == None:
+        niters = niters_orig
     else:
-        niters=min(niters_orig,querylimit-counters[1]+1);
-    if len(docbatch)<nsteps:
-        niters=min(niters,len(docbatch));
-    if nbatch_orig>niters:
-        nbatch=niters;
+        niters = min(niters_orig, querylimit-counters[1] + 1)
+    if len(docbatch) < nsteps:
+        niters = min(niters, len(docbatch))
+    if nbatch_orig > niters:
+        nbatch = niters
     else:
-        nbatch=nbatch_orig;
-    ndocs=len(docbatch);
-    if nworkers_orig*nbatch>ndocs:
-        nworkers=int(ndocs/nbatch)+int(ndocs%nbatch>0);
+        nbatch = nbatch_orig
+    ndocs = len(docbatch)
+    if nworkers_orig * nbatch > ndocs:
+        nworkers = int(ndocs / nbatch) + int(ndocs % nbatch > 0)
     else:
-        nworkers=nworkers_orig;
-    maxthreads=0;
-    nextdocind=0;
-    if (nthreadsfield!="") and (not reloadjob):
-        while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-            maxthreads+=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
-            nextdocind+=niters;
-        if nextdocind>len(docbatch):
-            nextdocind=len(docbatch);
-        if maxthreads>ncores:
-            nextdocind-=niters;
-            maxthreads-=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
+        nworkers = nworkers_orig
+    maxthreads = 0
+    nextdocind = 0
+    if (nthreadsfield != "") and (not reloadjob):
+        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+            maxthreads += max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
+            nextdocind += niters
+        if nextdocind > len(docbatch):
+            nextdocind = len(docbatch)
+        if maxthreads > ncores:
+            nextdocind -= niters
+            maxthreads -= max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
     else:
-        while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-            maxthreads+=1;
-            nextdocind+=niters;
-        if nextdocind>len(docbatch):
-            nextdocind=len(docbatch);
-        if maxthreads>ncores:
-            nextdocind-=niters;
-            maxthreads-=1;
-    while maxthreads==0:
-        nnodes+=1;
-        orderedfreepartitions=waitforslots(reloadjob,storagelimit,needslicense,username,modname,controllername,controllerpath,querystatefilename,base,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,maxthreads,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,dbindexes);
-        if orderedfreepartitions==None:
-            return None;
-        #orderedfreepartitions=orderpartitions(partitions);
-        i=0;
-        while i<len(orderedfreepartitions):
-            partition=orderedfreepartitions[i];
-            #nnodes=1;
-            distribution=distributeovernodes(partition,partitionsmaxmemory[partition],scriptmemorylimit,nnodes,localmaxstepcount,niters);
-            if distribution==None:
-                i+=1;
+        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+            maxthreads += 1
+            nextdocind += niters
+        if nextdocind > len(docbatch):
+            nextdocind = len(docbatch)
+        if maxthreads > ncores:
+            nextdocind -= niters
+            maxthreads -= 1
+    while maxthreads == 0:
+        nnodes += 1
+        orderedfreepartitions = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+        if orderedfreepartitions == None:
+            return None
+        #orderedfreepartitions = orderpartitions(partitions)
+        i = 0
+        while i < len(orderedfreepartitions):
+            partition = orderedfreepartitions[i]
+            #nnodes = 1
+            distribution = distributeovernodes(partition, partitionsmaxmemory[partition], scriptmemorylimit, nnodes, localmaxstepcount, niters)
+            if distribution == None:
+                i += 1
             else:
-                break;
-        if i==len(orderedfreepartitions):
-            raise Exception("Memory requirement is too large for this cluster.");
-        ncores,nsteps,maxmemorypernode=distribution;
-        maxthreads=0;
-        nextdocind=0;
-        if (nthreadsfield!="") and (not reloadjob):
-            while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-                maxthreads+=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
-                nextdocind+=niters;
-            if nextdocind>len(docbatch):
-                nextdocind=len(docbatch);
-            if maxthreads>ncores:
-                nextdocind-=niters;
-                maxthreads-=max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind+niters]]);
+                break
+        if i == len(orderedfreepartitions):
+            raise Exception("Memory requirement is too large for this cluster.")
+        ncores, nsteps, maxmemorypernode = distribution
+        maxthreads = 0
+        nextdocind = 0
+        if (nthreadsfield != "") and (not reloadjob):
+            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+                maxthreads += max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
+                nextdocind += niters
+            if nextdocind > len(docbatch):
+                nextdocind = len(docbatch)
+            if maxthreads > ncores:
+                nextdocind -= niters
+                maxthreads -= max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
         else:
-            while (nextdocind<len(docbatch)) and (maxthreads<=ncores):
-                maxthreads+=1;
-                nextdocind+=niters;
-            if nextdocind>len(docbatch):
-                nextdocind=len(docbatch);
-            if maxthreads>ncores:
-                nextdocind-=niters;
-                maxthreads-=1;
-    #docbatchwrite=docbatch[:nextdocind];
-    docbatchwrite=[docbatch[i:i+niters] for i in range(0,nextdocind,niters)];
-    #docbatchpass=docbatch[nextdocind:];
+            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+                maxthreads += 1
+                nextdocind += niters
+            if nextdocind > len(docbatch):
+                nextdocind = len(docbatch)
+            if maxthreads > ncores:
+                nextdocind -= niters
+                maxthreads -= 1
+    #docbatchwrite = docbatch[:nextdocind]
+    docbatchwrite = [docbatch[i:i + niters] for i in range(0, nextdocind, niters)]
+    #docbatchpass = docbatch[nextdocind:]
 
-    totmem=nnodes*maxmemorypernode;
-    ncoresused=len(docbatchwrite);
-    memoryperstep=totmem/ncoresused;
-    #niters=len(docbatch);
-    #if nthreadsfield=="":
-    #    totnthreadsfield=niters;
+    totmem = nnodes * maxmemorypernode
+    ncoresused = len(docbatchwrite)
+    memoryperstep = totmem / ncoresused
+    #niters = len(docbatch)
+    #if nthreadsfield == "":
+    #    totnthreadsfield = niters
     #else:
-    #    totnthreadsfield=sum([x[nthreadsfield] for x in docbatch]);
-    #while not clusterjobslotsleft(globalmaxjobcount,scriptext,minnsteps=inputdoc["nsteps"]):
-    #    time.sleep(sleeptime);
-    #doc=json.loads(doc.rstrip('\n'));
-    #if niters==1:
-    #    jobstepnames=[indexdoc2jobstepname(x,modname,controllername,dbindexes) for x in docbatchwrite];
+    #    totnthreadsfield = sum([x[nthreadsfield] for x in docbatch])
+    #while not clusterjobslotsleft(globalmaxjobcount, scriptext, minnsteps = inputdoc["nsteps"]):
+    #    time.sleep(sleeptime)
+    #doc = json.loads(doc.rstrip('\n'))
+    #if niters == 1:
+    #    jobstepnames = [indexdoc2jobstepname(x, modname, controllername, dbindexes) for x in docbatchwrite]
     #else:
-    jobstepnames=["crunch_"+modname+"_"+controllername+"_job_"+str(counters[0])+"_step_"+str(i+1) for i in range(len(docbatchwrite))];
-    #jobstepnamescontract=jobstepnamescontract(jobstepnames);
-    jobname="crunch_"+modname+"_"+controllername+"_job_"+str(counters[0])+"_steps_"+str((counters[1]+niters-1)/niters)+"-"+str((counters[1]+niters*len(docbatchwrite)-1)/niters);
+    jobstepnames = ["crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_step_" + str(i + 1) for i in range(len(docbatchwrite))]
+    #jobstepnamescontract = jobstepnamescontract(jobstepnames)
+    jobname = "crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_steps_" + str((counters[1] + niters-1) / niters) + "-" + str((counters[1] + niters * len(docbatchwrite)-1) / niters)
     #if reloadjob:
-    #    jobstepnames=["reload_"+x for x in jobstepnames];
-    #    jobname="reload_"+jobname;
-    partitiontimelimit,buffertimelimit=getpartitiontimelimit(partition,scripttimelimit,scriptbuffertime);
-    #if len(docbatch)<inputdoc["nsteps"]:
-    #    inputdoc["memoryperstep"]=(memoryperstep*inputdoc["nsteps"])/len(docbatch);
-    writejobfile(reloadjob,modname,logging,cleanup,templocal,writelocal,writedb,statslocal,statsdb,markdone,jobname,jobstepnames,controllerpath,controllername,writemode,partitiontimelimit,buffertimelimit,partition,nnodes,counters,totmem,ncoresused,scriptlanguage,scriptcommand,scriptflags,scriptext,scriptargs,base,dbindexes,nthreadsfield,nbatch,nworkers,docbatchwrite);
+    #    jobstepnames = ["reload_" + x for x in jobstepnames]
+    #    jobname = "reload_" + jobname
+    partitiontimelimit, buffertimelimit = getpartitiontimelimit(partition, scripttimelimit, scriptbuffertime)
+    #if len(docbatch) < inputdoc["nsteps"]:
+    #    inputdoc["memoryperstep"] = (memoryperstep * inputdoc["nsteps"]) / len(docbatch)
+    writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, jobname, jobstepnames, controllerpath, controllername, writemode, partitiontimelimit, buffertimelimit, partition, nnodes, counters, totmem, ncoresused, scriptlanguage, scriptcommand, scriptflags, scriptext, scriptargs, base, dbindexes, nthreadsfield, nbatch, nworkers, docbatchwrite)
     #Submit job file
-    if (nthreadsfield!="") and (not reloadjob):
-        nthreads=[max([y[nthreadsfield] for y in x]) for x in docbatchwrite];
+    if (nthreadsfield != "") and (not reloadjob):
+        nthreads = [max([y[nthreadsfield] for y in x]) for x in docbatchwrite]
     else:
-        nthreads=[1 for x in docbatchwrite];
-    submitjob(workpath,jobname,jobstepnames,nnodes,ncoresused,nthreads,niters,nbatch,partition,memoryperstep,maxmemorypernode,resubmit=False);
-    #needslicense=(licensestream!=None);
+        nthreads = [1 for x in docbatchwrite]
+    submitjob(workpath, jobname, jobstepnames, nnodes, ncoresused, nthreads, niters, nbatch, partition, memoryperstep, maxmemorypernode, resubmit = False)
+    #needslicense = (licensestream != None)
     #if needslicense:
-    #    fcntl.flock(licensestream,fcntl.LOCK_UN);
-        #pendlicensestream.seek(0,0);
-        #pendlicenseheader=pendlicensestream.readline();
-        #npendlicensesplit=[eval(x) for x in pendlicensestream.readline().rstrip("\n").split(",")];
-        #print npendlicensesplit;
-        #pendlicensestream.truncate(0);
-        #print "hi";
-        #pendlicensestream.seek(0,0);
-        #pendlicensestream.write(pendlicenseheader);
-        #npendlicenses=npendlicensesplit[0];
-        #if len(npendlicensesplit)>1:
-        #    npendsublicenses=npendlicensesplit[1];
-        #    pendlicensestream.write(str(npendlicenses+niters)+","+str(npendsublicenses+totnthreadsfield));
+    #    fcntl.flock(licensestream, fcntl.LOCK_UN)
+        #pendlicensestream.seek(0, 0)
+        #pendlicenseheader = pendlicensestream.readline()
+        #npendlicensesplit = [eval(x) for x in pendlicensestream.readline().rstrip("\n").split(",")]
+        #print npendlicensesplit
+        #pendlicensestream.truncate(0)
+        #print "hi"
+        #pendlicensestream.seek(0, 0)
+        #pendlicensestream.write(pendlicenseheader)
+        #npendlicenses = npendlicensesplit[0]
+        #if len(npendlicensesplit) > 1:
+        #    npendsublicenses = npendlicensesplit[1]
+        #    pendlicensestream.write(str(npendlicenses + niters) + ", " + str(npendsublicenses + totnthreadsfield))
         #else:
-        #    pendlicensestream.write(str(npendlicenses+niters));
-    with open(statusstatefile,"w") as statusstream:
-        statusstream.truncate(0);
-        statusstream.write("Running");
-        statusstream.flush();
-    #releaseheldjobs(username,modname,controllername);
-    #print "End action";
-    #sys.stdout.flush();
-    #seekstream.write(querystream.tell());
-    #seekstream.flush();
-    #seekstream.seek(0);
-    #doc=querystream.readline();
-    releaseheldjobs(username,modname,controllername);
-    return nextdocind;#docbatchpass;
+        #    pendlicensestream.write(str(npendlicenses + niters))
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.truncate(0)
+        statusstream.write("Running")
+        statusstream.flush()
+    #releaseheldjobs(username, modname, controllername)
+    #print "End action"
+    #sys.stdout.flush()
+    #seekstream.write(querystream.tell())
+    #seekstream.flush()
+    #seekstream.seek(0)
+    #doc = querystream.readline()
+    releaseheldjobs(username, modname, controllername)
+    return nextdocind;#docbatchpass
 
-def docounterupdate(counters,counterstatefile,counterheader):
-    with open(counterstatefile,"w") as counterstream:
-        counterstream.write(counterheader);
-        counterstream.write(str(counters[0])+","+str(counters[1]));
-        counterstream.flush();
+def docounterupdate(counters, counterstatefile, counterheader):
+    with open(counterstatefile, "w") as counterstream:
+        counterstream.write(counterheader)
+        counterstream.write(str(counters[0]) + ", " + str(counters[1]))
+        counterstream.flush()
 
 try:
-    #print "main";
-    #print "scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed 's/\s//g' | cut -d'=' -f2 | tr '\n' ',' | head -c -1";
-    #print "";
-    #sys.stdout.flush();
+    #print "main"
+    #print "scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed 's/\s//g' | cut -d'=' -f2 | tr '\n' ', ' | head -c -1"
+    #print ""
+    #sys.stdout.flush()
 
     #Cluster info
-    username=os.environ['USER'];
-    rootpath=os.environ['CRUNCH_ROOT'];
-    localbinpath=os.environ['USER_LOCAL'];
-    #username,rootpath=Popen("echo \"${USER},${CRUNCH_ROOT}\" | head -c -1",shell=True,stdout=PIPE,preexec_fn=default_sigpipe).communicate()[0].split(",");
+    username = os.environ['USER']
+    rootpath = os.environ['CRUNCH_ROOT']
+    localbinpath = os.environ['USER_LOCAL']
+    #username, rootpath = Popen("echo \"${USER},${CRUNCH_ROOT}\" | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(",")
 
-    with open(rootpath+"/config.yaml","r") as configstream:
-        configdoc=yaml.load(configstream);
+    with open(rootpath + "/config.yaml", "r") as configstream:
+        configdoc = yaml.load(configstream)
 
-    if configdoc["workload-manager"]=="slurm":
-        from crunch_slurm import *;
+    if configdoc["workload-manager"] == "slurm":
+        from crunch_slurm import *
 
-    globalmaxjobcount=get_maxjobcount();
-    localmaxstepcount=get_maxstepcount();
+    globalmaxjobcount = get_maxjobcount()
+    localmaxstepcount = get_maxstepcount()
 
     #Input controller info
-    modname=sys.argv[1];
-    controllername=sys.argv[2];
-    controllerjobid=sys.argv[3];
-    #controllerpartition=sys.argv[4];
-    controllerbuffertime=sys.argv[4];
-    storagelimit=sys.argv[5];
-    #largemempartitions=sys.argv[6].split(",");
-    sleeptime=eval(sys.argv[6]);
+    modname = sys.argv[1]
+    controllername = sys.argv[2]
+    controllerjobid = sys.argv[3]
+    #controllerpartition = sys.argv[4]
+    controllerbuffertime = sys.argv[4]
+    storagelimit = sys.argv[5]
+    #largemempartitions = sys.argv[6].split(",")
+    sleeptime = eval(sys.argv[6])
 
-    #seekfile=sys.argv[7]; 
+    #seekfile = sys.argv[7]; 
 
     #Input path info
-    #rootpath=sys.argv[7];
-    #rootpath=sys.argv[8];
-    #binpath=sys.argv[9];
+    #rootpath = sys.argv[7]
+    #rootpath = sys.argv[8]
+    #binpath = sys.argv[9]
 
     #Input database info
-    dbtype=sys.argv[7];
-    dbusername=sys.argv[8];
-    dbpassword=sys.argv[9];
-    dbhost=sys.argv[10];
-    dbport=sys.argv[11];
-    dbname=sys.argv[12];
-    queries=eval(sys.argv[13]);
-    #dumpfile=sys.argv[13];
-    basecollection=sys.argv[14];
-    nthreadsfield=sys.argv[15];
+    dbtype = sys.argv[7]
+    dbusername = sys.argv[8]
+    dbpassword = sys.argv[9]
+    dbhost = sys.argv[10]
+    dbport = sys.argv[11]
+    dbname = sys.argv[12]
+    queries = eval(sys.argv[13])
+    #dumpfile = sys.argv[13]
+    basecollection = sys.argv[14]
+    nthreadsfield = sys.argv[15]
 
     #Input script info
-    scriptlanguage=sys.argv[16];
-    scriptargs=sys.argv[17];
-    partitions=sys.argv[18].split(",");
-    writemode=sys.argv[19];
-    #scripttimelimit=timestamp2unit(sys.argv[15]);
-    scriptmemorylimit=sys.argv[20];
-    scripttimelimit=sys.argv[21];
-    scriptbuffertime=sys.argv[22];
-    localmaxjobcountstr=sys.argv[23];
-    #outputlinemarkers=sys.argv[15].split(",");
-    #newcollection,newfield=sys.argv[18].split(",");
+    scriptlanguage = sys.argv[16]
+    scriptargs = sys.argv[17]
+    partitions = sys.argv[18].split(",")
+    writemode = sys.argv[19]
+    #scripttimelimit = timestamp2unit(sys.argv[15])
+    scriptmemorylimit = sys.argv[20]
+    scripttimelimit = sys.argv[21]
+    scriptbuffertime = sys.argv[22]
+    localmaxjobcountstr = sys.argv[23]
+    #outputlinemarkers = sys.argv[15].split(",")
+    #newcollection, newfield = sys.argv[18].split(",")
 
     #Options
-    blocking=eval(sys.argv[24]);
-    logging=eval(sys.argv[25]);
-    templocal=eval(sys.argv[26])
-    writelocal=eval(sys.argv[27]);
-    writedb=eval(sys.argv[28]);
-    statslocal=eval(sys.argv[29]);
-    statsdb=eval(sys.argv[30]);
-    markdone=sys.argv[31];
-    cleanup=sys.argv[32];
-    niters_orig=eval(sys.argv[33]);
-    nbatch_orig=eval(sys.argv[34]);
-    nworkers_orig=eval(sys.argv[35]);
+    blocking = eval(sys.argv[24])
+    logging = eval(sys.argv[25])
+    templocal = eval(sys.argv[26])
+    writelocal = eval(sys.argv[27])
+    writedb = eval(sys.argv[28])
+    statslocal = eval(sys.argv[29])
+    statsdb = eval(sys.argv[30])
+    markdone = sys.argv[31]
+    cleanup = sys.argv[32]
+    niters_orig = eval(sys.argv[33])
+    nbatch_orig = eval(sys.argv[34])
+    nworkers_orig = eval(sys.argv[35])
     
     #Read seek position from file
-    #with open(controllerpath+"/"+seekfile,"r") as seekstream:
-    #    seekpos=eval(seekstream.read());
+    #with open(controllerpath + "/" + seekfile, "r") as seekstream:
+    #    seekpos = eval(seekstream.read())
 
     #Open seek file stream
-    #seekstream=open(controllerpath+"/"+seekfile,"w");
+    #seekstream = open(controllerpath + "/" + seekfile, "w")
 
     #If first submission, read from database
-    #if seekpos==-1:
+    #if seekpos == -1:
     #Open connection to remote database
-    #sys.stdout.flush();
+    #sys.stdout.flush()
 
-    if storagelimit=="":
-        storagelimit=None;
+    if storagelimit == "":
+        storagelimit = None
     else:
-        storagelimit_num="";
-        storagelimit_unit="";
+        storagelimit_num = ""
+        storagelimit_unit = ""
         for x in storagelimit:
-            if x.isdigit() or x==".":
-                storagelimit_num+=x;
+            if x.isdigit() or x == ".":
+                storagelimit_num += x
             else:
-                storagelimit_unit+=x;
-        if storagelimit_unit.lower()=="b":
-            storagelimit=float(storagelimit_num);
-        elif storagelimit_unit.lower() in ["k","kb"]:
-            storagelimit=float(storagelimit_num)*1024;
-        elif storagelimit_unit.lower() in ["m","mb"]:
-            storagelimit=float(storagelimit_num)*1000*1024;
-        elif storagelimit_unit.lower() in ["g","gb"]:
-            storagelimit=float(storagelimit_num)*1000*1000*1024;
+                storagelimit_unit += x
+        if storagelimit_unit.lower() == "b":
+            storagelimit = float(storagelimit_num)
+        elif storagelimit_unit.lower() in ["k", "kb"]:
+            storagelimit = float(storagelimit_num) * 1024
+        elif storagelimit_unit.lower() in ["m", "mb"]:
+            storagelimit = float(storagelimit_num) * 1000 * 1024
+        elif storagelimit_unit.lower() in ["g", "gb"]:
+            storagelimit = float(storagelimit_num) * 1000 * 1000 * 1024
 
-    controllerstats=get_controllerstats(controllerjobid);
-    while len(controllerstats)<4:
-        time.sleep(sleeptime);
-        controllerstats=get_controllerstats(controllerjobid);
-    controllerpartition,controllertimelimit,controllernnodes,controllerncores=controllerstats;
+    controllerstats = get_controllerstats(controllerjobid)
+    while len(controllerstats) < 4:
+        time.sleep(sleeptime)
+        controllerstats = get_controllerstats(controllerjobid)
+    controllerpartition, controllertimelimit, controllernnodes, controllerncores = controllerstats
 
-    print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
-    print "Starting job crunch_"+modname+"_"+controllername+"_controller";
-    print "";
-    print "";
-    sys.stdout.flush();
+    print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+    print "Starting job crunch_" + modname + "_" + controllername + "_controller"
+    print ""
+    print ""
+    sys.stdout.flush()
 
-    controllerpath=get_controllerpath(controllerjobid);
+    controllerpath = get_controllerpath(controllerjobid)
 
-    #statepath=rootpath+"/state";
-    binpath=rootpath+"/bin";
-    workpath=controllerpath+"/jobs";
+    #statepath = rootpath + "/state"
+    binpath = rootpath + "/bin"
+    workpath = controllerpath + "/jobs"
     if not os.path.isdir(workpath):
-        os.mkdir(workpath);
-    dependenciesfile=rootpath+"/modules/modules/"+modname+"/dependencies";
-    #resourcesstatefile=statepath+"/resources";
-    #softwarestatefile=statepath+"/software";
-    #globalmaxjobsfile=statepath+"/maxjobs";
-    counterstatefile=controllerpath+"/batchcounter";
-    statusstatefile=controllerpath+"/status";
+        os.mkdir(workpath)
+    dependenciesfile = rootpath + "/modules/modules/" + modname + "/dependencies"
+    #resourcesstatefile = statepath + "/resources"
+    #softwarestatefile = statepath + "/software"
+    #globalmaxjobsfile = statepath + "/maxjobs"
+    counterstatefile = controllerpath + "/batchcounter"
+    statusstatefile = controllerpath + "/status"
     
-    #querystatefile=controllerpath+"/querystate";
+    #querystatefile = controllerpath + "/querystate"
 
-    for f in glob.iglob(workpath+"/*.lock"):
-        os.remove(f);
+    for f in glob.iglob(workpath + "/*.lock"):
+        os.remove(f)
 
-    with open(statusstatefile,"w") as statusstream:
-        statusstream.truncate(0);
-        statusstream.write("Starting");
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.truncate(0)
+        statusstream.write("Starting")
 
-    assert isinstance(configdoc["max-jobs"],int) or configdoc["max-jobs"] is None;
-    if isinstance(configdoc["max-jobs"],int):
-        globalmaxjobcount=min(configdoc["max-jobs"],globalmaxjobcount);
-    assert isinstance(configdoc["max-steps"],int) or configdoc["max-steps"] is None;
-    if isinstance(configdoc["max-steps"],int):
-        localmaxstepcount=min(configdoc["max-steps"],localmaxstepcount);
+    assert isinstance(configdoc["max-jobs"], int) or configdoc["max-jobs"] is None
+    if isinstance(configdoc["max-jobs"], int):
+        globalmaxjobcount = min(configdoc["max-jobs"], globalmaxjobcount)
+    assert isinstance(configdoc["max-steps"], int) or configdoc["max-steps"] is None
+    if isinstance(configdoc["max-steps"], int):
+        localmaxstepcount = min(configdoc["max-steps"], localmaxstepcount)
 
-    if localmaxjobcountstr=="":
-        localmaxjobcount=globalmaxjobcount;
+    if localmaxjobcountstr == "":
+        localmaxjobcount = globalmaxjobcount
     else:
-        localmaxjobcount=min(eval(localmaxjobcountstr),globalmaxjobcount);
+        localmaxjobcount = min(eval(localmaxjobcountstr), globalmaxjobcount)
 
-    if scriptbuffertime=="":
-        scriptbuffertime="00:00:00";
+    if scriptbuffertime == "":
+        scriptbuffertime = "00:00:00"
 
-    controllerpartitiontimelimit,controllerbuffertimelimit=getpartitiontimelimit(controllerpartition,controllertimelimit,controllerbuffertime);
+    controllerpartitiontimelimit, controllerbuffertimelimit = getpartitiontimelimit(controllerpartition, controllertimelimit, controllerbuffertime)
 
-    if dbtype=="mongodb":
-        import mongojoin;
-        if dbusername==None:
-            dbclient=mongojoin.MongoClient("mongodb://"+dbhost+":"+dbport+"/"+dbname);
+    if dbtype == "mongodb":
+        import mongojoin
+        if dbusername == None:
+            dbclient = mongojoin.MongoClient("mongodb://" + dbhost + ":" + dbport + "/" + dbname)
         else:
-            dbclient=mongojoin.MongoClient("mongodb://"+dbusername+":"+dbpassword+"@"+dbhost+":"+dbport+"/"+dbname+"?authMechanism=SCRAM-SHA-1");
+            dbclient = mongojoin.MongoClient("mongodb://" + dbusername + ":" + dbpassword + "@" + dbhost + ":" + dbport + "/" + dbname + "?authMechanism=SCRAM-SHA-1")
 
-        #dbname=mongouri.split("/")[-1];
-        db=dbclient[dbname];
+        #dbname = mongouri.split("/")[-1]
+        db = dbclient[dbname]
 
-        dbindexes=mongojoin.getintersectionindexes(db,basecollection);
-        #print dbindexes;
-        #sys.stdout.flush();
+        dbindexes = mongojoin.getintersectionindexes(db, basecollection)
+        #print dbindexes
+        #sys.stdout.flush()
 
-        allindexes=mongojoin.getunionindexes(db);
+        allindexes = mongojoin.getunionindexes(db)
     else:
-        raise Exception("Only \"mongodb\" is currently supported.");
+        raise Exception("Only \"mongodb\" is currently supported.")
 
-    scriptext=(configdoc["software"][scriptlanguage]["extension"] if "extension" in configdoc["software"][scriptlanguage].keys() else "");
-    scriptcommand=(configdoc["software"][scriptlanguage]["command"]+" " if "command" in configdoc["software"][scriptlanguage].keys() else "");
-    scriptflags=(" ".join(configdoc["software"][scriptlanguage]["flags"])+" " if "flags" in configdoc["software"][scriptlanguage].keys() else "");
-    needslicense=("license-command" in configdoc["software"][scriptlanguage].keys());
+    scriptext = (configdoc["software"][scriptlanguage]["extension"] if "extension" in configdoc["software"][scriptlanguage].keys() else "")
+    scriptcommand = (configdoc["software"][scriptlanguage]["command"] + " " if "command" in configdoc["software"][scriptlanguage].keys() else "")
+    scriptflags = (" ".join(configdoc["software"][scriptlanguage]["flags"]) + " " if "flags" in configdoc["software"][scriptlanguage].keys() else "")
+    needslicense = ("license-command" in configdoc["software"][scriptlanguage].keys())
     if needslicense:
-        licensescript=configdoc["software"][scriptlanguage]["license-command"];
-        sublicensescript=(configdoc["software"][scriptlanguage]["sublicense-command"]+" " if "sublicense-command" in configdoc["software"][scriptlanguage].keys() else None);
-        licensestatefile=localbinpath+"/"+licensescript;
-        #licensestream=open(licensestatefile,"a+");
+        licensescript = configdoc["software"][scriptlanguage]["license-command"]
+        sublicensescript = (configdoc["software"][scriptlanguage]["sublicense-command"] + " " if "sublicense-command" in configdoc["software"][scriptlanguage].keys() else None)
+        licensestatefile = localbinpath + "/" + licensescript
+        #licensestream = open(licensestatefile, "a + ")
     else:
-        licensescript=None;
-        sublicensescript=None;
-        #licensestream=None;
+        licensescript = None
+        sublicensescript = None
+        #licensestream = None
 
-    assert "resources" in configdoc.keys();
-    partitionsmaxmemory=configdoc["resources"];
+    assert "resources" in configdoc.keys()
+    partitionsmaxmemory = configdoc["resources"]
     
     try:
-        with open(dependenciesfile,"r") as dependenciesstream:
-            dependencies=[x.rstrip('\n') for x in dependenciesstream.readlines()];
+        with open(dependenciesfile, "r") as dependenciesstream:
+            dependencies = [x.rstrip('\n') for x in dependenciesstream.readlines()]
     except IOError:
-        print "File path \""+dependenciesfile+"\" does not exist.";
-        sys.stdout.flush();
-        raise;
+        print "File path \"" + dependenciesfile + "\" does not exist."
+        sys.stdout.flush()
+        raise
 
-    #dependencies=modlist[:modlist.index(modname)];
+    #dependencies = modlist[:modlist.index(modname)]
 
     #if firstlastrun and needslicense:
-    #   fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
-    #firstrun=True;
+    #   fcntl.flock(pendlicensestream, fcntl.LOCK_UN)
+    #firstrun = True
     try:
-        with open(counterstatefile,"r") as counterstream:
-            counterheader=counterstream.readline();
-            counterline=counterstream.readline();
-            counters=[int(x) for x in counterline.rstrip("\n").split(",")];
+        with open(counterstatefile, "r") as counterstream:
+            counterheader = counterstream.readline()
+            counterline = counterstream.readline()
+            counters = [int(x) for x in counterline.rstrip("\n").split(",")]
     except IOError:
-        print "File path \""+counterstatefile+"\" does not exist.";
-        sys.stdout.flush();
-        raise;
+        print "File path \"" + counterstatefile + "\" does not exist."
+        sys.stdout.flush()
+        raise
 
     if blocking:
-        while prevcontrollerjobsrunningq(username,dependencies) and (timeleft(starttime,controllerbuffertimelimit)>0):
-            time.sleep(sleeptime);
+        while prevcontrollerjobsrunningq(username, dependencies) and (timeleft(starttime, controllerbuffertimelimit) > 0):
+            time.sleep(sleeptime)
 
-    reloadjob=(queries[0]=="RELOAD");
+    reloadjob = (queries[0] == "RELOAD")
     if reloadjob:
-        reloadstatefilename="reloadstate";
-        if len(queries)>1:
-            reloadpath=controllerpath+"/reload";
-            reloadpattern=queries[1];
-        if len(queries)>2:
-            querylimit=queries[2];
+        reloadstatefilename = "reloadstate"
+        if len(queries) > 1:
+            reloadpath = controllerpath + "/reload"
+            reloadpattern = queries[1]
+        if len(queries) > 2:
+            querylimit = queries[2]
         else:
-            querylimit=None;
+            querylimit = None
     else:
-        querystatefilename="querystate";
-        #basecollpattern=basecollection;
-        querylimitlist=[x[3]['LIMIT'] for x in queries if (len(x)>3) and ("LIMIT" in x[3].keys())];
-        if len(querylimitlist)>0:
-            querylimit=functools.reduce(operator.mul,querylimitlist,1);
+        querystatefilename = "querystate"
+        #basecollpattern = basecollection
+        querylimitlist = [x[3]['LIMIT'] for x in queries if (len(x) > 3) and ("LIMIT" in x[3].keys())]
+        if len(querylimitlist) > 0:
+            querylimit = functools.reduce(operator.mul, querylimitlist, 1)
         else:
-            querylimit=None;
+            querylimit = None
 
-    #if querylimit!=None:
-    #    niters_orig=min(niters_orig,querylimit);
+    #if querylimit != None:
+    #    niters_orig = min(niters_orig, querylimit)
     
-    firstlastrun=(not (prevcontrollerjobsrunningq(username,dependencies) or controllerjobsrunningq(username,modname,controllername)));
-    #counters[0]=1;
-    #counters[1]=1;
-    while (prevcontrollerjobsrunningq(username,dependencies) or controllerjobsrunningq(username,modname,controllername) or firstlastrun) and ((querylimit==None) or (counters[1]<=querylimit+1)) and (timeleft(starttime,controllerbuffertimelimit)>0):
-        #oldqueryresultinds=[dict([(y,x[y]) for y in dbindexes]+[(newfield,{"$exists":True})]) for x in queryresult];
-        #if len(oldqueryresultinds)==0:
-        #    oldqueryresult=[];
+    firstlastrun = (not (prevcontrollerjobsrunningq(username, dependencies) or controllerjobsrunningq(username, modname, controllername)))
+    #counters[0] = 1
+    #counters[1] = 1
+    while (prevcontrollerjobsrunningq(username, dependencies) or controllerjobsrunningq(username, modname, controllername) or firstlastrun) and ((querylimit == None) or (counters[1] <= querylimit + 1)) and (timeleft(starttime, controllerbuffertimelimit) > 0):
+        #oldqueryresultinds = [dict([(y, x[y]) for y in dbindexes] + [(newfield, {"$exists": True})]) for x in queryresult]
+        #if len(oldqueryresultinds) == 0:
+        #    oldqueryresult = []
         #else:
-        #    oldqueryresult=mongojoin.collectionfind(db,newcollection,{"$or":oldqueryresultinds},dict([("_id",0)]+[(y,1) for y in dbindexes]));
-        #oldqueryresultrunning=[y for x in userjobsrunninglist(username,modname,controllername) for y in contractededjobname2jobdocs(x,dbindexes) if len(x)>0];
-        #with open(querystatefile,"a") as iostream:
-        #    for line in oldqueryresult+oldqueryresultrunning:
-        #        iostream.write(str(dict([(x,line[x]) for x in allindexes if x in line.keys()])).replace(" ","")+"\n");
-        #        iostream.flush();
-        #print "Next Run";
-        #print "hi";
-        #sys.stdout.flush();
-        #print str(starttime)+" "+str(controllerbuffertimelimit);
-        #sys.stdout.flush();
-        #if not islimitreached(controllerpath,querylimit):
+        #    oldqueryresult = mongojoin.collectionfind(db, newcollection, {"$or": oldqueryresultinds}, dict([("_id", 0)] + [(y, 1) for y in dbindexes]))
+        #oldqueryresultrunning = [y for x in userjobsrunninglist(username, modname, controllername) for y in contractededjobname2jobdocs(x, dbindexes) if len(x) > 0]
+        #with open(querystatefile, "a") as iostream:
+        #    for line in oldqueryresult + oldqueryresultrunning:
+        #        iostream.write(str(dict([(x, line[x]) for x in allindexes if x in line.keys()])).replace(" ", "") + "\n")
+        #        iostream.flush()
+        #print "Next Run"
+        #print "hi"
+        #sys.stdout.flush()
+        #print str(starttime) + " " + str(controllerbuffertimelimit)
+        #sys.stdout.flush()
+        #if not islimitreached(controllerpath, querylimit):
         if reloadjob:
-            requeueskippedreloadjobs(modname,controllername,controllerpath,reloadstatefilename,reloadpath,counters,counterstatefile,counterheader,dbindexes);
-            if (querylimit==None) or (counters[1]<=querylimit):
-                counters=reloadcrawl(reloadpath,reloadpattern,controllerpath,reloadstatefilename=reloadstatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,reloadstatefilename,reloadpath,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,reloadstatefilename,reloadpath,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,storagelimit,nthreadsfield,needslicense,username,globalmaxjobcount,localmaxjobcount,controllerpath,localbinpath,licensescript,sublicensescript,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,modname,controllername,dbindexes,logging,cleanup,emplocal,writelocal,writedb,statslocal,statsdb,markdone,writemode,scriptcommand,scriptflags,scriptext,scriptargs,reloadstatefilename,reloadpath,counterstatefile,counterheader,niters_orig,nbatch_orig,nworkers_orig),filereadform=lambda x:x,filewriteform=lambda x:x,docwriteform=lambda x:"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit);
+            requeueskippedreloadjobs(modname, controllername, controllerpath, reloadstatefilename, reloadpath, counters, counterstatefile, counterheader, dbindexes)
+            if (querylimit == None) or (counters[1] <= querylimit):
+                counters = reloadcrawl(reloadpath, reloadpattern, controllerpath, reloadstatefilename = reloadstatefilename, inputfunc = lambda x: doinput(x, querylimit, counters, reloadjob, storagelimit, nthreadsfield, needslicense, username, modname, controllername, controllerpath, reloadstatefilename, reloadpath, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, dbindexes, niters_orig), inputdoc = doinput([], querylimit, counters, reloadjob, storagelimit, nthreadsfield, needslicense, username, modname, controllername, controllerpath, reloadstatefilename, reloadpath, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, dbindexes, niters_orig), action = lambda x, y,z: doaction(x, y,z, querylimit, reloadjob, storagelimit, nthreadsfield, needslicense, username, globalmaxjobcount, localmaxjobcount, controllerpath, localbinpath, licensescript, sublicensescript, scriptlanguage, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, modname, controllername, dbindexes, logging, cleanup, emplocal, writelocal, writedb, statslocal, statsdb, markdone, writemode, scriptcommand, scriptflags, scriptext, scriptargs, reloadstatefilename, reloadpath, counterstatefile, counterheader, niters_orig, nbatch_orig, nworkers_orig), filereadform = lambda x: x, filewriteform = lambda x: x, docwriteform = lambda x: "_".join(indexdoc2indexsplit(x, dbindexes)), timeleft = lambda: timeleft(starttime, controllerbuffertimelimit), counters = counters, counterupdate = lambda x: docounterupdate(x, counterstatefile, counterheader), resetstatefile = False, limit = querylimit)
         else:
-            requeueskippedqueryjobs(modname,controllername,controllerpath,querystatefilename,basecollection,counters,counterstatefile,counterheader,dbindexes);
-            if (querylimit==None) or (counters[1]<=querylimit):
-                if dbtype=="mongodb":
-                    counters=mongojoin.dbcrawl(db,queries,controllerpath,statefilename=querystatefilename,inputfunc=lambda x:doinput(x,querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,basecollection,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),inputdoc=doinput([],querylimit,counters,reloadjob,storagelimit,nthreadsfield,needslicense,username,modname,controllername,controllerpath,querystatefilename,basecollection,globalmaxjobcount,localmaxjobcount,localbinpath,licensescript,sublicensescript,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,dbindexes,niters_orig),action=lambda x,y,z:doaction(x,y,z,querylimit,reloadjob,storagelimit,nthreadsfield,needslicense,username,globalmaxjobcount,localmaxjobcount,controllerpath,localbinpath,licensescript,sublicensescript,scriptlanguage,starttime,controllerbuffertimelimit,statusstatefile,sleeptime,partitions,partitionsmaxmemory,scriptmemorylimit,localmaxstepcount,modname,controllername,dbindexes,logging,cleanup,templocal,writelocal,writedb,statslocal,statsdb,markdone,writemode,scriptcommand,scriptflags,scriptext,scriptargs,querystatefilename,basecollection,counterstatefile,counterheader,niters_orig,nbatch_orig,nworkers_orig),readform=lambda x:indexsplit2indexdoc(x.split("_")[2:],dbindexes),writeform=lambda x:modname+"_"+controllername+"_"+"_".join(indexdoc2indexsplit(x,dbindexes)),timeleft=lambda:timeleft(starttime,controllerbuffertimelimit),counters=counters,counterupdate=lambda x:docounterupdate(x,counterstatefile,counterheader),resetstatefile=False,limit=querylimit,limittries=10,toplevel=True);
-        #print "bye";
-        #firstrun=False;
-        releaseheldjobs(username,modname,controllername);
-        if (timeleft(starttime,controllerbuffertimelimit)>0):
-            firstlastrun=(not (prevcontrollerjobsrunningq(username,dependencies) or controllerjobsrunningq(username,modname,controllername) or firstlastrun));
-    #while controllerjobsrunningq(username,modname,controllername) and (timeleft(starttime,controllerbuffertimelimit)>0):
-    #    releaseheldjobs(username,modname,controllername);
-    #    skippedjobs=skippedjobslist(username,modname,controllername,workpath);
+            requeueskippedqueryjobs(modname, controllername, controllerpath, querystatefilename, basecollection, counters, counterstatefile, counterheader, dbindexes)
+            if (querylimit == None) or (counters[1] <= querylimit):
+                if dbtype == "mongodb":
+                    counters = mongojoin.dbcrawl(db, queries, controllerpath, statefilename = querystatefilename, inputfunc = lambda x: doinput(x, querylimit, counters, reloadjob, storagelimit, nthreadsfield, needslicense, username, modname, controllername, controllerpath, querystatefilename, basecollection, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, dbindexes, niters_orig), inputdoc = doinput([], querylimit, counters, reloadjob, storagelimit, nthreadsfield, needslicense, username, modname, controllername, controllerpath, querystatefilename, basecollection, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, dbindexes, niters_orig), action = lambda x, y,z: doaction(x, y,z, querylimit, reloadjob, storagelimit, nthreadsfield, needslicense, username, globalmaxjobcount, localmaxjobcount, controllerpath, localbinpath, licensescript, sublicensescript, scriptlanguage, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, modname, controllername, dbindexes, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, writemode, scriptcommand, scriptflags, scriptext, scriptargs, querystatefilename, basecollection, counterstatefile, counterheader, niters_orig, nbatch_orig, nworkers_orig), readform = lambda x: indexsplit2indexdoc(x.split("_")[2:], dbindexes), writeform = lambda x: modname + "_" + controllername + "_" + "_".join(indexdoc2indexsplit(x, dbindexes)), timeleft = lambda: timeleft(starttime, controllerbuffertimelimit), counters = counters, counterupdate = lambda x: docounterupdate(x, counterstatefile, counterheader), resetstatefile = False, limit = querylimit, limittries = 10, toplevel = True)
+        #print "bye"
+        #firstrun = False
+        releaseheldjobs(username, modname, controllername)
+        if (timeleft(starttime, controllerbuffertimelimit) > 0):
+            firstlastrun = (not (prevcontrollerjobsrunningq(username, dependencies) or controllerjobsrunningq(username, modname, controllername) or firstlastrun))
+    #while controllerjobsrunningq(username, modname, controllername) and (timeleft(starttime, controllerbuffertimelimit) > 0):
+    #    releaseheldjobs(username, modname, controllername)
+    #    skippedjobs = skippedjobslist(username, modname, controllername, workpath)
     #    for x in skippedjobs:
-    #        maxmemorypernode=getmaxmemorypernode(resourcesstatefile,controllerpartition);
-    #        submitjob(workpath,x,controllerpartition,maxmemorypernode,maxmemorypernode,resubmit=True);
-    #    time.sleep(sleeptime);
+    #        maxmemorypernode = getmaxmemorypernode(resourcesstatefile, controllerpartition)
+    #        submitjob(workpath, x,controllerpartition, maxmemorypernode, maxmemorypernode, resubmit = True)
+    #    time.sleep(sleeptime)
 
-    if (prevcontrollerjobsrunningq(username,dependencies) or controllerjobsrunningq(username,modname,controllername) or firstlastrun) and not (timeleft(starttime,controllerbuffertimelimit)>0):
+    if (prevcontrollerjobsrunningq(username, dependencies) or controllerjobsrunningq(username, modname, controllername) or firstlastrun) and not (timeleft(starttime, controllerbuffertimelimit) > 0):
         #Resubmit controller job
-        #maxmemorypernode=getmaxmemorypernode(resourcesstatefile,controllerpartition);
-        assert isinstance(configdoc["resources"][controllerpartition],int);
-        maxmemorypernode=configdoc["resources"][controllerpartition];
+        #maxmemorypernode = getmaxmemorypernode(resourcesstatefile, controllerpartition)
+        assert isinstance(configdoc["resources"][controllerpartition], int)
+        maxmemorypernode = configdoc["resources"][controllerpartition]
 
-        loadpathnames=glob.iglob(workpath+"/*.docs");
-        with open(controllerpath+"/skipped","a") as skippedstream:
+        loadpathnames = glob.iglob(workpath + "/*.docs")
+        with open(controllerpath + "/skipped", "a") as skippedstream:
             for loadpathname in loadpathnames:
-                loadfilename=loadpathname.split("/")[-1];
-                errloadpathname=loadpathname.replace(".docs",".err");
-                errcode="-1:0"
+                loadfilename = loadpathname.split("/")[-1]
+                errloadpathname = loadpathname.replace(".docs", ".err")
+                errcode = "-1:0"
                 if os.path.exists(errloadpathname):
-                    with open(errloadpathname,"r") as errstream:
+                    with open(errloadpathname, "r") as errstream:
                         for errline in errstream:
                             if "ExitCode: " in errline:
-                                errcode=errline.rstrip("\n").replace("ExitCode: ","");
-                                break;
-                skippedstream.write(loadfilename+","+errcode+",True\n");
-                skippedstream.flush();
+                                errcode = errline.rstrip("\n").replace("ExitCode: ", "")
+                                break
+                skippedstream.write(loadfilename + ", " + errcode + ", True\n")
+                skippedstream.flush()
 
-        submitcontrollerjob(controllerpath,"crunch_"+modname+"_"+controllername+"_controller",controllernnodes,controllerncores,controllerpartition,maxmemorypernode,resubmit=True);
-        with open(statusstatefile,"w") as statusstream:
-            statusstream.truncate(0);
-            statusstream.write("Resubmitting");
+        submitcontrollerjob(controllerpath, "crunch_" + modname + "_" + controllername + "_controller", controllernnodes, controllerncores, controllerpartition, maxmemorypernode, resubmit = True)
+        with open(statusstatefile, "w") as statusstream:
+            statusstream.truncate(0)
+            statusstream.write("Resubmitting")
 
     else:
-        #if pdffile!="":
-        #    plotjobgraph(modname,controllerpath,controllername,workpath,pdffile);
-        with open(statusstatefile,"w") as statusstream:
-            statusstream.truncate(0);
-            statusstream.write("Completing");
-        print "";
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC");
-        print "Completing job crunch_"+modname+"_"+controllername+"_controller\n";
-        sys.stdout.flush();
+        #if pdffile != "":
+        #    plotjobgraph(modname, controllerpath, controllername, workpath, pdffile)
+        with open(statusstatefile, "w") as statusstream:
+            statusstream.truncate(0)
+            statusstream.write("Completing")
+        print ""
+        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print "Completing job crunch_" + modname + "_" + controllername + "_controller\n"
+        sys.stdout.flush()
 
-    #querystream.close();
-    #seekstream.close();
+    #querystream.close()
+    #seekstream.close()
     #if needslicense:
-        #fcntl.flock(pendlicensestream,fcntl.LOCK_UN);
-    #    licensestream.close();
-    if dbtype=="mongodb":
-        dbclient.close();
+        #fcntl.flock(pendlicensestream, fcntl.LOCK_UN)
+    #    licensestream.close()
+    if dbtype == "mongodb":
+        dbclient.close()
 except Exception as e:
-    PrintException();
+    PrintException()
