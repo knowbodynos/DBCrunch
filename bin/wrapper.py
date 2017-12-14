@@ -750,6 +750,26 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
                 #    countallbatches = 0
                 #    os.remove(lockfile)
 
+        while not stderr_queue.empty():
+            stderr_line = stderr_queue.get().rstrip("\n")
+            if stderr_line not in ignoredstrings:
+                if kwargs['controllername'] != None:
+                    exitcode = get_exitcode(kwargs['stepid'])
+                with open(filename + ".err", "a") as errstream:
+                    if kwargs['controllername'] != None:
+                        errstream.write("ExitCode: " + exitcode + "\n")
+                    errstream.write(stderr_line + "\n")
+                    errstream.flush()
+                #while True:
+                #    try:
+                #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                #        break
+                #    except IOError:
+                #        sleep(0.01)
+                sys.stderr.write(stderr_line + "\n")
+                sys.stderr.flush()
+                #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
+
         if (len(bulkrequestslist) > 1) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
             #if len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
             #    overlocked = True
@@ -766,13 +786,14 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
             #print(bulkdict)
             #sys.stdout.flush()
             if dbtype == "mongodb":
-                for coll, requests in bulkrequestslist[0].items():
-                    try:
-                        #bulkdict[bulkcoll].execute()
-                        bulkcolls[coll].bulk_write(requests, ordered = False)
-                    except BulkWriteError as bwe:
-                        pprint(bwe.details)
-                del bulkrequestslist[0]
+                if not os.path.exists(filename + ".err"):
+                    for coll, requests in bulkrequestslist[0].items():
+                        try:
+                            #bulkdict[bulkcoll].execute()
+                            bulkcolls[coll].bulk_write(requests, ordered = False)
+                        except BulkWriteError as bwe:
+                            pprint(bwe.details)
+                    del bulkrequestslist[0]
             #while True:
             #    try:
             #        fcntl.flock(sys.stdout, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -789,12 +810,13 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
             #sys.stdout.flush()
             if kwargs['logging']:
                 #print(len(logiolist[0].rstrip("\n").split("\n")))
-                sys.stdout.flush()
-                logiotime = ""
-                for logio in logiolist[0].rstrip("\n").split("\n"):
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-                sys.stdout.write(logiotime)
-                sys.stdout.flush()
+                if not os.path.exists(filename + ".err"):
+                    sys.stdout.flush()
+                    logiotime = ""
+                    for logio in logiolist[0].rstrip("\n").split("\n"):
+                        logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                    sys.stdout.write(logiotime)
+                    sys.stdout.flush()
                 del logiolist[0]
             if kwargs['templocal']:
                 name = tempiostream.name
@@ -802,8 +824,9 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
                 os.remove(name)
                 tempiostream = open(name, "w")
             if kwargs['writelocal'] or kwargs['statslocal']:
-                outiostream.write(outiolist[0])
-                outiostream.flush()
+                if not os.path.exists(filename + ".err"):
+                    outiostream.write(outiolist[0])
+                    outiostream.flush()
                 del outiolist[0]
             #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
             #bulkdict = {}
@@ -812,26 +835,6 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
             os.remove(lockfile)
             #if overlocked:
             #    os.kill(process.pid, signal.SIGCONT)
-
-    while not stderr_queue.empty():
-        stderr_line = stderr_queue.get().rstrip("\n")
-        if stderr_line not in ignoredstrings:
-            if kwargs['controllername'] != None:
-                exitcode = get_exitcode(kwargs['stepid'])
-            with open(filename + ".err", "a") as errstream:
-                if kwargs['controllername'] != None:
-                    errstream.write("ExitCode: " + exitcode + "\n")
-                errstream.write(stderr_line + "\n")
-                errstream.flush()
-            #while True:
-            #    try:
-            #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            #        break
-            #    except IOError:
-            #        sleep(0.01)
-            sys.stderr.write(stderr_line + "\n")
-            sys.stderr.flush()
-            #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
     sleep(kwargs['delay'])
 
@@ -1002,6 +1005,26 @@ while not stdout_queue.empty():
             #    countallbatches = 0
             #    os.remove(lockfile)
 
+    while not stderr_queue.empty():
+        stderr_line = stderr_queue.get().rstrip("\n")
+        if stderr_line not in ignoredstrings:
+            if kwargs['controllername'] != None:
+                exitcode = get_exitcode(kwargs['stepid'])
+            with open(filename + ".err", "a") as errstream:
+                if kwargs['controllername'] != None:
+                    errstream.write("ExitCode: " + exitcode + "\n")
+                errstream.write(stderr_line + "\n")
+                errstream.flush()
+            #while True:
+            #    try:
+            #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            #        break
+            #    except IOError:
+            #        sleep(0.01)
+            sys.stderr.write(stderr_line + "\n")
+            sys.stderr.flush()
+            #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
+
     if (len(bulkrequestslist) > 1) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
         #if len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
         #    overlocked = True
@@ -1018,12 +1041,13 @@ while not stdout_queue.empty():
         #print(bulkdict)
         #sys.stdout.flush()
         if dbtype == "mongodb":
-            for coll, requests in bulkrequestslist[0].items():
-                try:
-                    #bulkdict[bulkcoll].execute()
-                    bulkcolls[coll].bulk_write(requests, ordered = False)
-                except BulkWriteError as bwe:
-                    pprint(bwe.details)
+            if not os.path.exists(filename + ".err"):
+                for coll, requests in bulkrequestslist[0].items():
+                    try:
+                        #bulkdict[bulkcoll].execute()
+                        bulkcolls[coll].bulk_write(requests, ordered = False)
+                    except BulkWriteError as bwe:
+                        pprint(bwe.details)
             del bulkrequestslist[0]
         #while True:
         #    try:
@@ -1041,12 +1065,13 @@ while not stdout_queue.empty():
         #sys.stdout.flush()
         if kwargs['logging']:
             #print(len(logiolist[0].rstrip("\n").split("\n")))
-            sys.stdout.flush()
-            logiotime = ""
-            for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-            sys.stdout.write(logiotime)
-            sys.stdout.flush()
+            if not os.path.exists(filename + ".err"):
+                sys.stdout.flush()
+                logiotime = ""
+                for logio in logiolist[0].rstrip("\n").split("\n"):
+                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                sys.stdout.write(logiotime)
+                sys.stdout.flush()
             del logiolist[0]
         if kwargs['templocal']:
             name = tempiostream.name
@@ -1054,8 +1079,9 @@ while not stdout_queue.empty():
             os.remove(name)
             tempiostream = open(name, "w")
         if kwargs['writelocal'] or kwargs['statslocal']:
-            outiostream.write(outiolist[0])
-            outiostream.flush()
+            if not os.path.exists(filename + ".err"):
+                outiostream.write(outiolist[0])
+                outiostream.flush()
             del outiolist[0]
         #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
         #bulkdict = {}
@@ -1064,26 +1090,6 @@ while not stdout_queue.empty():
         os.remove(lockfile)
         #if overlocked:
         #    os.kill(process.pid, signal.SIGCONT)
-
-while not stderr_queue.empty():
-    stderr_line = stderr_queue.get().rstrip("\n")
-    if stderr_line not in ignoredstrings:
-        if kwargs['controllername'] != None:
-            exitcode = get_exitcode(kwargs['stepid'])
-        with open(filename + ".err", "a") as errstream:
-            if kwargs['controllername'] != None:
-                errstream.write("ExitCode: " + exitcode + "\n")
-            errstream.write(stderr_line + "\n")
-            errstream.flush()
-        #while True:
-        #    try:
-        #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        #        break
-        #    except IOError:
-        #        sleep(0.01)
-        sys.stderr.write(stderr_line + "\n")
-        sys.stderr.flush()
-        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
 while len(bulkrequestslist) > 0:
     while len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
@@ -1096,21 +1102,25 @@ while len(bulkrequestslist) > 0:
             lockstream.flush()
         del countallbatches[0]
 
-        for coll, requests in bulkrequestslist[0].items():
-            try:
-                bulkcolls[coll].bulk_write(requests, ordered = False)
-            except BulkWriteError as bwe:
-                pprint(bwe.details)
-        del bulkrequestslist[0]
+        if dbtype == "mongodb":
+            if not os.path.exists(filename + ".err"):
+                for coll, requests in bulkrequestslist[0].items():
+                    try:
+                        #bulkdict[bulkcoll].execute()
+                        bulkcolls[coll].bulk_write(requests, ordered = False)
+                    except BulkWriteError as bwe:
+                        pprint(bwe.details)
+            del bulkrequestslist[0]
 
         if kwargs['logging']:
             #print(len(logiolist[0].rstrip("\n").split("\n")))
-            sys.stdout.flush()
-            logiotime = ""
-            for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-            sys.stdout.write(logiotime)
-            sys.stdout.flush()
+            if not os.path.exists(filename + ".err"):
+                sys.stdout.flush()
+                logiotime = ""
+                for logio in logiolist[0].rstrip("\n").split("\n"):
+                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                sys.stdout.write(logiotime)
+                sys.stdout.flush()
             del logiolist[0]
         if kwargs['templocal']:
             name = tempiostream.name
@@ -1118,8 +1128,9 @@ while len(bulkrequestslist) > 0:
             os.remove(name)
             tempiostream = open(name, "w")
         if kwargs['writelocal'] or kwargs['statslocal']:
-            outiostream.write(outiolist[0])
-            outiostream.flush()
+            if not os.path.exists(filename + ".err"):
+                outiostream.write(outiolist[0])
+                outiostream.flush()
             del outiolist[0]
 
         os.remove(lockfile)
