@@ -22,11 +22,75 @@ from time import time, sleep
 from random import randint
 from subprocess import Popen, PIPE
 from threading import Thread
+from fcntl import fcntl, F_GETFL, F_SETFL
+from os import O_NONBLOCK, read
+from locale import getpreferredencoding
 from argparse import ArgumentParser, REMAINDER
 try:
     from Queue import Queue, Empty
 except ImportError:
     from queue import Queue, Empty  # python 3.x
+
+def nonblocking_readlines(f):
+    """Generator which yields lines from F (a file object, used only for
+       its fileno()) without blocking.  If there is no data, you get an
+       endless stream of empty strings until there is data again (caller
+       is expected to sleep for a while).
+       Newlines are normalized to the Unix standard.
+    """
+
+    #Copyright 2014 Zack Weinberg
+
+    #Permission is hereby granted, free of charge, to any person obtaining a copy
+    #of this software and associated documentation files (the "Software"), to deal in 
+    #the Software without restriction, including without limitation the rights to use, copy,
+    #modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+    #to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+    #The above copyright notice and this permission notice shall be included in all copies or
+    #substantial portions of the Software.
+
+    #THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+    #BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    #IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+    #WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+    #OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+    fd = f.fileno()
+    fl = fcntl(fd, F_GETFL)
+    fcntl(fd, F_SETFL, fl | O_NONBLOCK)
+    enc = getpreferredencoding(False)
+
+    buf = bytearray()
+    while True:
+        try:
+            block = read(fd, 8192)
+        except OSError:
+            yield ""
+            continue
+
+        if not block:
+            if buf:
+                yield buf.decode(enc)
+                buf.clear()
+            break
+
+        buf.extend(block)
+
+        while True:
+            r = buf.find(b'\r')
+            n = buf.find(b'\n')
+            if r == -1 and n == -1: break
+
+            if r == -1 or r > n:
+                yield buf[:(n+1)].decode(enc)
+                buf = buf[(n+1):]
+            elif n == -1 or n > r:
+                yield buf[:r].decode(enc) + '\n'
+                if n == r+1:
+                    buf = buf[(r+2):]
+                else:
+                    buf = buf[(r+1):]
 
 class AsynchronousThreadStreamReader(Thread):
     '''Class to implement asynchronously read output of
@@ -50,21 +114,28 @@ class AsynchronousThreadStreamReader(Thread):
         '''Check whether there is no more content to expect.'''
         return (not self.is_alive()) and self._queue.empty()
 
-class AsynchronousThreadStreamReaderWriter(Thread):
+class AsynchronousThreadStatsStreamReaderWriter(Thread):
     '''Class to implement asynchronously read output of
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, in_stream, out_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, delimiter = '', cleanup = None, time_limit = None, start_time = None):
+    def __init__(self, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
         assert hasattr(in_iter_arg, '__iter__')
         assert isinstance(in_iter_file, file) or in_iter_file == None
         assert isinstance(in_queue, Queue)
         assert isinstance(out_queue, Queue)
+        #assert isinstance(err_queue, Queue)
         assert callable(in_stream.write)
-        assert callable(out_stream.readline)
+        #assert callable(out_stream.readline)
+        #assert callable(err_stream.readline)
+        assert callable(err_stream.write)
         Thread.__init__(self)
+        self._pid = str(pid)
         self._instream = in_stream
-        self._outstream = out_stream
+        #self._outstream = out_stream
+        self._errstream = err_stream
+        self._outgen = nonblocking_readlines(out_stream)
+        self._errgen = nonblocking_readlines(err_stream)
         self._initerarg = in_iter_arg
         self._initerfile = in_iter_file
         self._initerargflag = False
@@ -72,15 +143,35 @@ class AsynchronousThreadStreamReaderWriter(Thread):
         self._inqueue = in_queue
         self._tempqueue = temp_queue
         self._outqueue = out_queue
+        #self._errqueue = err_queue
         self._delimiter = delimiter
         self._cleanup = cleanup
         self._counter = 0
         self._timelimit = time_limit
         self._starttime = start_time
+        self._stepid = stepid
+        self._ignoredstrings = ignoredstrings
+        if stats == None:
+            self._stats = stats
+        else:
+            self._stats = dict((s, 0) for s in stats)
+            self._proc_smaps = open("/proc/" + str(pid) + "/smaps", "r")
+            self._proc_stat = open("/proc/" + str(pid) + "/stat", "r")
+            self._proc_uptime = open("/proc/uptime", "r")
+            self._maxstats = dict((s, 0) for s in stats)
+            self._totstats = dict((s, 0) for s in stats)
+            self._nstats = 0
+            self._lower_keys = [k.lower() for k in self._stats.keys()]
+            self._time_keys = ["elapsedtime", "totalcputime", "parentcputime", "childcputime", "parentcpuusage", "childcpuusage", "totalcpuusage"]
+            self._hz = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+
         self.daemon = True
 
-    def run(self):
-        '''The body of the thread: read lines and put them on the queue.'''
+    def is_inprog(self):
+        '''Check whether there is no more content to expect.'''
+        return self.is_alive() and os.path.exists("/proc/" + self._pid + "/smaps")
+
+    def write_stdin(self):
         try:
             in_line = self._initerarg.next()
         except StopIteration:
@@ -142,73 +233,115 @@ class AsynchronousThreadStreamReaderWriter(Thread):
             #self._instream.close()
             #print(in_line)
             #sys.stdout.flush()
-        for out_line in iter(self._outstream.readline, ''):
-            out_line = out_line.rstrip("\n")
-            #if out_line == "\n".decode('string_escape'):
-            #print(out_line)
+
+    def get_stats(self):
+        if any([k in self._lower_keys for k in self._time_keys]):
+            self._proc_stat.seek(0)
+            stat_line = self._proc_stat.read() if self.is_inprog() else ""
+            #print(stat_line)
             #sys.stdout.flush()
-            if out_line == "@":
-                try:
-                    in_line = self._initerarg.next()
-                except StopIteration:
-                    self._initerargflag = True
-                    if self._initerfile == None or self._initerfile.closed:
-                        in_line = self._inqueue.get()
-                        if in_line == "":
-                            self._instream.close()
-                            #print("finally!")
-                            #sys.stdout.flush()
-                        else:
-                            self._tempqueue.put(in_line)
-                            self._instream.write(in_line + self._delimiter)
-                            #print("a: " + in_line + self._delimiter)
-                            #sys.stdout.flush()
-                            self._instream.flush()
+            if stat_line != "":
+                stat_line_split = stat_line.split()
+                utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
+                starttime = float(stat_line_split[21]) / self._hz
+                parent_cputime = utime + stime
+                child_cputime = cutime + cstime
+                total_cputime = parent_cputime + child_cputime
+                self._proc_uptime.seek(0)
+                uptime_line = self._proc_uptime.read()
+                uptime = float(uptime_line.split()[0])
+                elapsedtime = uptime - self._starttime
+                parent_cpuusage = 100 * parent_cputime / elapsedtime if elapsedtime > 0 else 0
+                child_cpuusage = 100 * child_cputime / elapsedtime if elapsedtime > 0 else 0
+                total_cpuusage = 100 * total_cputime / elapsedtime if elapsedtime > 0 else 0
+                for k in self._stats.keys():
+                    if k.lower() == "elapsedtime":
+                        self._stats[k] = elapsedtime
+                    if k.lower() == "totalcputime":
+                        self._stats[k] = total_cputime
+                    if k.lower() == "parentcputime":
+                        self._stats[k] = parent_cputime
+                    if k.lower() == "childcputime":
+                        self._stats[k] = child_cputime
+                    if k.lower() == "parentcpuusage":
+                        self._stats[k] = parent_cpuusage
+                    if k.lower() == "childcpuusage":
+                        self._stats[k] = child_cpuusage
+                    if k.lower() == "totalcpuusage":
+                        self._stats[k] = total_cpuusage
+        self._proc_smaps.seek(0)
+        smaps_lines = self._proc_smaps.readlines() if self.is_inprog() and os.path.exists("/proc/" + self._pid) else ""
+        for smaps_line in smaps_lines:
+            smaps_line_split = smaps_line.split()
+            if len(smaps_line_split) == 3:
+                stat_name, stat_size, stat_unit = smaps_line_split
+                stat_name = stat_name.rstrip(':')
+                if stat_name.lower() in self._lower_keys:
+                    stat_size = int(stat_size)
+                    if stat_unit.lower() == 'b':
+                        multiplier = 1
+                    elif stat_unit.lower() in ['k', 'kb']:
+                        multiplier = 1024
+                    elif stat_unit.lower() in ['m', 'mb']:
+                        multiplier = 1000 * 1024
+                    elif stat_unit.lower() in ['g', 'gb']:
+                        multiplier = 1000 * 1000 * 1024
                     else:
-                        in_line = self._initerfile.readline().rstrip("\n")
-                        if in_line == "":
-                            name = self._initerfile.name
-                            self._initerfile.close()
-                            os.remove(name)
-                            #self._initerfileflag = True
-                            in_line = self._inqueue.get()
-                            if in_line == "":
-                                self._instream.close()
-                                #print("finally!")
-                                #sys.stdout.flush()
-                            else:
-                                self._tempqueue.put(in_line)
-                                self._instream.write(in_line + self._delimiter)
-                                #print("a: " + in_line + self._delimiter)
-                                #sys.stdout.flush()
-                                self._instream.flush()
-                        else:
-                            self._tempqueue.put(in_line)
-                            self._instream.write(in_line + self._delimiter)
-                            #print("a: " + in_line + self._delimiter)
-                            #sys.stdout.flush()
-                            self._instream.flush()
-                            if (self._cleanup != None and self._counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time() - self._starttime >= self._timelimit):
-                                with tempfile.NamedTemporaryFile(dir = "/".join(self._initerfile.name.split("/")[:-1]), delete = False) as tempstream:
-                                    in_line = self._initerfile.readline()
-                                    while in_line != "":
-                                        tempstream.write(in_line)
-                                        tempstream.flush()
-                                        in_line = self._initerfile.readline()
-                                    name = self._initerfile.name
-                                    self._initerfile.close()
-                                    os.rename(tempstream.name, name)
-                                    self._initerfile = open(name, 'r')
-                                self._counter = 0
-                    if self._cleanup != None:
-                        self._counter += 1
-                else:
-                    self._tempqueue.put(in_line)
-                    self._instream.write(in_line + self._delimiter)
-                    #print("a: " + in_line + self._delimiter)
-                    #sys.stdout.flush()
-                    self._instream.flush()
-            self._outqueue.put(out_line.rstrip("\n"))
+                        raise Exception(stat_name + " in " + self._proc_smaps.name + " has unrecognized unit: " + stat_unit)
+                    self._stats[stat_name] += multiplier * stat_size
+            #smaps_line = self._proc_smaps.readline() if self.is_alive() else ""
+        self._nstats += 1
+        for k in self._stats.keys():
+            self._totstats[k] += self._stats[k]
+            if self._stats[k] >= self._maxstats[k]:
+                self._maxstats[k] = self._stats[k]
+        #sleep(self._statsdelay)
+
+    def run(self):
+        '''The body of the thread: read lines and put them on the queue.'''
+        self.write_stdin()
+        while self.is_inprog():
+            try:
+                err_line = self._errgen.next()
+            except StopIteration:
+                err_line = ""
+                pass
+            while err_line != "":
+                err_line = err_line.rstrip("\n")
+                if err_line not in self._ignoredstrings:
+                    if self._stepid != None:
+                        exitcode = get_exitcode(self._stepid)
+                    if self._stepid != None:
+                        self._errstream.write("ExitCode: " + exitcode + "\n")
+                    self._errstream.write(err_line + "\n")
+                    self._errstream.flush()
+                    sys.stderr.write(err_line + "\n")
+                    sys.stderr.flush()
+                try:
+                    err_line = self._errgen.next()
+                except StopIteration:
+                    break
+                        
+            try:
+                out_line = self._outgen.next()
+            except StopIteration:
+                out_line = ""
+                pass
+            while out_line != "":
+                #for out_line in iter(self._outstream.readline, ''):
+                out_line = out_line.rstrip("\n")
+                #if out_line == "\n".decode('string_escape'):
+                #print(out_line)
+                #sys.stdout.flush()
+                if out_line == "@":
+                    if self._stats != None:
+                        self.get_stats()
+                    self.write_stdin()
+                self._outqueue.put(out_line.rstrip("\n"))
+                try:
+                    out_line = self._outgen.next()
+                except StopIteration:
+                    break 
 
     def waiting(self):
         return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
@@ -216,6 +349,30 @@ class AsynchronousThreadStreamReaderWriter(Thread):
     def eof(self):
         '''Check whether there is no more content to expect.'''
         return (not self.is_alive()) and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
+
+    def stat(self, stat_name):
+        '''Check whether there is no more content to expect.'''
+        return self._stats[stat_name]
+
+    def stats(self):
+        '''Check whether there is no more content to expect.'''
+        return self._stats
+
+    def max_stat(self, stat_name):
+        '''Check whether there is no more content to expect.'''
+        return self._maxstats[stat_name]
+
+    def max_stats(self):
+        '''Check whether there is no more content to expect.'''
+        return self._maxstats
+
+    def avg_stat(self, stat_name):
+        '''Check whether there is no more content to expect.'''
+        return self._totstats[stat_name] / self._nstats if self._nstats > 0 else 0
+
+    def avg_stats(self):
+        '''Check whether there is no more content to expect.'''
+        return dict((k, self._totstats[k] / self._nstats if self._nstats > 0 else 0) for k in self._totstats.keys())
 
 class AsynchronousThreadStatsReader(Thread):
     '''Class to implement asynchronously read output of
@@ -225,9 +382,9 @@ class AsynchronousThreadStatsReader(Thread):
     def __init__(self, pid, stats, stats_delay = 0):
         Thread.__init__(self)
         self._pid = str(pid)
-        self._smaps = open("/proc/" + str(pid) + "/smaps", "r")
-        self._stat = open("/proc/" + str(pid) + "/stat", "r")
-        self._uptime = open("/proc/uptime", "r")
+        self._proc_smaps = open("/proc/" + str(pid) + "/smaps", "r")
+        self._proc_stat = open("/proc/" + str(pid) + "/stat", "r")
+        self._proc_uptime = open("/proc/uptime", "r")
         self._stats = dict((s, 0) for s in stats)
         self._maxstats = dict((s, 0) for s in stats)
         self._totstats = dict((s, 0) for s in stats)
@@ -248,9 +405,9 @@ class AsynchronousThreadStatsReader(Thread):
         while self.is_inprog():
             #for stat_name in self._stats.keys():
             #    self._stats[stat_name] = 0
-            if any([k in lower_keys for k in time_keys]):
-                self._stat.seek(0)
-                stat_line = self._stat.read() if self.is_inprog() else ""
+            if any([k in self._lower_keys for k in self._time_keys]):
+                self._proc_stat.seek(0)
+                stat_line = self._proc_stat.read() if self.is_inprog() else ""
                 #print(stat_line)
                 #sys.stdout.flush()
                 if stat_line != "":
@@ -260,8 +417,8 @@ class AsynchronousThreadStatsReader(Thread):
                     parent_cputime = utime + stime
                     child_cputime = cutime + cstime
                     total_cputime = parent_cputime + child_cputime
-                    self._uptime.seek(0)
-                    uptime_line = self._uptime.read()
+                    self._proc_uptime.seek(0)
+                    uptime_line = self._proc_uptime.read()
                     uptime = float(uptime_line.split()[0])
                     elapsedtime = uptime-starttime
                     parent_cpuusage = 100 * parent_cputime / elapsedtime if elapsedtime > 0 else 0
@@ -282,14 +439,14 @@ class AsynchronousThreadStatsReader(Thread):
                             self._stats[k] = child_cpuusage
                         if k.lower() == "totalcpuusage":
                             self._stats[k] = total_cpuusage
-            self._smaps.seek(0)
-            smaps_lines = self._smaps.readlines() if self.is_inprog() and os.path.exists("/proc/" + self._pid) else ""
+            self._proc_smaps.seek(0)
+            smaps_lines = self._proc_smaps.readlines() if self.is_inprog() and os.path.exists("/proc/" + self._pid) else ""
             for smaps_line in smaps_lines:
                 smaps_line_split = smaps_line.split()
                 if len(smaps_line_split) == 3:
                     stat_name, stat_size, stat_unit = smaps_line_split
                     stat_name = stat_name.rstrip(':')
-                    if stat_name.lower() in lower_keys:
+                    if stat_name.lower() in self._lower_keys:
                         stat_size = int(stat_size)
                         if stat_unit.lower() == 'b':
                             multiplier = 1
@@ -300,18 +457,18 @@ class AsynchronousThreadStatsReader(Thread):
                         elif stat_unit.lower() in ['g', 'gb']:
                             multiplier = 1000 * 1000 * 1024
                         else:
-                            raise Exception(stat_name + " in " + self._stream.name + " has unrecognized unit: " + stat_unit)
+                            raise Exception(stat_name + " in " + self._proc_smaps.name + " has unrecognized unit: " + stat_unit)
                         self._stats[stat_name] += multiplier * stat_size
-                #smaps_line = self._smaps.readline() if self.is_alive() else ""
+                #smaps_line = self._proc_smaps.readline() if self.is_alive() else ""
             self._nstats += 1
             for k in self._stats.keys():
                 self._totstats[k] += self._stats[k]
                 if self._stats[k] >= self._maxstats[k]:
                     self._maxstats[k] = self._stats[k]
             sleep(self._statsdelay)
-        self._smaps.close()
-        self._stat.close()
-        self._uptime.close()
+        #self._proc_smaps.close()
+        #self._proc_stat.close()
+        #self._proc_uptime.close()
 
     def stat(self, stat_name):
         '''Check whether there is no more content to expect.'''
@@ -557,16 +714,19 @@ if not kwargs['interactive']:
 temp_queue = Queue()
 
 stdout_queue = Queue()
-stdout_reader = AsynchronousThreadStreamReaderWriter(process.stdin, process.stdout, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
-stdout_reader.start()
+#stdout_reader = AsynchronousThreadStreamReaderWriter(process.stdin, process.stdout, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+#stdout_reader.start()
 
-stderr_queue = Queue()
-stderr_reader = AsynchronousThreadStreamReader(process.stderr, stderr_queue)
-stderr_reader.start()
+#stderr_queue = Queue()
+#stderr_reader = AsynchronousThreadStreamReader(process.stderr, stderr_queue)
+#stderr_reader.start()
 
-if kwargs['statslocal'] or kwargs['statsdb']:
-    stats_reader = AsynchronousThreadStatsReader(process.pid, kwargs['stats_list'], stats_delay = kwargs['stats_delay'])
-    stats_reader.start()
+#if kwargs['statslocal'] or kwargs['statsdb']:
+#    stats_reader = AsynchronousThreadStatsReader(process.pid, kwargs['stats_list'], stats_delay = kwargs['stats_delay'])
+#    stats_reader.start()
+
+handler = AsynchronousThreadStatsStreamReaderWriter(process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = kwargs['stats_list'] if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+handler.start()
 
 bulkcolls = {}
 bulkrequestslist = [{}]
@@ -575,8 +735,9 @@ countallbatches = [0]
 bsonsize = 0
 countthisbatch = 0
 nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
-while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader.eof() or stderr_reader.eof()):
-    if stdout_reader.waiting():
+#while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader.eof() or stderr_reader.eof()):
+while process.poll() == None and handler.is_inprog() and not handler.eof():
+    if handler.waiting():
         stdin_line = sys.stdin.readline().rstrip("\n")
         stdin_queue.put(stdin_line)
 
@@ -659,9 +820,9 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
                             bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
                 elif linemarker == "@":
                     if kwargs['statslocal'] or kwargs['statsdb']:
-                        cputime = "%.2f" % stats_reader.stat("TotalCPUTime")
-                        maxrss = stats_reader.max_stat("Rss")
-                        maxvmsize = stats_reader.max_stat("Size")
+                        cputime = "%.2f" % handler.stat("TotalCPUTime")
+                        maxrss = handler.max_stat("Rss")
+                        maxvmsize = handler.max_stat("Size")
                     #    stats = getstats("sstat", ["MaxRSS", "MaxVMSize"], kwargs['stepid'])
                     #    if (len(stats) == 1) and (stats[0] == ""):
                     #        newtotcputime, maxrss, maxvmsize = [eval(x) for x in getstats("sacct", ["CPUTimeRAW", "MaxRSS", "MaxVMSize"], kwargs['stepid'])]
@@ -750,25 +911,25 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
                 #    countallbatches = 0
                 #    os.remove(lockfile)
 
-        while not stderr_queue.empty():
-            stderr_line = stderr_queue.get().rstrip("\n")
-            if stderr_line not in ignoredstrings:
-                if kwargs['controllername'] != None:
-                    exitcode = get_exitcode(kwargs['stepid'])
-                with open(filename + ".err", "a") as errstream:
-                    if kwargs['controllername'] != None:
-                        errstream.write("ExitCode: " + exitcode + "\n")
-                    errstream.write(stderr_line + "\n")
-                    errstream.flush()
-                #while True:
-                #    try:
-                #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                #        break
-                #    except IOError:
-                #        sleep(0.01)
-                sys.stderr.write(stderr_line + "\n")
-                sys.stderr.flush()
-                #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
+        #while not stderr_queue.empty():
+        #    stderr_line = stderr_queue.get().rstrip("\n")
+        #    if stderr_line not in ignoredstrings:
+        #        if kwargs['controllername'] != None:
+        #            exitcode = get_exitcode(kwargs['stepid'])
+        #        with open(filename + ".err", "a") as errstream:
+        #            if kwargs['controllername'] != None:
+        #                errstream.write("ExitCode: " + exitcode + "\n")
+        #            errstream.write(stderr_line + "\n")
+        #            errstream.flush()
+        #        #while True:
+        #        #    try:
+        #        #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        #        #        break
+        #        #    except IOError:
+        #        #        sleep(0.01)
+        #        sys.stderr.write(stderr_line + "\n")
+        #        sys.stderr.flush()
+        #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
         if (len(bulkrequestslist) > 1) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
             #if len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
@@ -786,14 +947,13 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
             #print(bulkdict)
             #sys.stdout.flush()
             if dbtype == "mongodb":
-                if not os.path.exists(filename + ".err"):
-                    for coll, requests in bulkrequestslist[0].items():
-                        try:
-                            #bulkdict[bulkcoll].execute()
-                            bulkcolls[coll].bulk_write(requests, ordered = False)
-                        except BulkWriteError as bwe:
-                            pprint(bwe.details)
-                    del bulkrequestslist[0]
+                for coll, requests in bulkrequestslist[0].items():
+                    try:
+                        #bulkdict[bulkcoll].execute()
+                        bulkcolls[coll].bulk_write(requests, ordered = False)
+                    except BulkWriteError as bwe:
+                        pprint(bwe.details)
+                del bulkrequestslist[0]
             #while True:
             #    try:
             #        fcntl.flock(sys.stdout, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -810,13 +970,12 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
             #sys.stdout.flush()
             if kwargs['logging']:
                 #print(len(logiolist[0].rstrip("\n").split("\n")))
-                if not os.path.exists(filename + ".err"):
-                    sys.stdout.flush()
-                    logiotime = ""
-                    for logio in logiolist[0].rstrip("\n").split("\n"):
-                        logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-                    sys.stdout.write(logiotime)
-                    sys.stdout.flush()
+                sys.stdout.flush()
+                logiotime = ""
+                for logio in logiolist[0].rstrip("\n").split("\n"):
+                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                sys.stdout.write(logiotime)
+                sys.stdout.flush()
                 del logiolist[0]
             if kwargs['templocal']:
                 name = tempiostream.name
@@ -824,9 +983,8 @@ while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader
                 os.remove(name)
                 tempiostream = open(name, "w")
             if kwargs['writelocal'] or kwargs['statslocal']:
-                if not os.path.exists(filename + ".err"):
-                    outiostream.write(outiolist[0])
-                    outiostream.flush()
+                outiostream.write(outiolist[0])
+                outiostream.flush()
                 del outiolist[0]
             #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
             #bulkdict = {}
@@ -914,9 +1072,9 @@ while not stdout_queue.empty():
                         bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
             elif linemarker == "@":
                 if kwargs['statslocal'] or kwargs['statsdb']:
-                    cputime = "%.2f" % stats_reader.stat("TotalCPUTime")
-                    maxrss = stats_reader.max_stat("Rss")
-                    maxvmsize = stats_reader.max_stat("Size")
+                    cputime = "%.2f" % handler.stat("TotalCPUTime")
+                    maxrss = handler.max_stat("Rss")
+                    maxvmsize = handler.max_stat("Size")
                 #    stats = getstats("sstat", ["MaxRSS", "MaxVMSize"], kwargs['stepid'])
                 #    if (len(stats) == 1) and (stats[0] == ""):
                 #        newtotcputime, maxrss, maxvmsize = [eval(x) for x in getstats("sacct", ["CPUTimeRAW", "MaxRSS", "MaxVMSize"], kwargs['stepid'])]
@@ -1005,25 +1163,25 @@ while not stdout_queue.empty():
             #    countallbatches = 0
             #    os.remove(lockfile)
 
-    while not stderr_queue.empty():
-        stderr_line = stderr_queue.get().rstrip("\n")
-        if stderr_line not in ignoredstrings:
-            if kwargs['controllername'] != None:
-                exitcode = get_exitcode(kwargs['stepid'])
-            with open(filename + ".err", "a") as errstream:
-                if kwargs['controllername'] != None:
-                    errstream.write("ExitCode: " + exitcode + "\n")
-                errstream.write(stderr_line + "\n")
-                errstream.flush()
-            #while True:
-            #    try:
-            #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            #        break
-            #    except IOError:
-            #        sleep(0.01)
-            sys.stderr.write(stderr_line + "\n")
-            sys.stderr.flush()
-            #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
+    #while not stderr_queue.empty():
+    #    stderr_line = stderr_queue.get().rstrip("\n")
+    #    if stderr_line not in ignoredstrings:
+    #        if kwargs['controllername'] != None:
+    #            exitcode = get_exitcode(kwargs['stepid'])
+    #        with open(filename + ".err", "a") as errstream:
+    #            if kwargs['controllername'] != None:
+    #                errstream.write("ExitCode: " + exitcode + "\n")
+    #            errstream.write(stderr_line + "\n")
+    #            errstream.flush()
+    #        #while True:
+    #        #    try:
+    #        #        fcntl.flock(sys.stderr, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    #        #        break
+    #        #    except IOError:
+    #        #        sleep(0.01)
+    #        sys.stderr.write(stderr_line + "\n")
+    #        sys.stderr.flush()
+    #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
     if (len(bulkrequestslist) > 1) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
         #if len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
@@ -1041,13 +1199,12 @@ while not stdout_queue.empty():
         #print(bulkdict)
         #sys.stdout.flush()
         if dbtype == "mongodb":
-            if not os.path.exists(filename + ".err"):
-                for coll, requests in bulkrequestslist[0].items():
-                    try:
-                        #bulkdict[bulkcoll].execute()
-                        bulkcolls[coll].bulk_write(requests, ordered = False)
-                    except BulkWriteError as bwe:
-                        pprint(bwe.details)
+            for coll, requests in bulkrequestslist[0].items():
+                try:
+                    #bulkdict[bulkcoll].execute()
+                    bulkcolls[coll].bulk_write(requests, ordered = False)
+                except BulkWriteError as bwe:
+                    pprint(bwe.details)
             del bulkrequestslist[0]
         #while True:
         #    try:
@@ -1065,13 +1222,12 @@ while not stdout_queue.empty():
         #sys.stdout.flush()
         if kwargs['logging']:
             #print(len(logiolist[0].rstrip("\n").split("\n")))
-            if not os.path.exists(filename + ".err"):
-                sys.stdout.flush()
-                logiotime = ""
-                for logio in logiolist[0].rstrip("\n").split("\n"):
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-                sys.stdout.write(logiotime)
-                sys.stdout.flush()
+            sys.stdout.flush()
+            logiotime = ""
+            for logio in logiolist[0].rstrip("\n").split("\n"):
+                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+            sys.stdout.write(logiotime)
+            sys.stdout.flush()
             del logiolist[0]
         if kwargs['templocal']:
             name = tempiostream.name
@@ -1079,9 +1235,8 @@ while not stdout_queue.empty():
             os.remove(name)
             tempiostream = open(name, "w")
         if kwargs['writelocal'] or kwargs['statslocal']:
-            if not os.path.exists(filename + ".err"):
-                outiostream.write(outiolist[0])
-                outiostream.flush()
+            outiostream.write(outiolist[0])
+            outiostream.flush()
             del outiolist[0]
         #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
         #bulkdict = {}
@@ -1103,24 +1258,22 @@ while len(bulkrequestslist) > 0:
         del countallbatches[0]
 
         if dbtype == "mongodb":
-            if not os.path.exists(filename + ".err"):
-                for coll, requests in bulkrequestslist[0].items():
-                    try:
-                        #bulkdict[bulkcoll].execute()
-                        bulkcolls[coll].bulk_write(requests, ordered = False)
-                    except BulkWriteError as bwe:
-                        pprint(bwe.details)
+            for coll, requests in bulkrequestslist[0].items():
+                try:
+                    #bulkdict[bulkcoll].execute()
+                    bulkcolls[coll].bulk_write(requests, ordered = False)
+                except BulkWriteError as bwe:
+                    pprint(bwe.details)
             del bulkrequestslist[0]
 
         if kwargs['logging']:
             #print(len(logiolist[0].rstrip("\n").split("\n")))
-            if not os.path.exists(filename + ".err"):
-                sys.stdout.flush()
-                logiotime = ""
-                for logio in logiolist[0].rstrip("\n").split("\n"):
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-                sys.stdout.write(logiotime)
-                sys.stdout.flush()
+            sys.stdout.flush()
+            logiotime = ""
+            for logio in logiolist[0].rstrip("\n").split("\n"):
+                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+            sys.stdout.write(logiotime)
+            sys.stdout.flush()
             del logiolist[0]
         if kwargs['templocal']:
             name = tempiostream.name
@@ -1128,9 +1281,8 @@ while len(bulkrequestslist) > 0:
             os.remove(name)
             tempiostream = open(name, "w")
         if kwargs['writelocal'] or kwargs['statslocal']:
-            if not os.path.exists(filename + ".err"):
-                outiostream.write(outiolist[0])
-                outiostream.flush()
+            outiostream.write(outiolist[0])
+            outiostream.flush()
             del outiolist[0]
 
         os.remove(lockfile)
@@ -1146,10 +1298,10 @@ if kwargs['templocal']:
 if kwargs['writelocal'] or kwargs['statslocal']:
     outiostream.close()
 
-stdout_reader.join()
-stderr_reader.join()
-if kwargs['statslocal'] or kwargs['statsdb']:
-    stats_reader.join()
+handler.join()
+#stderr_reader.join()
+#if kwargs['statslocal'] or kwargs['statsdb']:
+#    stats_reader.join()
 
 process.stdin.close()
 process.stdout.close()
