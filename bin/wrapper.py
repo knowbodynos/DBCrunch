@@ -119,7 +119,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
+    def __init__(self, workpath, filename, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
         assert hasattr(in_iter_arg, '__iter__')
         assert isinstance(in_iter_file, file) or in_iter_file == None
         assert isinstance(in_queue, Queue)
@@ -128,12 +128,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         assert callable(in_stream.write)
         #assert callable(out_stream.readline)
         #assert callable(err_stream.readline)
-        assert callable(err_stream.write)
+        #assert callable(err_stream.write)
         Thread.__init__(self)
+        self._workpath = workpath
+        self._filename = filename
         self._pid = str(pid)
         self._instream = in_stream
         #self._outstream = out_stream
-        self._errstream = err_stream
         self._outgen = nonblocking_readlines(out_stream)
         self._errgen = nonblocking_readlines(err_stream)
         self._initerarg = in_iter_arg
@@ -146,10 +147,11 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         #self._errqueue = err_queue
         self._delimiter = delimiter
         self._cleanup = cleanup
-        self._counter = 0
+        self._cleanup_counter = 0
         self._timelimit = time_limit
         self._starttime = start_time
         self._stepid = stepid
+        self._nlocks = 0
         self._ignoredstrings = ignoredstrings
         if stats == None:
             self._stats = stats
@@ -177,7 +179,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         except StopIteration:
             self._initerargflag = True
             if self._initerfile == None or self._initerfile.closed:
-                in_line = self._inqueue.get()
+                #in_line = self._inqueue.get()
+                in_line = sys.stdin.readline().rstrip("\n")
                 if in_line == "":
                     self._instream.close()
                     #print("finally!")
@@ -195,7 +198,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     self._initerfile.close()
                     os.remove(name)
                     #self._initerfileflag = True
-                    in_line = self._inqueue.get()
+                    #in_line = self._inqueue.get()
+                    in_line = sys.stdin.readline().rstrip("\n")
                     if in_line == "":
                         self._instream.close()
                         #print("finally!")
@@ -212,7 +216,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     #print("a: " + in_line + self._delimiter)
                     #sys.stdout.flush()
                     self._instream.flush()
-                    if (self._cleanup != None and self._counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time() - self._starttime >= self._timelimit):
+                    if (self._cleanup != None and self._cleanup_counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time() - self._starttime >= self._timelimit):
                         with tempfile.NamedTemporaryFile(dir = "/".join(self._initerfile.name.split("/")[:-1]), delete = False) as tempstream:
                             in_line = self._initerfile.readline()
                             while in_line != "":
@@ -223,7 +227,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                             self._initerfile.close()
                             os.rename(tempstream.name, name)
                             self._initerfile = open(name, 'r')
-                        self._counter = 0
+                        self._cleanup_counter = 0
         else:
             self._tempqueue.put(in_line)
             self._instream.write(in_line + self._delimiter)
@@ -309,12 +313,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             while err_line != "":
                 err_line = err_line.rstrip("\n")
                 if err_line not in self._ignoredstrings:
-                    if self._stepid != None:
-                        exitcode = get_exitcode(self._stepid)
-                    if self._stepid != None:
-                        self._errstream.write("ExitCode: " + exitcode + "\n")
-                    self._errstream.write(err_line + "\n")
-                    self._errstream.flush()
+                    with open(self._filename + ".err", "a") as errfilestream:
+                        if self._stepid != None:
+                            exitcode = get_exitcode(self._stepid)
+                        if self._stepid != None:
+                            errfilestream.write("ExitCode: " + exitcode + "\n")
+                        errfilestream.write(err_line + "\n")
+                        errfilestream.flush()
                     sys.stderr.write(err_line + "\n")
                     sys.stderr.flush()
                 try:
@@ -331,11 +336,12 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 #for out_line in iter(self._outstream.readline, ''):
                 out_line = out_line.rstrip("\n")
                 #if out_line == "\n".decode('string_escape'):
-                #print(out_line)
-                #sys.stdout.flush()
+                sys.stdout.write(self._filename+" out_line: \""+out_line+"\"\n")
+                sys.stdout.flush()
                 if out_line == "@":
                     if self._stats != None:
                         self.get_stats()
+                        self._nlocks = len(glob.glob(self._workpath + "/*.lock"))
                     self.write_stdin()
                 self._outqueue.put(out_line.rstrip("\n"))
                 try:
@@ -343,8 +349,11 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 except StopIteration:
                     break 
 
-    def waiting(self):
-        return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
+    #def waiting(self):
+    #    return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
+
+    def nlocks(self):
+        return self._nlocks
 
     def eof(self):
         '''Check whether there is no more content to expect.'''
@@ -546,7 +555,7 @@ parser.add_argument('--markdone', dest = 'markdone', action = 'store', default =
 
 parser.add_argument('--delay', dest = 'delay', action = 'store', default = 0, help = '')
 parser.add_argument('--stats', dest = 'stats_list', nargs = '+', action = 'store', default = [], help = '')
-parser.add_argument('--stats-delay', dest = 'stats_delay', action = 'store', default = 0, help = '')
+#parser.add_argument('--stats-delay', dest = 'stats_delay', action = 'store', default = 0, help = '')
 parser.add_argument('--delimiter', '-d', dest = 'delimiter', action = 'store', default = '\n', help = '')
 parser.add_argument('--input', '-i', dest = 'input_list', nargs = '+', action = 'store', default = [], help = '')
 parser.add_argument('--file', '-f', dest = 'input_file', action = 'store', default = None, help = '')
@@ -570,7 +579,7 @@ else:
     kwargs['time_limit'] = timestamp2unit(kwargs['time_limit'])
 
 kwargs['delay'] = float(kwargs['delay'])
-kwargs['stats_delay'] = float(kwargs['stats_delay'])
+#kwargs['stats_delay'] = float(kwargs['stats_delay'])
 kwargs['nbatch'] = int(kwargs['nbatch'])
 kwargs['nworkers'] = int(kwargs['nworkers'])
 #kwargs['delimiter'] = kwargs['delimiter']#.decode("string_escape")
@@ -725,7 +734,7 @@ stdout_queue = Queue()
 #    stats_reader = AsynchronousThreadStatsReader(process.pid, kwargs['stats_list'], stats_delay = kwargs['stats_delay'])
 #    stats_reader.start()
 
-handler = AsynchronousThreadStatsStreamReaderWriter(process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = kwargs['stats_list'] if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+handler = AsynchronousThreadStatsStreamReaderWriter(workpath, filename, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = kwargs['stats_list'] if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
 handler.start()
 
 bulkcolls = {}
@@ -737,12 +746,12 @@ countthisbatch = 0
 nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
 #while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader.eof() or stderr_reader.eof()):
 while process.poll() == None and handler.is_inprog() and not handler.eof():
-    if handler.waiting():
-        stdin_line = sys.stdin.readline().rstrip("\n")
-        stdin_queue.put(stdin_line)
+    #if handler.waiting():
+    #    stdin_line = sys.stdin.readline().rstrip("\n")
+    #    stdin_queue.put(stdin_line)
 
     while not stdout_queue.empty():
-        while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers'])):
+        while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
             line = stdout_queue.get().rstrip("\n")
             if line not in ignoredstrings:
                 linehead = re.sub("^([-+&@].*?>|None).*", r"\1", line)
@@ -769,7 +778,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
                         if dbtype == "mongodb":
                             bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
-                elif linemarker == " + ":
+                elif linemarker == "+":
                     #tempiostream.write(linehead[1:-1].split(".") + "\n")
                     #sys.stdout.flush()
                     #print(line)
@@ -820,7 +829,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                             bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
                 elif linemarker == "@":
                     if kwargs['statslocal'] or kwargs['statsdb']:
-                        cputime = "%.2f" % handler.stat("TotalCPUTime")
+                        cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
                         maxrss = handler.max_stat("Rss")
                         maxvmsize = handler.max_stat("Size")
                     #    stats = getstats("sstat", ["MaxRSS", "MaxVMSize"], kwargs['stepid'])
@@ -859,6 +868,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                     if kwargs['markdone'] != "":
                         statsmark.update({modname + kwargs['markdone']: True})
+                    # Testing
+                    #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
+                    # Done testing
                     if len(statsmark) > 0:
                         if newcollection not in bulkcolls.keys():
                             #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
@@ -887,7 +899,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         tempiostream.flush()
                     if kwargs['writelocal']:
                         outiolist[-1] += line + "\n"
-                #if len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']:
+                #if handler.nlocks() < kwargs['nworkers']:
                 #    lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
                 #    with open(lockfile, 'w') as lockstream:
                 #        lockstream.write(str(countallbatches))
@@ -931,11 +943,11 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         #        sys.stderr.flush()
         #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
-        if (len(bulkrequestslist) > 1) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
-            #if len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
+        if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
+            #if handler.nlocks() >= kwargs['nworkers']:
             #    overlocked = True
             #    os.kill(process.pid, signal.SIGSTOP)
-            #    while len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
+            #    while handler.nlocks() >= kwargs['nworkers']:
             #        sleep(0.01)
             #else:
             #    overlocked = False
@@ -997,7 +1009,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
     sleep(kwargs['delay'])
 
 while not stdout_queue.empty():
-    while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers'])):
+    while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
         line = stdout_queue.get().rstrip("\n")
         if line not in ignoredstrings:
             linehead = re.sub("^([- + &@].*?>|None).*", r"\1", line)
@@ -1024,7 +1036,7 @@ while not stdout_queue.empty():
                     #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
                     if dbtype == "mongodb":
                         bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
-            elif linemarker == " + ":
+            elif linemarker == "+":
                 #tempiostream.write(linehead[1:-1].split(".") + "\n")
                 #sys.stdout.flush()
                 newcollection, strindexdoc = linehead[1:-1].split(".")
@@ -1072,7 +1084,7 @@ while not stdout_queue.empty():
                         bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
             elif linemarker == "@":
                 if kwargs['statslocal'] or kwargs['statsdb']:
-                    cputime = "%.2f" % handler.stat("TotalCPUTime")
+                    cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
                     maxrss = handler.max_stat("Rss")
                     maxvmsize = handler.max_stat("Size")
                 #    stats = getstats("sstat", ["MaxRSS", "MaxVMSize"], kwargs['stepid'])
@@ -1111,6 +1123,9 @@ while not stdout_queue.empty():
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                 if kwargs['markdone'] != "":
                     statsmark.update({modname + kwargs['markdone']: True})
+                # Testing
+                #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
+                # Done testing
                 if len(statsmark) > 0:
                     if newcollection not in bulkcolls.keys():
                         #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
@@ -1139,7 +1154,7 @@ while not stdout_queue.empty():
                     tempiostream.flush()
                 if kwargs['writelocal']:
                     outiolist[-1] += line + "\n"
-            #if len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']:
+            #if handler.nlocks() < kwargs['nworkers']:
             #    lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
             #    with open(lockfile, 'w') as lockstream:
             #        lockstream.write(str(countallbatches))
@@ -1183,11 +1198,11 @@ while not stdout_queue.empty():
     #        sys.stderr.flush()
     #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
-    if (len(bulkrequestslist) > 1) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
-        #if len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
+    if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
+        #if handler.nlocks() >= kwargs['nworkers']:
         #    overlocked = True
         #    os.kill(process.pid, signal.SIGSTOP)
-        #    while len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
+        #    while handler.nlocks() >= kwargs['nworkers']:
         #        sleep(0.01)
         #else:
         #    overlocked = False
@@ -1247,10 +1262,10 @@ while not stdout_queue.empty():
         #    os.kill(process.pid, signal.SIGCONT)
 
 while len(bulkrequestslist) > 0:
-    while len(glob.glob(workpath + "/*.lock")) >= kwargs['nworkers']:
+    while handler.nlocks() >= kwargs['nworkers']:
         sleep(kwargs['delay'])
 
-    if (len(bulkrequestslist) > 0) and (len(glob.glob(workpath + "/*.lock")) < kwargs['nworkers']):
+    if (len(bulkrequestslist) > 0) and (handler.nlocks() < kwargs['nworkers']):
         lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items.")
