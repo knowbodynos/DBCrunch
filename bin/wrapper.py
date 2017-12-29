@@ -336,8 +336,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 #for out_line in iter(self._outstream.readline, ''):
                 out_line = out_line.rstrip("\n")
                 #if out_line == "\n".decode('string_escape'):
-                sys.stdout.write(self._filename+" out_line: \""+out_line+"\"\n")
-                sys.stdout.flush()
+                #sys.stdout.write(self._filename+" out_line: \""+out_line+"\"\n")
+                #sys.stdout.flush()
                 if out_line == "@":
                     if self._stats != None:
                         self.get_stats()
@@ -683,8 +683,10 @@ else:
 
 if kwargs['input_file'] != None:
     filename = ".".join(kwargs['input_file'].split('.')[:-1])
+    step = kwargs['input_file'].split('/')[-1].split('.')[0].split("_step_")[1]
 else:
     filename = workpath + "/" + kwargs['stepid']
+    step = kwargs['stepid'].split('.')[-1:]
 
 if kwargs['logging']:
     logiolist = [""]
@@ -846,8 +848,8 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     doc = json.loads(temp_queue.get())
                     newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);               
                     if kwargs['logging']:
-                        logiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "<OUT\n"
-                        sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "<TEMP\n")
+                        logiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
+                        sys.stdout.write("Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
                         sys.stdout.flush()
                     if kwargs['templocal']:
                         tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
@@ -985,7 +987,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 sys.stdout.flush()
                 logiotime = ""
                 for logio in logiolist[0].rstrip("\n").split("\n"):
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                    logiotime += "Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
                 sys.stdout.write(logiotime)
                 sys.stdout.flush()
                 del logiolist[0]
@@ -1101,8 +1103,8 @@ while not stdout_queue.empty():
                 doc = json.loads(temp_queue.get())
                 newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);               
                 if kwargs['logging']:
-                    logiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "<OUT\n"
-                    sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "<TEMP\n")
+                    logiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
+                    sys.stdout.write("Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
                     sys.stdout.flush()
                 if kwargs['templocal']:
                     tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
@@ -1240,7 +1242,7 @@ while not stdout_queue.empty():
             sys.stdout.flush()
             logiotime = ""
             for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                logiotime += "Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
             sys.stdout.write(logiotime)
             sys.stdout.flush()
             del logiolist[0]
@@ -1286,7 +1288,7 @@ while len(bulkrequestslist) > 0:
             sys.stdout.flush()
             logiotime = ""
             for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                logiotime += "Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
             sys.stdout.write(logiotime)
             sys.stdout.flush()
             del logiolist[0]

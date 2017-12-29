@@ -185,6 +185,7 @@ sub_help(){
     echo "Subcommands:"
     echo "    crunch cancel                    Cancel module or controller jobs"
     echo "    crunch monitor                   Monitor all controller jobs"
+    echo "    crunch plot                      Plot controller jobs steps"
     echo "    crunch requeue                   Requeue jobs skipped by controller"
     echo "    crunch reset                     Reset controller for a module"
     echo "    crunch submit                    Submit controller batch job"
@@ -208,6 +209,11 @@ sub_monitor(){
     else
         ${ProgDir}/monitor $2
     fi
+}
+
+sub_plot(){
+    is_create=false
+    run_subcommand ${ProgDir}/plot ${is_create} ${@}
 }
 
 sub_requeue(){

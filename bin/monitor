@@ -9,8 +9,8 @@ monitorjobs() {
         modname=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f2)
         controllername=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f3)
         workpath="${controllerpath}/jobs"
-        temps=$(cat ${workpath}/*.log 2>/dev/null | grep '<TEMP' | wc -l)
-        outs=$(cat ${workpath}/*.log 2>/dev/null | grep '<OUT' | wc -l)
+        temps=$(cat ${workpath}/*.log 2>/dev/null | grep '>TEMP' | wc -l)
+        outs=$(cat ${workpath}/*.log 2>/dev/null | grep '>OUT' | wc -l)
         #docs=$(cat ${workpath}/*.docs 2>/dev/null | wc -l)
         reads=$(($(cat ${controllerpath}/batchcounter | tail -n +2 | cut -d',' -f2)-1))
         echo "${modname}_${controllername}"
