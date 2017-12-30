@@ -254,7 +254,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 self._proc_uptime.seek(0)
                 uptime_line = self._proc_uptime.read()
                 uptime = float(uptime_line.split()[0])
-                elapsedtime = uptime - self._starttime
+                elapsedtime = uptime - starttime
                 parent_cpuusage = 100 * parent_cputime / elapsedtime if elapsedtime > 0 else 0
                 child_cpuusage = 100 * child_cputime / elapsedtime if elapsedtime > 0 else 0
                 total_cpuusage = 100 * total_cputime / elapsedtime if elapsedtime > 0 else 0
@@ -292,7 +292,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                         multiplier = 1000 * 1000 * 1024
                     else:
                         raise Exception(stat_name + " in " + self._proc_smaps.name + " has unrecognized unit: " + stat_unit)
-                    self._stats[stat_name] += multiplier * stat_size
+                    self._stats[stat_name.lower()] += multiplier * stat_size
             #smaps_line = self._proc_smaps.readline() if self.is_alive() else ""
         self._nstats += 1
         for k in self._stats.keys():
@@ -360,27 +360,21 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         return (not self.is_alive()) and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
 
     def stat(self, stat_name):
-        '''Check whether there is no more content to expect.'''
-        return self._stats[stat_name]
+        return self._stats[stat_name.lower()]
 
     def stats(self):
-        '''Check whether there is no more content to expect.'''
         return self._stats
 
     def max_stat(self, stat_name):
-        '''Check whether there is no more content to expect.'''
-        return self._maxstats[stat_name]
+        return self._maxstats[stat_name.lower()]
 
     def max_stats(self):
-        '''Check whether there is no more content to expect.'''
         return self._maxstats
 
     def avg_stat(self, stat_name):
-        '''Check whether there is no more content to expect.'''
-        return self._totstats[stat_name] / self._nstats if self._nstats > 0 else 0
+        return self._totstats[stat_name.lower()] / self._nstats if self._nstats > 0 else 0
 
     def avg_stats(self):
-        '''Check whether there is no more content to expect.'''
         return dict((k, self._totstats[k] / self._nstats if self._nstats > 0 else 0) for k in self._totstats.keys())
 
 class AsynchronousThreadStatsReader(Thread):
@@ -481,7 +475,7 @@ class AsynchronousThreadStatsReader(Thread):
 
     def stat(self, stat_name):
         '''Check whether there is no more content to expect.'''
-        return self._stats[stat_name]
+        return self._stats[stat_name.lower()]
 
     def stats(self):
         '''Check whether there is no more content to expect.'''
@@ -489,7 +483,7 @@ class AsynchronousThreadStatsReader(Thread):
 
     def max_stat(self, stat_name):
         '''Check whether there is no more content to expect.'''
-        return self._maxstats[stat_name]
+        return self._maxstats[stat_name.lower()]
 
     def max_stats(self):
         '''Check whether there is no more content to expect.'''
@@ -497,7 +491,7 @@ class AsynchronousThreadStatsReader(Thread):
 
     def avg_stat(self, stat_name):
         '''Check whether there is no more content to expect.'''
-        return self._totstats[stat_name] / self._nstats if self._nstats > 0 else 0
+        return self._totstats[stat_name.lower()] / self._nstats if self._nstats > 0 else 0
 
     def avg_stats(self):
         '''Check whether there is no more content to expect.'''
@@ -736,7 +730,11 @@ stdout_queue = Queue()
 #    stats_reader = AsynchronousThreadStatsReader(process.pid, kwargs['stats_list'], stats_delay = kwargs['stats_delay'])
 #    stats_reader.start()
 
-handler = AsynchronousThreadStatsStreamReaderWriter(workpath, filename, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = kwargs['stats_list'] if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+stats_list = [x.lower() for x in kwargs['stats_list']]
+if not any([x.lower() == "elapsedtime" for x in kwargs['stats_list']]):
+    stats_list += ["elapsedtime"]
+
+handler = AsynchronousThreadStatsStreamReaderWriter(workpath, filename, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = stats_list if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
 handler.start()
 
 bulkcolls = {}
@@ -848,8 +846,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     doc = json.loads(temp_queue.get())
                     newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);               
                     if kwargs['logging']:
-                        logiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
-                        sys.stdout.write("Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
+                        duration = "%.2f" % handler.stat("ElapsedTime")
+                        logiolist[-1] += "Step " + step + ": " + "Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
+                        sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Step " + step + ": Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
                         sys.stdout.flush()
                     if kwargs['templocal']:
                         tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
@@ -987,7 +986,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 sys.stdout.flush()
                 logiotime = ""
                 for logio in logiolist[0].rstrip("\n").split("\n"):
-                    logiotime += "Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
                 sys.stdout.write(logiotime)
                 sys.stdout.flush()
                 del logiolist[0]
@@ -1103,8 +1102,9 @@ while not stdout_queue.empty():
                 doc = json.loads(temp_queue.get())
                 newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);               
                 if kwargs['logging']:
-                    logiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
-                    sys.stdout.write("Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
+                    duration = "%.2f" % handler.stat("ElapsedTime")
+                    logiolist[-1] += "Step " + step + ": " + "Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
+                    sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Step " + step + ": Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
                     sys.stdout.flush()
                 if kwargs['templocal']:
                     tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
@@ -1242,7 +1242,7 @@ while not stdout_queue.empty():
             sys.stdout.flush()
             logiotime = ""
             for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += "Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
             sys.stdout.write(logiotime)
             sys.stdout.flush()
             del logiolist[0]
@@ -1288,7 +1288,7 @@ while len(bulkrequestslist) > 0:
             sys.stdout.flush()
             logiotime = ""
             for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += "Step " + step + ": " + datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
             sys.stdout.write(logiotime)
             sys.stdout.flush()
             del logiolist[0]

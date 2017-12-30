@@ -6,4 +6,12 @@ modpath=$1
 controllerpath=$2
 workpath=$3
 
-python ${ProgDir}/tools/plot.py ${workpath} ${controllerpath} plot_TEMP.pdf plot_OUT.pdf 2>/dev/null
+max_job=$4
+max_time=$5
+
+modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+
+python ${ProgDir}/tools/plot.py ${workpath} ${controllerpath} plot_TEMP.pdf plot_OUT.pdf ${max_job} ${max_time}
+
+echo "Finished generating job graphs for ${modname}_${controllername}."

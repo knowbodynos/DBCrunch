@@ -319,9 +319,9 @@ def timestamp2unit(timestamp, unit = "seconds"):
         elif unit == "minutes":
             return float(seconds) / 60.
         elif unit == "hours":
-            return float(seconds) / (60.*60.)
+            return float(seconds) / (60. * 60.)
         elif unit == "days":
-            return float(seconds) / (60.*60.*24.)
+            return float(seconds) / (60. * 60. * 24.)
         else:
             return 0
 

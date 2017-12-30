@@ -108,15 +108,18 @@ run_subcommand() {
                     fi
                     ;;
             esac
-            ;;
-        2)
-            modnames=($1)
-            controllernames=($2)
+            shift
             ;;
         *)
-            echo "Error: You must provide no more than 2 arguments. $# provided."
-            exit 1
+            modnames=($1)
+            controllernames=($2)
+            shift
+            shift
             ;;
+        #*)
+        #    echo "Error: You must provide no more than 2 arguments. $# provided."
+        #    exit 1
+        #    ;;
     esac
 
     for i in ${!modnames[@]}
@@ -150,7 +153,7 @@ run_subcommand() {
                     do_create ${is_create} ${workpath}
                 fi
 
-                ${scriptpath} ${modpath} ${controllerpath} ${workpath}
+                ${scriptpath} ${modpath} ${controllerpath} ${workpath} ${@}
             done
         else
             controllername=${controllernames[${i}]}
@@ -168,7 +171,7 @@ run_subcommand() {
                 do_create ${is_create} ${workpath}
             fi
 
-            ${scriptpath} ${modpath} ${controllerpath} ${workpath}
+            ${scriptpath} ${modpath} ${controllerpath} ${workpath} ${@}
         fi
     done
 }
