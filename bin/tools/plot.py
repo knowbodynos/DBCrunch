@@ -7,6 +7,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import MultipleLocator, FuncFormatter
 plt.ioff()
 
 def timestamp2unit(timestamp, unit = "seconds"):
@@ -31,6 +32,20 @@ def timestamp2unit(timestamp, unit = "seconds"):
         return float(seconds) / (60. * 60. * 24.)
     else:
         return 0
+
+def seconds2timestamp(seconds):
+    timestamp = ""
+    days = str(seconds / (60 * 60 * 24))
+    remainder = seconds % (60 * 60 * 24)
+    hours = str(remainder / (60 * 60)).zfill(2)
+    remainder = remainder % (60 * 60)
+    minutes = str(remainder / 60).zfill(2)
+    remainder = remainder % 60
+    seconds = str(remainder).zfill(2)
+    if days != "0":
+        timestamp += days + "-"
+    timestamp += hours + ":" + minutes# + ":" + seconds
+    return timestamp
 
 epoch = datetime.datetime(1970, 1, 1, tzinfo = utc)
 
@@ -94,6 +109,7 @@ for job in sorted(all_jobs):
             nsteps_tot += 1
     nsteps += [nsteps_tot]
 
+time_labels = [seconds2timestamp(x) for x in range(max_time - min_time + 1)]
 step_labels = sorted(all_steps)
 
 temp_img = np.ones((len(all_steps), max_time - min_time + 1, 3))
@@ -107,7 +123,7 @@ for d in sorted([x for x in data.values() if x['OUT_TIME'] != None], key = lambd
 
 temp_dpi = 100
 temp_xmargin = 0
-temp_ymargin = 10
+temp_ymargin = 100
 temp_xscale = 20
 temp_yscale = 20
 temp_xpixels, temp_ypixels = temp_xscale * (max_time - min_time + 1), temp_yscale * len(step_labels)
@@ -119,6 +135,10 @@ temp_ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
 plt.title('Job Latency (TEMP)')
 plt.xlabel('Time (s)')
 plt.ylabel('(Job, Step)')
+temp_ax.set_xticks(np.arange(0, temp_xpixels, temp_xscale * 60 * 60))
+temp_ax.set_xticklabels(time_labels)
+temp_ax.xaxis.set_minor_locator(MultipleLocator(temp_xscale * 60))
+temp_ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(int(x/temp_xscale))))
 temp_ax.set_yticks(np.arange(temp_yscale * 0.5, temp_ypixels + temp_yscale * 0.5, temp_yscale))
 temp_ax.set_yticklabels(step_labels)
 plt.imshow(temp_img, interpolation = 'nearest', extent = [0, temp_xpixels, 0, temp_ypixels])
@@ -144,7 +164,7 @@ for d in sorted([x for x in data.values() if x['OUT_TIME'] != None], key = lambd
 
 out_dpi = 100
 out_xmargin = 0
-out_ymargin = 10
+out_ymargin = 100
 out_xscale = 20
 out_yscale = 20
 out_xpixels, out_ypixels = out_xscale * (max_time - min_time + 1), out_yscale * len(step_labels)
@@ -156,6 +176,10 @@ out_ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
 plt.title('Job Latency (TEMP)')
 plt.xlabel('Time (s)')
 plt.ylabel('(Job, Step)')
+out_ax.set_xticks(np.arange(0, out_xpixels, out_xscale * 60 * 60))
+out_ax.set_xticklabels(time_labels)
+out_ax.xaxis.set_minor_locator(MultipleLocator(out_xscale * 60))
+out_ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(int(x/out_xscale))))
 out_ax.set_yticks(np.arange(out_yscale * 0.5, out_ypixels + out_yscale * 0.5, out_yscale))
 out_ax.set_yticklabels(step_labels)
 plt.imshow(out_img, interpolation = 'nearest', extent = [0, out_xpixels, 0, out_ypixels])
