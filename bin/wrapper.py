@@ -995,7 +995,8 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 sys.stdout.flush()
                 logiotime = ""
                 for logio in logiolist[0].rstrip("\n").split("\n"):
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                    if logio != "":
+                        logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
                 sys.stdout.write(logiotime)
                 sys.stdout.flush()
                 del logiolist[0]
@@ -1251,7 +1252,8 @@ while not stdout_queue.empty():
             sys.stdout.flush()
             logiotime = ""
             for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                if logio != "":
+                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
             sys.stdout.write(logiotime)
             sys.stdout.flush()
             del logiolist[0]
@@ -1297,7 +1299,8 @@ while len(bulkrequestslist) > 0:
             sys.stdout.flush()
             logiotime = ""
             for logio in logiolist[0].rstrip("\n").split("\n"):
-                logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
+                if logio != "":
+                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
             sys.stdout.write(logiotime)
             sys.stdout.flush()
             del logiolist[0]
