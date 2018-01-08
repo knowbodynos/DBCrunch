@@ -1,0 +1,254 @@
+#!/usr/bin/perl -w 
+use strict;
+use warnings;
+
+# specify date range you want to go back in the logs.  Default is yesterday, though you can search the entire SLURM history, if desired. 
+my ($startdate,$enddate)=@ARGV;
+my $todaytime=`date +%s`;
+my $startdatetime=`date +%s --date="$startdate"`;
+my $enddatetime=`date +%s --date="$enddate"`;
+my $startndaysago=int(($todaytime - $startdatetime)/(24*3600));
+my $endndaysago=int(($todaytime - $enddatetime)/(24*3600));
+
+my $outputpath=`pwd`;
+chomp($outputpath);
+# if you would only like to see statistics on your jobs, leave USERS blank.
+my $USERS="";
+# if you want to see statistics for multiple users, uncomment the next line, and include a comma delimited list after -u
+#$USERS="-u user1,user2,..,userN";
+# fraction of allocated resources that must be used to flag overuse
+my $upperlimit=1.10;
+# fraction of allocated resources that must be less than to flag underuse
+my $lowerlimit=0.80;
+my $lowerlimitmemory=0.80;
+# very short jobs don't need to be checked, since they are often not productive (e.g. debugging).  Set minimum walltime, to determine when to care...
+my $minelapsed=600; # seconds
+
+sub convmem{
+	# convert memory to units of Kb
+	my ($memoryformatted)=@_;
+	if($memoryformatted =~ /K$/){
+		$memoryformatted =~s/K$//g;
+	}elsif($memoryformatted =~ /M$/){
+		$memoryformatted =~s/M$//g;
+		$memoryformatted*=1000;
+	}elsif($memoryformatted =~ /G$/){
+		$memoryformatted =~s/G$//g;
+		$memoryformatted*=1000000;
+	}else{
+		print "internal error: unrecognized memory value $memoryformatted...\n";
+		exit;
+	}
+	return $memoryformatted;
+}
+
+
+sub convtime{
+	# time in DD-HH:MM:SS format
+	my ($timeformatted)=@_;
+	my @usage=split(/\-/,$timeformatted);
+	my $totaltime;
+	if($#usage == 1){ # more than one day of usage
+		$totaltime+=3600*24*$usage[0];
+		$usage[0]=$usage[1];
+	}
+	my @TIME=split(/\:/,$usage[0]);
+	my $NTIME=$#TIME;
+
+	my $hour=0;
+	my $min=0;
+	my $sec=$TIME[$NTIME];
+	$NTIME--;
+	if($NTIME >= 0){
+		$min=$TIME[$NTIME];
+		$NTIME--;
+	}
+	if($NTIME >= 0){
+		$hour=$TIME[$NTIME];
+		$NTIME--;
+	}
+	
+	if($NTIME >= 0){
+		print "internal error: too many time fields...\n";
+		exit;
+	}
+
+	$totaltime+=$hour*3600+$min*60+$sec;
+	# Return the time in seconds
+	return $totaltime;
+}
+
+
+
+
+for (my $BEFORE=$startndaysago;$BEFORE>=$endndaysago;$BEFORE--){
+	my $dd=`date +%F --date="$BEFORE days ago"`;
+	chomp($dd);
+	my ($year,$month,$day)=split(/-/,$dd);
+	$year=substr($year,2,2);
+	print "$outputpath/summarystats.$year-$month-$day\n";
+	open(OUT,">$outputpath/summarystats.$year-$month-$day") or die "can\'t open output file\n";
+	print OUT "checking performance stats for $year-$month-$day\n\n";
+	print "checking performance stats for $year-$month-$day\n\n";
+
+
+	my %cores;
+	$cores{'ser-par-10g-5'}=28;
+	$cores{'ser-par-10g-4'}=24;
+	$cores{'ser-par-10g-3'}=20;
+	$cores{'ser-par-10g-2'}=20;
+	$cores{'ser-par-10g'}=16;
+
+	# memory per node in Gb
+	my %memory;
+	$memory{'ser-par-10g-5'}=256;
+	$memory{'ser-par-10g-4'}=128;
+	$memory{'ser-par-10g-3'}=128;
+	$memory{'ser-par-10g-2'}=128;
+	$memory{'ser-par-10g'}=128;
+
+	for my $I(keys %memory){
+		$memory{$I}*=1000000;
+	}
+
+
+	my %wastedbuffertotal;
+	for my $partition(keys %cores)
+	{
+		my $Ncores=$cores{$partition};
+		my @JOBLIST=`sacct $USERS --state=COMPLETED -r $partition --format=User%40,JobID%30,UserCPU%15,Elapsed%15,AllocCPUs%10,CPUTimeRaw%20,MaxRSS%20,NNodes%5 --starttime=$month\/$day\/$year-00:00:01 --endtime=$month\/$day\/$year-23:59:59  -n`;
+		my $overload = "";
+		my $underload = "";
+		my $stdoutbuffer = "";
+		
+		my %userbufferhigh;
+		my %userbufferlow;
+		my %wastedbuffer;
+
+		foreach my $I (@JOBLIST){
+			my $user=substr($I,0,40);
+			$user =~s/\s+//g;
+			my $jobID=substr($I,41,30);
+			$jobID =~s/\s+//g;
+			unless($jobID =~ /^\d+$/ ){
+				next;
+			}
+			my $CPUusage=substr($I,72,15);
+			$CPUusage =~s/\s+//g;
+			my $Elapsed=substr($I,88,15);
+			$Elapsed =~s/\s+//g;
+			$Elapsed = convtime($Elapsed);
+			if($Elapsed < $minelapsed){
+				next;
+			}
+			my $AllocCPU=substr($I,104,10);
+			$AllocCPU =~s/\s+//g;
+			my $Alloctime=substr($I,115,20);
+			$Alloctime =~s/\s+//g;
+			my $MaxMemory=substr($I,136,20);
+			$MaxMemory =~s/\s+//g;
+			my $NumNodes=substr($I,157,5);
+			$NumNodes =~s/\s+//g;
+
+			if($CPUusage eq ""){
+				print OUT "looks like job $jobID was interactive.\n";
+			}else{
+				my $totalusage = convtime($CPUusage);
+				
+				if($AllocCPU > $Ncores*$NumNodes){
+					$Alloctime=$Alloctime*$Ncores*$NumNodes/$AllocCPU;
+				}
+				# this is the percent CPU utilization
+				my $percentUt=$totalusage/$Alloctime;
+
+
+				# percent memory utilization
+				# go through all job steps and see the memory usage.  This assumes that steps are not run simultaneously
+				my @jobmemory=`sacct -j $jobID --format=MaxRSS%30,NNodes -n`;
+				my $fullmemory=0;
+				my $maxfracmemory=0;
+				foreach my $J (@jobmemory){
+					my $maxmemory=substr($J,0,30);
+					$maxmemory =~s/\s+//g;
+					if($maxmemory eq ""){
+						$maxmemory="0K";
+					}
+					$maxmemory=convmem($maxmemory);
+					$maxmemory /=($memory{$partition}*$NumNodes);
+					if($maxmemory > $maxfracmemory){
+						$maxfracmemory=$maxmemory;
+					}
+				}
+
+				#  if using too much CPU, or too much memory, without exclusive access
+				if(($percentUt > $upperlimit || $maxfracmemory > $upperlimit) and $AllocCPU != $Ncores*2*$NumNodes){ 
+					$overload .= sprintf ("$user\t$jobID\t$percentUt\t$maxfracmemory\t$AllocCPU\t$Alloctime\n");
+					if(defined $userbufferhigh{$user}){
+						$userbufferhigh{$user} .= sprintf ("\tHIGH\t$user\t$jobID\t$percentUt\t$maxfracmemory\t$AllocCPU\t$Alloctime\n")
+					}else{
+						$userbufferhigh{$user} = sprintf ("\tHIGH\t$user\t$jobID\t$percentUt\t$maxfracmemory\t$AllocCPU\t$Alloctime\n");
+					}
+				}
+				elsif($percentUt < $lowerlimit and $maxfracmemory < $lowerlimitmemory)
+				{
+	                                my $wastedCPUhours=($Alloctime-$totalusage)/3600.0;
+
+					if(defined $userbufferlow{$user}){
+						$userbufferlow{$user} .= sprintf ("\t$jobID\t$percentUt\t$maxfracmemory\t $AllocCPU\t$Alloctime\t $wastedCPUhours\n");
+					}else{
+						$userbufferlow{$user} = sprintf ("\t$jobID\t$percentUt\t$maxfracmemory\t$AllocCPU\t$Alloctime\t$wastedCPUhours\n");
+					}
+					if(defined $wastedbuffer{$user}){
+						$wastedbuffer{$user} +=  $wastedCPUhours;
+					}else{
+						$wastedbuffer{$user} = $wastedCPUhours;
+					}
+
+					$underload .= sprintf ("\t$user\t$jobID\t$percentUt\t$maxfracmemory\t$AllocCPU\t$Alloctime\t$wastedCPUhours\n");
+				}
+			}
+		}
+		$stdoutbuffer .= "Summary for $partition\n";
+
+		my $lowsize = scalar( keys %userbufferlow);
+		if($lowsize > 0){
+			$stdoutbuffer .= "\nUnder-utilization warnings:\n\tJobID,\tFraction CPUusage,\tFraction MemoryUsage,\tAllocated CPUs,\tAllocated time,\tUnused core-hours\n";
+		}
+
+		for my $I(keys %userbufferlow){
+			$stdoutbuffer .= "$I total idle: $wastedbuffer{$I} \n$userbufferlow{$I}";
+			if(defined $wastedbuffertotal{$I}){
+				$wastedbuffertotal{$I} +=  $wastedbuffer{$I};
+			}else{
+				$wastedbuffertotal{$I} =  $wastedbuffer{$I};
+			}
+		}
+		#if($lowsize == 0){
+		#	$stdoutbuffer += "none\n\n";
+		#}
+		my $highsize = scalar (keys %userbufferhigh);
+		if($highsize > 0){
+			$stdoutbuffer .= "\nOver-utilization warnings:\n\tJobID,\tFraction CPUusage,\tFraction MemoryUsage,\tAllocated CPUs,\tAllocated time\n";
+		}
+
+		for my $I(keys %userbufferhigh){
+			$stdoutbuffer .= "$I\n$userbufferhigh{$I}";
+		}	
+		#if($highsize == 0){
+		#	$stdoutbuffer += "none\n\n";
+		#}
+
+		my $size = $lowsize + $highsize;
+		if($size > 0){
+			print OUT $stdoutbuffer;
+			$stdoutbuffer = "";
+		}
+
+	}
+
+	print OUT "\nTotal CPU-hours allocated, but not used (only counting poor jobs)\n";
+	for my $I(keys %wastedbuffertotal){
+		print OUT "TOTLOSS\t$I $year-$month-$day $wastedbuffertotal{$I}\n";
+	}
+	print OUT "\nchecks completed\n";
+}
