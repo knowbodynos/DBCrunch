@@ -17,7 +17,7 @@ def get_nlocaljobs(username,modname,controllername):
     return eval(Popen("squeue -h -r -u " + username + " -o '%.130j %.2t' | grep 'crunch_' | grep -v ' CG ' | grep 'crunch_" + modname + "_" + controllername + "_job_' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
 
 def controllerjobsrunningq(username,modname,controllername):
-    return eval(Popen("squeue -h -u " + username + " -o '%j' | grep 'crunch_" + modname + "_" + controllername + "_' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])>0
+    return eval(Popen("squeue -h -u " + username + " -o '%j' | grep 'crunch_" + modname + "_" + controllername + "_job' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])>0
 
 def prevcontrollerjobsrunningq(username,dependencies):
     if len(dependencies) == 0:
