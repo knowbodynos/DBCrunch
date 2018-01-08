@@ -1143,7 +1143,7 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
             jobstring += "python ${binpath}/wrapper.py --mod \"${modname}\" --controller \"${controllername}\" --stepid \"${SLURM_JOBID}." + str(i) + "\" --delay \"0.1\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" "
             if buffertimelimit != "infinite":
                 jobstring += "--time-limit \"${steptime}\" "
-            jobstring += "--cleanup-after \"${cleanup}\" --nbatch \"${nbatch}\" --nworkers \"${nworkers}\" --random-nbatch --dbindexes " + " ".join(["\"" + x + "\"" for x in dbindexes]) + " --file \"" + jobstepnames[i] + ".docs\" "
+            jobstring += "--cleanup-after \"${cleanup}\" --nbatch \"${nbatch}\" --nworkers \"${nworkers}\" --dbindexes " + " ".join(["\"" + x + "\"" for x in dbindexes]) + " --file \"" + jobstepnames[i] + ".docs\" "#--random-nbatch "
             if logging:
                 jobstring += "--logging "
             if templocal:

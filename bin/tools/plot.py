@@ -57,6 +57,7 @@ try:
     job_limit = int(sys.argv[5])
 except IndexError:
     job_limit = None
+    time_limit = None
     pass
 else:
     try:
