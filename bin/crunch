@@ -186,6 +186,7 @@ sub_help(){
     echo "    crunch --modules-dir [<dir>]     Specify a working directory other than the current one"
     echo ""
     echo "Subcommands:"
+    echo "    crunch analyze                   Analyze resource usage statistics"
     echo "    crunch cancel                    Cancel module or controller jobs"
     echo "    crunch monitor                   Monitor all controller jobs"
     echo "    crunch plot                      Plot controller jobs steps"
@@ -198,6 +199,11 @@ sub_help(){
     #echo "For help with each subcommand run:"
     #echo "$ProgName <subcommand> -h|--help"
     #echo ""
+}
+
+sub_analyze(){
+    is_create=false
+    run_subcommand ${ProgDir}/analyze ${is_create} ${@}
 }
 
 sub_cancel(){
