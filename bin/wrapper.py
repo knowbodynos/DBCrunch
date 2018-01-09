@@ -161,7 +161,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             self._proc_smaps = open("/proc/" + str(pid) + "/smaps", "r")
             self._proc_stat = open("/proc/" + str(pid) + "/stat", "r")
             self._proc_uptime = open("/proc/uptime", "r")
-            self._elapsed_time = 0
+            self._iter_start_time = 0
             self._maxstats = dict((s, 0) for s in stats)
             self._totstats = dict((s, 0) for s in stats)
             self._nstats = 0
@@ -249,20 +249,22 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             if stat_line != "":
                 stat_line_split = stat_line.split()
                 utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
-                starttime = float(stat_line_split[21]) / self._hz
+                if self._iter_start_time == 0:
+                    self._iter_start_time = float(stat_line_split[21]) / self._hz
                 parent_cputime = utime + stime
                 child_cputime = cutime + cstime
                 total_cputime = parent_cputime + child_cputime
                 self._proc_uptime.seek(0)
                 uptime_line = self._proc_uptime.read()
                 uptime = float(uptime_line.split()[0])
-                self._elapsed_time = uptime - starttime - self._elapsed_time
+                elapsedtime = uptime - self._iter_start_time
+                self._iter_start_time = uptime
                 parent_cpuusage = 100 * parent_cputime / elapsedtime if elapsedtime > 0 else 0
                 child_cpuusage = 100 * child_cputime / elapsedtime if elapsedtime > 0 else 0
                 total_cpuusage = 100 * total_cputime / elapsedtime if elapsedtime > 0 else 0
                 for k in self._stats.keys():
                     if k.lower() == "elapsedtime":
-                        self._stats[k] = self._elapsed_time
+                        self._stats[k] = elapsedtime
                     if k.lower() == "totalcputime":
                         self._stats[k] = total_cputime
                     if k.lower() == "parentcputime":
