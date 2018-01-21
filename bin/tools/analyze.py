@@ -64,7 +64,7 @@ except IndexError:
     pass
 else:
     try:
-        time_limit = timestamp2unit(sys.argv[5])
+        time_limit = timestamp2unit(sys.argv[7])
     except IndexError:
         time_limit = None
         pass
@@ -167,19 +167,31 @@ yscale = 5
 
 print("Plotting resource usage statistics...")
 
-width, height = 15., 8.
+width, height = 30., 8.
 linewidth = width / times[-1]
 
-fig, axarr = plt.subplots(4, sharex = True, figsize = (width, height))#, dpi = dpi)
-plt.suptitle('Resource Usage Statistics for ' + modname + "_" + controllername)
-plt.xlabel('Time (DD:HH)')
+ntime = 2
+nhist = 2
 
-for i in range(len(axarr)):
-    axarr[i].grid(color = 'k', linestyle = '-', linewidth = 0.01)
-    axarr[i].xaxis.set_major_locator(MultipleLocator(xscale * 60 * 60))
-    axarr[i].xaxis.set_major_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(int(x/xscale))))
-    axarr[i].xaxis.set_minor_locator(MultipleLocator(xscale * 30 * 60))
-    axarr[i].set_xlim(0, xscale * max(times))
+plt.suptitle('Resource Usage Statistics for ' + modname + "_" + controllername)
+fig = plt.figure(figsize = (width, height))#, dpi = dpi)
+
+axtime = []
+for i in range(ntime):
+    if i == 0:
+        ax = fig.add_subplot(ntime + nhist, 1, i + 1)
+    else:
+        ax = fig.add_subplot(ntime + nhist, 1, i + 1, sharex = axtime[0])
+    ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
+    if i == ntime - 1:
+        ax.set_xlabel('Time (DD:HH)')
+        ax.xaxis.set_major_locator(MultipleLocator(xscale * 60 * 60))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(int(x/xscale))))
+        ax.xaxis.set_minor_locator(MultipleLocator(xscale * 30 * 60))
+        ax.set_xlim(0, xscale * max(times))
+    else:
+        plt.setp(ax.get_xticklabels(), visible = False)
+    axtime += [ax]
 
 # 1) # Jobs In Use
 
@@ -190,11 +202,11 @@ color = 'black'
 ymax = int(max(jobs))
 yexp = len(str(ymax)) - 1
 if yexp != 0:
-    axarr[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axarr[0].transAxes)
-axarr[0].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axarr[0].set_ylabel("# Active Jobs")
-axarr[0].set_ylim(0, yscale * ymax)
-axarr[0].plot([xscale * x for x in times], [yscale * y for y in plot_list], color = color, markersize = linewidth)
+    axtime[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[0].transAxes)
+axtime[0].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[0].set_ylabel("# Active Jobs")
+axtime[0].set_ylim(0, yscale * ymax)
+axtime[0].plot([xscale * x for x in times], [yscale * y for y in plot_list], color = color, markersize = linewidth)
 
 # 2) # Steps
 
@@ -205,16 +217,23 @@ colors = ['blue', 'red', 'purple']
 ymax = int(max(steps))
 yexp = len(str(ymax)) - 1
 if yexp != 0:
-    axarr[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axarr[1].transAxes)
-axarr[1].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axarr[1].set_ylabel("# Docs")
-axarr[1].set_ylim(0, yscale * ymax)
+    axtime[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[1].transAxes)
+axtime[1].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[1].set_ylabel("# Docs")
+axtime[1].set_ylim(0, yscale * ymax)
 for i in range(len(plot_lists)):
-    axarr[1].plot([xscale * x for x in times], [yscale * y for y in plot_lists[i]], color = colors[i], markersize = linewidth, label = plot_labels[i])
+    axtime[1].plot([xscale * x for x in times], [yscale * y for y in plot_lists[i]], color = colors[i], markersize = linewidth, label = plot_labels[i])
 
-axarr[1].legend(bbox_to_anchor = (0.1, 1.21, 0.9, .102), loc = 'upper left', ncol = 3, mode = "expand", borderaxespad = 0.)
+axtime[1].legend(bbox_to_anchor = (0.1, 1.21, 0.9, .102), loc = 'upper left', ncol = 3, mode = "expand", borderaxespad = 0.)
 
 # 3) # Steps Processed/Written
+
+axhist = []
+for i in range(nhist):
+    ax = fig.add_subplot(ntime + nhist, 1, i + ntime + 1)
+    ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
+    #ax.xlabel('Time (DD:HH)')
+    axhist += [ax]
 
 plot_labels = ["Processed", "Written"]
 plot_lists = [proc_done, write_done]
@@ -224,18 +243,21 @@ for i in range(len(plot_lists)):
     ymax = int(max(plot_lists[i]))
     yexp = len(str(ymax)) - 1
     if yexp != 0:
-        axarr[i + 2].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axarr[i + 2].transAxes)
-    axarr[i + 2].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-    axarr[i + 2].set_ylabel("# Docs " + plot_labels[i])
-    axarr[i + 2].set_ylim(0, yscale * ymax)
-    axarr[i + 2].fill_between([xscale * x for x in times], 0, [yscale * y for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
-    #axarr[i + 2].fill_between([xscale * x for x in times], 0, [yscale * (ymax - y) if y < 5 else 0 for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
+        axhist[i].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[i].transAxes)
+    axhist[i].set_xlabel("# Docs " + plot_labels[i])
+    axhist[i].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+    axhist[i].set_ylabel("Frequency")
+    axhist[i].set_ylim(0, yscale * ymax)
+    #axhist[i].fill_between([xscale * x for x in times], 0, [yscale * y for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
+    #axhist[i].hist(plot_lists[i], int(len(plot_lists[i])/5), facecolor = colors[i], alpha = 0.75)
+    axhist[i].hist(plot_lists[i], facecolor = colors[i], alpha = 0.75)
+
 
 #plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=2, mode="expand", borderaxespad=0.)
 #plt.legend(bbox_to_anchor = (0., -0.4, 1., .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
 #plt.subplots_adjust(bottom = 0.2)
 
-plt.subplots_adjust(hspace = 0.4)
+plt.subplots_adjust(hspace = 0.5)
 
 with PdfPages(out_path + "/" + out_file_name) as pdf:
     pdf.savefig(fig)

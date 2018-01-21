@@ -505,30 +505,33 @@ def clusterlicensesleft(nlicensesplit, minthreads):#, minnsteps = 1):
 #        ntot = eval(Popen("echo \"$(cat $(find " + controllerpath + "/jobs/ -type f -name '*.docs' -o -name '*.docs.pend' 2>/dev/null) 2>/dev/null | wc -l)+$(cat " + controllerpath + "/jobs/*.job.log 2>/dev/null | grep 'CPUTime' | wc -l)\" | bc | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
 #        return ntot >= querylimit
 
-def submitjob(jobpath, jobname, jobstepnames, nnodes, ncores, nthreads, niters, nbatch, partition, memoryperstep, maxmemorypernode, resubmit = False):
+def submitjob(jobpath, jobname, jobinfo, nnodes, ncores, niters, nbatch, resubmit = False):
     jobid = get_submitjob(jobpath, jobname)
+    partitions = [x[1] for x in jobinfo]
+    partitions = sorted([partitions[i] for i in range(len(partitions)) if partitions[i] not in partitions[:i]])
+    totmem = sum([x[3] for x in jobinfo])
     #Print information about controller job submission
     if resubmit:
         #jobid = submitcomm.split(' ')[-1]
         #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
         print ""
         print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
-        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
-        for jobstepnum in range(len(jobstepnames)):
+        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
+        for jobstepnum in range(len(jobinfo)):
             #with open(jobpath + "/" + jobstepnames[i] + ".error", "a") as statstream:
             #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
             #    statstream.flush()
-            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobstepnames[i] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + partition + " with " + str(nthreads[jobstepnum]) + " CPU(s) and " + str(memoryperstep / 1000000) + "MB RAM allocated."
+            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum][0] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum][1] + " with " + str(jobinfo[jobstepnum][2]) + " CPU(s) and " + str(jobinfo[jobstepnum][3]) + "MB RAM allocated."
         print ""
         print ""
     else:
         print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
-        print "Submitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
-        for jobstepnum in range(len(jobstepnames)):
+        print "Submitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
+        for jobstepnum in range(len(jobinfo)):
             #with open(jobpath + "/" + jobstepnames[i] + ".error", "a") as statstream:
             #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
             #    statstream.flush()
-            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobstepnames[jobstepnum] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + partition + " with " + str(nthreads[jobstepnum]) + " CPU(s) and " + str(memoryperstep / 1000000) + "MB RAM allocated."
+            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum][0] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum][1] + " with " + str(jobinfo[jobstepnum][2]) + " CPU(s) and " + str(jobinfo[jobstepnum][3]) + "MB RAM allocated."
         print ""
     sys.stdout.flush()
 
@@ -989,13 +992,25 @@ def orderfreepartitions(partitions):
 #        sys.stdout.flush()
 #    return maxmemorypernode
 
-def distributeovernodes(partition, maxmemorypernode, scriptmemorylimit, nnodes, localmaxstepcount, niters):#, maxthreads):
+def get_freenodes(partitions):
+    #a = get_idlenodeCPUs(partitions)
+    #b = get_mixnodeCPUs(partitions)
+    #c = get_compnodeCPUs(partitions)
+    #print("IDLE: "+str(a))
+    #print("MIX: "+str(b))
+    #print("COMP: "+str(c))
+    #print("")
+    #return sorted(a + b + c, key = lambda x: x[3], reverse = True)
+    return sorted(get_idlenodeCPUs(partitions) + get_mixnodeCPUs(partitions) + get_compnodeCPUs(partitions), key = lambda x: x[3], reverse = True)
+
+#def distributeovernodes(partition, maxmemorypernode, scriptmemorylimit, nnodes, localmaxstepcount, niters):#, maxthreads):
+def distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnodes, localmaxstepcount, niters):
     #print partitions
     #sys.stdout.flush()
     #partition = partitions[0]
-    partitionncorespernode = get_partitionncorespernode(partition)
-    ncores = nnodes * partitionncorespernode
-    maxnnodes = get_maxnnodes(partition)
+    #partitionncorespernode = get_partitionncorespernode(partition)
+    #ncores = nnodes * partitionncorespernode
+    #maxnnodes = get_maxnnodes(partition)
     #print "distributeovernodes"
     #print "sinfo -h -p '" + partition + "' -o '%c' | head -n1 | head -c -1"
     #print "scontrol show partition '" + partition + "' | grep 'MaxNodes = ' | sed 's/^.*\sMaxNodes = \([0-9]*\)\s.*$/\\1/g' | head -c -1"
@@ -1009,15 +1024,17 @@ def distributeovernodes(partition, maxmemorypernode, scriptmemorylimit, nnodes, 
     #        tempnnodes -= 1
     #        nstepsdistribmempernode = float(maxsteps / tempnnodes)
     #else:
-    if (scriptmemorylimit == "") or (eval(scriptmemorylimit) == maxmemorypernode):
+    freenodesmem = [x + [partitionsmaxmemory[x[0]] * x[3] / x[2]] for x in freenodes if eval(scriptmemorylimit) <= partitionsmaxmemory[x[0]] * x[3] / x[2]]
+
+    if (scriptmemorylimit == ""):# or (eval(scriptmemorylimit) == maxmemorypernode):
         nsteps = min(nnodes, localmaxstepcount) * niters
         #memoryperstep = maxmemorypernode
-    elif eval(scriptmemorylimit) > maxmemorypernode:
-        return None
+    #elif eval(scriptmemorylimit) > maxmemorypernode:
+    #    return None
     else:
-        nstepsdistribmem = nnodes * maxmemorypernode / eval(scriptmemorylimit)
+        nstepsdistribmem = sum([x[4] / eval(scriptmemorylimit) for x in freenodesmem[:nnodes]])
         #print "a: " + str(nstepsdistribmem)
-        nsteps = min(ncores, localmaxstepcount, nstepsdistribmem) * niters
+        nsteps = min(localmaxstepcount, nstepsdistribmem) * niters
         #print "b: " + str(nsteps)
         #memoryperstep = nnodes * maxmemorypernode / nsteps
         #print "c: " + str(memoryperstep)
@@ -1040,9 +1057,9 @@ def distributeovernodes(partition, maxmemorypernode, scriptmemorylimit, nnodes, 
     #    memoryperstep = nnodes * maxmemorypernode / nsteps
     #else:
     #    memoryperstep = maxmemorypernode
-    return ncores, nsteps, maxmemorypernode
+    return freenodesmem[:nnodes], nsteps
 
-def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, jobname, jobstepnames, controllerpath, controllername, writemode, partitiontimelimit, buffertimelimit, partition, nnodes, counters, totmem, ncoresused, scriptlanguage, scriptcommand, scriptflags, scriptext, scriptargs, base, dbindexes, nthreadsfield, nbatch, nworkers, docbatches):
+def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, jobname, jobstepnames, controllerpath, controllername, writemode, partitiontimelimits, freenodesmem, counters, scriptlanguage, scriptcommand, scriptflags, scriptext, scriptargs, base, dbindexes, nthreadsfield, nbatch, nworkers, docbatches):
     ndocbatches = len(docbatches)
     outputlinemarkers = ["-", " + ", "&", "@", "CPUTime:", "MaxRSS:", "MaxVMSize:", "BSONSize:", "None"]
     jobstring = "#!/bin/bash\n"
@@ -1065,34 +1082,40 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
     jobstring += "#SBATCH --open-mode=\"" + writemode + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Job max time\n"
-    jobstring += "#SBATCH --time=\"" + partitiontimelimit + "\"\n"
+    jobstring += "#SBATCH --time=\"" + max([partitiontimelimits[i][0] for i in range(len(partitiontimelimits))]) + "\"\n"
     jobstring += "#################\n"
-    jobstring += "#Partition (queue) to use for job\n"
-    jobstring += "#SBATCH --partition=\"" + partition + "\"\n"
+    jobstring += "#Partition(s) to use for job\n"
+    jobstring += "#SBATCH --partition=\"" + ','.join([x[0] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Number of tasks (CPUs) allocated for job\n"
-    jobstring += "#SBATCH -n " + str(ncoresused) + "\n"
+    jobstring += "#SBATCH -n " + str(ndocbatches) + "\n"
     jobstring += "#################\n"
     jobstring += "#Number of nodes to distribute n tasks across\n"
-    jobstring += "#SBATCH -N " + str(nnodes) + "\n"
+    jobstring += "#SBATCH -N " + str(len(freenodesmem)) + "\n"
+    jobstring += "#################\n"
+    jobstring += "#List of nodes to distribute n tasks across\n"
+    jobstring += "#SBATCH -w \"" + ','.join([x[1] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
     #jobstring += "#Lock down N nodes for job\n"
     #jobstring += "#SBATCH --exclusive\n"
     #jobstring += "#################\n"
+    jobstring += "#Requeue job on node failure\n"
+    jobstring += "#SBATCH --requeue\n"
+    jobstring += "#################\n"
     jobstring += "\n"
     jobstring += "# Job info\n"
     jobstring += "modname=\"" + modname + "\"\n"
     jobstring += "controllername=\"" + controllername + "\"\n"
     #jobstring += "outputlinemarkers=\"" + str(outputlinemarkers).replace(" ", "") + "\"\n"
     #jobstring += "jobnum=" + str(counters[0]) + "\n"
-    jobstring += "nsteps=" + str(ncoresused) + "\n"
+    #jobstring += "nsteps=" + str(ndocbatches) + "\n"
     jobstring += "memunit=\"M\"\n"
-    jobstring += "totmem=" + str(totmem / 1000000) + "\n"
+    #jobstring += "totmem=" + str(totmem / 1000000) + "\n"
     #jobstring += "stepmem=$((${totmem}/${nsteps}))\n"
-    jobstring += "steptime=\"" + buffertimelimit + "\"\n"
+    #jobstring += "steptime=\"" + buffertimelimit + "\"\n"
     jobstring += "scriptlanguage=\"" + scriptlanguage + "\"\n"
     jobstring += "nbatch=" + str(nbatch) + "\n"
-    jobstring += "nworkers=" + str(min(nworkers, ncoresused)) + "\n"
+    jobstring += "nworkers=" + str(min(nworkers, ndocbatches)) + "\n"
     jobstring += "\n"
     jobstring += "# Option info\n"
     #jobstring += "logging=\"" + str(logging) + "\"\n"
@@ -1122,6 +1145,9 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
     #    jobstring += "dbindexes=\"" + str([str(x) for x in dbindexes]).replace(" ", "") + "\"\n"
     #    jobstring += "\n"
     jobstring += "# MPI info\n"
+    jobinfo = []
+    j = 0
+    k = 0
     for i in range(ndocbatches):
         with open(controllerpath + "/jobs/" + jobstepnames[i] + ".docs", "w") as docstream:
             for doc in docbatches[i]:
@@ -1135,14 +1161,15 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
         else:
             nstepthreads = 1
         jobstring += "nstepthreads=" + str(nstepthreads) + "\n"
-        jobstring += "stepmem=$(((${totmem}*${nstepthreads})/${nsteps}))\n"
+        stepmem = nstepthreads * freenodesmem[j][4] / (1000000 * freenodesmem[j][3])
+        jobstring += "stepmem=" + str(stepmem) + "\n"
         if not reloadjob:
-            jobstring += "mpirun -srun -n \"${nstepthreads}\" -J \"" + jobstepnames[i] + "\" --mem-per-cpu=\"${stepmem}${memunit}\" "
-            if buffertimelimit != "infinite":
-                jobstring += "--time=\"${steptime}\" "
+            jobstring += "mpirun -srun -w \"" + freenodesmem[j][1] + "\" -n \"${nstepthreads}\" -J \"" + jobstepnames[i] + "\" --mem-per-cpu=\"${stepmem}${memunit}\" "
+            if partitiontimelimits[j][1] != "infinite":
+                jobstring += "--time=\"" + partitiontimelimits[j][1] + "\" "
             jobstring += "python ${binpath}/wrapper.py --mod \"${modname}\" --controller \"${controllername}\" --stepid \"${SLURM_JOBID}." + str(i) + "\" --delay \"0.1\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" "
-            if buffertimelimit != "infinite":
-                jobstring += "--time-limit \"${steptime}\" "
+            if partitiontimelimits[j][1] != "infinite":
+                jobstring += "--time-limit \"" + partitiontimelimits[j][1] + "\" "
             jobstring += "--cleanup-after \"${cleanup}\" --nbatch \"${nbatch}\" --nworkers \"${nworkers}\" --dbindexes " + " ".join(["\"" + x + "\"" for x in dbindexes]) + " --file \"" + jobstepnames[i] + ".docs\" "#--random-nbatch "
             if logging:
                 jobstring += "--logging "
@@ -1158,6 +1185,11 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
                 jobstring += "--stats-db "
             jobstring += "--script-language \"${scriptlanguage}\" --script " + scriptcommand + scriptflags + "${scriptpath}/" + modname + scriptext + " --args " + scriptargs + " &"
         jobstring += "\n"
+        jobinfo += [[jobstepnames[i], freenodesmem[j][0], nstepthreads, stepmem]]
+        k += nstepthreads
+        if k == freenodesmem[j][3]:
+            j += 1
+            k = 0
     jobstring += "wait"
     #if reloadjob:
     #    jobstring += "python \"${binpath}/reloadjobmanager.py\" \"${modname}\" \"${controllername}\" \"${scriptlanguage}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${logging}\" \"${cleanup}\" \"${templocal}\" \"${writelocal}\" \"${writedb}\" \"${statslocal}\" \"${statsdb}\" \"${markdone}\" \"${rootpath}\" \"${nstepthreads[@]}\""
@@ -1166,6 +1198,8 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
     with open(controllerpath + "/jobs/" + jobname + ".job", "w") as jobstream:
         jobstream.write(jobstring)
         jobstream.flush()
+
+    return jobinfo
 
 def waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes):
     #print("dir_size/storagelimit: " + str(dir_size(controllerpath)) + "/" + str(storagelimit))
@@ -1176,19 +1210,19 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
         jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
         nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
         licensesleft = clusterlicensesleft(nlicensesplit, maxthreads)
-        orderedfreepartitions = orderfreepartitions(partitions)
+        freenodes = get_freenodes(partitions)
         releaseheldjobs(username, modname, controllername)
-        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
             with open(statusstatefile, "w") as statusstream:
                 statusstream.truncate(0)
                 statusstream.write("Waiting")
                 statusstream.flush()
-            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
                 time.sleep(sleeptime)
                 jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
                 nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
                 licensesleft = clusterlicensesleft(nlicensesplit, maxthreads)
-                orderedfreepartitions = orderfreepartitions(partitions)
+                freenodes = get_freenodes(partitions)
                 releaseheldjobs(username, modname, controllername)
         #fcntl.flock(licensestream, fcntl.LOCK_EX)
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-blocking and loop until lock is acquired.
@@ -1217,17 +1251,17 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
         #licensestream.flush()
     else:
         jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
-        orderedfreepartitions = orderfreepartitions(partitions)
+        freenodes = get_freenodes(partitions)
         releaseheldjobs(username, modname, controllername)
-        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
             with open(statusstatefile, "w") as statusstream:
                 statusstream.truncate(0)
                 statusstream.write("Waiting")
                 statusstream.flush()
-            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(orderedfreepartitions) > 0) and storageleft(controllerpath, storagelimit)):
+            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
                 time.sleep(sleeptime)
                 jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
-                orderedfreepartitions = orderfreepartitions(partitions)
+                freenodes = get_freenodes(partitions)
                 releaseheldjobs(username, modname, controllername)
         if not (timeleft(starttime, controllerbuffertimelimit) > 0):
             return None
@@ -1237,7 +1271,7 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
     else:
         requeueskippedqueryjobs(modname, controllername, controllerpath, querystatefilename, base, counters, counterstatefile, counterheader, dbindexes)
 
-    return orderedfreepartitions
+    return freenodes
 
 def doinput(docbatch, querylimit, counters, reloadjob, storagelimit, nthreadsfield, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, dbindexes, niters_orig):
     if querylimit == None:
@@ -1250,23 +1284,19 @@ def doinput(docbatch, querylimit, counters, reloadjob, storagelimit, nthreadsfie
         maxthreads = max([x[nthreadsfield] for x in docbatch[0:niters]])
     else:
         maxthreads = 1
-    orderedfreepartitions = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
-    if orderedfreepartitions == None:
+    freenodes = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+    if len(freenodes) == 0:
         return None
-    #orderedfreepartitions = orderpartitions(partitions)
+    #freenodes = orderpartitions(partitions)
     nnodes = 1
-    i = 0
-    while i < len(orderedfreepartitions):
-        partition = orderedfreepartitions[i]
+    #i = 0
+    #while i < len(freenodes):
+    #    partition = freenodes[i]
         #nnodes = 1
-        distribution = distributeovernodes(partition, partitionsmaxmemory[partition], scriptmemorylimit, nnodes, localmaxstepcount, niters)
-        if distribution == None:
-            i += 1
-        else:
-            break
-    if i == len(orderedfreepartitions):
+    freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnodes, localmaxstepcount, niters)
+    if len(freenodesmem) == 0:
         raise Exception("Memory requirement is too large for this cluster.")
-    ncores, nsteps, maxmemorypernode = distribution
+    ncores = sum([x[3] for x in freenodesmem])
     if len(docbatch) > 0:
         maxthreads = 0
         nextdocind = 0
@@ -1290,22 +1320,18 @@ def doinput(docbatch, querylimit, counters, reloadjob, storagelimit, nthreadsfie
                 maxthreads -= 1
         while maxthreads == 0:
             nnodes += 1
-            orderedfreepartitions = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
-            if orderedfreepartitions == None:
+            freenodes = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+            if len(freenodes) == 0:
                 return None
-            #orderedfreepartitions = orderpartitions(partitions)
-            i = 0
-            while i < len(orderedfreepartitions):
-                partition = orderedfreepartitions[i]
+            #freenodes = orderpartitions(partitions)
+            #i = 0
+            #while i < len(freenodes):
+            #    partition = freenodes[i]
                 #nnodes = 1
-                distribution = distributeovernodes(partition, partitionsmaxmemory[partition], scriptmemorylimit, nnodes, localmaxstepcount, niters)
-                if distribution == None:
-                    i += 1
-                else:
-                    break
-            if i == len(orderedfreepartitions):
+            freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnodes, localmaxstepcount, niters)
+            if len(freenodesmem) == 0:
                 raise Exception("Memory requirement is too large for this cluster.")
-            ncores, nsteps, maxmemorypernode = distribution
+            ncores = sum([x[3] for x in freenodesmem])
             maxthreads = 0
             nextdocind = 0
             if (nthreadsfield != "") and (not reloadjob):
@@ -1329,14 +1355,17 @@ def doinput(docbatch, querylimit, counters, reloadjob, storagelimit, nthreadsfie
         #nsteps = 0
     #print {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
     #sys.stdout.flush()
-    return {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
+    #return {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
+    return {"freenodesmem": freenodesmem, "nsteps": nsteps}
 
 def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, nthreadsfield, needslicense, username, globalmaxjobcount, localmaxjobcount, controllerpath, localbinpath, licensescript, sublicensescript, scriptlanguage, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, partitionsmaxmemory, scriptmemorylimit, localmaxstepcount, modname, controllername, dbindexes, logging, cleanup, emplocal, writelocal, writedb, statslocal, statsdb, markdone, writemode, scriptcommand, scriptflags, scriptext, scriptargs, querystatefilename, base, counterstatefile, counterheader, niters_orig, nbatch_orig, nworkers_orig):
-    partition = inputdoc['partition']
-    nnodes = inputdoc['nnodes']
-    ncores = inputdoc['ncores']
+    #partition = inputdoc['partition']
+    freenodesmem = inputdoc['freenodesmem']
+    nnodes = len(freenodesmem)
+    ncores = sum([x[3] for x in freenodesmem])
     nsteps = inputdoc['nsteps']
-    maxmemorypernode = inputdoc["maxmemorypernode"]
+    totmem = sum([x[4] for x in freenodesmem])
+    #maxmemorypernode = inputdoc["maxmemorypernode"]
     #print(docbatch)
     #sys.stdout.flush()
     if querylimit == None:
@@ -1376,22 +1405,18 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
             maxthreads -= 1
     while maxthreads == 0:
         nnodes += 1
-        orderedfreepartitions = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
-        if orderedfreepartitions == None:
+        freenodes = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+        if len(freenodes) == 0:
             return None
-        #orderedfreepartitions = orderpartitions(partitions)
-        i = 0
-        while i < len(orderedfreepartitions):
-            partition = orderedfreepartitions[i]
+        #freenodes = orderpartitions(partitions)
+        #i = 0
+        #while i < len(freenodes):
+        #    partition = freenodes[i]
             #nnodes = 1
-            distribution = distributeovernodes(partition, partitionsmaxmemory[partition], scriptmemorylimit, nnodes, localmaxstepcount, niters)
-            if distribution == None:
-                i += 1
-            else:
-                break
-        if i == len(orderedfreepartitions):
+        freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnodes, localmaxstepcount, niters)
+        if len(freenodesmem) == 0:
             raise Exception("Memory requirement is too large for this cluster.")
-        ncores, nsteps, maxmemorypernode = distribution
+        ncores = sum([x[3] for x in freenodesmem])
         maxthreads = 0
         nextdocind = 0
         if (nthreadsfield != "") and (not reloadjob):
@@ -1416,7 +1441,7 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
     docbatchwrite = [docbatch[i:i + niters] for i in range(0, nextdocind, niters)]
     #docbatchpass = docbatch[nextdocind:]
 
-    totmem = nnodes * maxmemorypernode
+    #totmem = nnodes * maxmemorypernode
     ncoresused = len(docbatchwrite)
     memoryperstep = totmem / ncoresused
     #niters = len(docbatch)
@@ -1432,20 +1457,20 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
     #else:
     jobstepnames = ["crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_step_" + str(i + 1) for i in range(len(docbatchwrite))]
     #jobstepnamescontract = jobstepnamescontract(jobstepnames)
-    jobname = "crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_steps_" + str((counters[1] + niters-1) / niters) + "-" + str((counters[1] + niters * len(docbatchwrite)-1) / niters)
+    jobname = "crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_steps_" + str((counters[1] + niters-1) / niters) + "-" + str((counters[1] + niters * len(docbatchwrite) - 1) / niters)
     #if reloadjob:
     #    jobstepnames = ["reload_" + x for x in jobstepnames]
     #    jobname = "reload_" + jobname
-    partitiontimelimit, buffertimelimit = getpartitiontimelimit(partition, scripttimelimit, scriptbuffertime)
+    partitiontimelimits = [getpartitiontimelimit(x[0], scripttimelimit, scriptbuffertime) for x in freenodesmem]
     #if len(docbatch) < inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"] = (memoryperstep * inputdoc["nsteps"]) / len(docbatch)
-    writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, jobname, jobstepnames, controllerpath, controllername, writemode, partitiontimelimit, buffertimelimit, partition, nnodes, counters, totmem, ncoresused, scriptlanguage, scriptcommand, scriptflags, scriptext, scriptargs, base, dbindexes, nthreadsfield, nbatch, nworkers, docbatchwrite)
+    jobinfo = writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, writedb, statslocal, statsdb, markdone, jobname, jobstepnames, controllerpath, controllername, writemode, partitiontimelimits, freenodesmem, counters, scriptlanguage, scriptcommand, scriptflags, scriptext, scriptargs, base, dbindexes, nthreadsfield, nbatch, nworkers, docbatchwrite)
     #Submit job file
     if (nthreadsfield != "") and (not reloadjob):
         nthreads = [max([y[nthreadsfield] for y in x]) for x in docbatchwrite]
     else:
         nthreads = [1 for x in docbatchwrite]
-    submitjob(workpath, jobname, jobstepnames, nnodes, ncoresused, nthreads, niters, nbatch, partition, memoryperstep, maxmemorypernode, resubmit = False)
+    submitjob(workpath, jobname, jobinfo, nnodes, ncores, niters, nbatch, resubmit = False)
     #needslicense = (licensestream != None)
     #if needslicense:
     #    fcntl.flock(licensestream, fcntl.LOCK_UN)

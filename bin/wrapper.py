@@ -307,8 +307,10 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
-        self.write_stdin()
+        #self.write_stdin()
         while self.is_inprog():
+            self.write_stdin()
+
             try:
                 err_line = self._errgen.next()
             except StopIteration:
@@ -346,12 +348,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     if self._stats != None:
                         self.get_stats()
                         self._nlocks = len(glob.glob(self._workpath + "/*.lock"))
-                    self.write_stdin()
+                    #self.write_stdin()
                 self._outqueue.put(out_line.rstrip("\n"))
                 try:
                     out_line = self._outgen.next()
                 except StopIteration:
-                    break 
+                    break
+                self.write_stdin()
 
     #def waiting(self):
     #    return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()

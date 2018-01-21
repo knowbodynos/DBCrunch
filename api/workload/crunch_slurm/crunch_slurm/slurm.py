@@ -28,6 +28,7 @@ def prevcontrollerjobsrunningq(username,dependencies):
     return njobsrunning > 0
 
 def get_submitjob(jobpath,jobname):
+    print("Line: sbatch " + jobpath + "/" + jobname + ".job")
     return Popen("sbatch " + jobpath + "/" + jobname + ".job", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n").split()[-1]
 
 def releaseheldjobs(username,modname,controllername):
@@ -50,7 +51,26 @@ def get_partitionspend(partitions):
     return Popen("sinfo -h -o '%t %c %P' --partition=$(squeue -h -o '%T %P' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'PENDING' | sort -k2,2 -u | cut -d' ' -f2 | tr '\n' ',' | head -c -1) | grep 'alloc' | sort -k2,2n | cut -d' ' -f3 | sed 's/\*//g' | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(',')
 
 def get_partitionncorespernode(partition):
-    return eval(Popen("sinfo -h -p '" + partition + "' -o '%c' | head -n1 | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
+    #return eval(Popen("sinfo -h -p '" + partition + "' -o '%c' | head -n1 | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
+    return eval(Popen("echo \"$(scontrol show partition='" + partition + "' | grep 'TotalCPUs=' | perl -pe 's|.*TotalCPUs=([0-9]+).*TotalNodes=([0-9]+).*|\\1/\\2|g')\" | bc | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
+
+def get_idlenodeCPUs(partitions):
+    strpartitions = ",".join(partitions)
+    nodeinfo = Popen("sinfo -h -r -e -p " + strpartitions + " -t 'IDLE' -o '%R %N %c' | sort -k3,3nr | while read -r partition nodelist ncores; do [[ ${ncores} != \"\" ]] && scontrol show hostname ${nodelist} | while read -r node; do echo \"${partition} ${node} ${ncores} ${ncores}\"; done; done", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
+    nodeinfo = [x.split() for x in nodeinfo.split("\n")]
+    return [[x[0], x[1], int(x[2]), int(x[3])] for x in nodeinfo if len(x) == 4]
+
+def get_mixnodeCPUs(partitions):
+    strpartitions = ",".join(partitions)
+    nodeinfo = Popen("sinfo -h -r -e -p " + strpartitions + " -t 'MIX' -o '%R %N %c' | while read -r partition nodelist ncores; do squeue -h -w ${nodelist} -o '%N %C' | while read -r node ncoresused; do echo \"${partition} ${node} ${ncores} $((${ncores}-${ncoresused}))\"; done; done | sort -k4,4nr -k1,3 -u", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
+    nodeinfo = [x.split() for x in nodeinfo.split("\n")]
+    return [[x[0], x[1], int(x[2]), int(x[3])] for x in nodeinfo if len(x) == 4]
+
+def get_compnodeCPUs(partitions):
+    strpartitions = ",".join(partitions)
+    nodeinfo = Popen("sinfo -h -r -e -p " + strpartitions + " -t 'COMP' -o '%R %N %c' | sort -k3,3nr | while read -r partition nodelist ncores; do [[ ${ncores} != \"\" ]] && scontrol show hostname ${nodelist} | while read -r node; do echo \"${partition} ${node} ${ncores} ${ncores}\"; done; done", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
+    nodeinfo = [x.split() for x in nodeinfo.split("\n")]
+    return [[x[0], x[1], int(x[2]), int(x[3])] for x in nodeinfo if len(x) == 4]
 
 def get_maxnnodes(partition):
     return eval(Popen("scontrol show partition '" + partition + "' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n"))
