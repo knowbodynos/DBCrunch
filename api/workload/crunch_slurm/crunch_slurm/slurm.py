@@ -44,7 +44,7 @@ def get_partitionscomp(partitions):
 
 def get_partitionsrun(partitions):
     greppartitions = "|".join(partitions)
-    return Popen("squeue -h -o '%L %T %P' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'RUNNING' | sed 's/^\([0-9][0-9]:[0-9][0-9]\s\)/00:\1/g' | sed 's/^\([0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0\1/g' | sed 's/^\([0-9][0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0-\1/g' | sort -k1,1 | cut -d' ' -f3 | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(',')
+    return Popen("squeue -h -o '%L %T %P' | grep -E '(" + greppartitions + ")\*?\s*$' | grep 'RUNNING' | sed 's/^\([0-9][0-9]:[0-9][0-9]\s\)/00:\\1/g' | sed 's/^\([0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0\1/g' | sed 's/^\([0-9][0-9]:[0-9][0-9]:[0-9][0-9]\s\)/0-\\1/g' | sort -k1,1 | cut -d' ' -f3 | tr '\n' ',' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].split(',')
 
 def get_partitionspend(partitions):
     greppartitions = "|".join(partitions)
@@ -71,6 +71,15 @@ def get_compnodeCPUs(partitions):
     nodeinfo = Popen("sinfo -h -r -e -p " + strpartitions + " -t 'COMP' -o '%R %N %c' | sort -k3,3nr | while read -r partition nodelist ncores; do [[ ${ncores} != \"\" ]] && scontrol show hostname ${nodelist} | while read -r node; do echo \"${partition} ${node} ${ncores} ${ncores}\"; done; done", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
     nodeinfo = [x.split() for x in nodeinfo.split("\n")]
     return [[x[0], x[1], int(x[2]), int(x[3])] for x in nodeinfo if len(x) == 4]
+
+def get_freenodes(partitions):
+    nodeinfo = []
+    for partition in partitions:
+        temp_nodeinfo = Popen("sinfo -h -r -p " + partition + " -o '%N' | xargs scontrol show node | grep -B4 -E 'State=(IDLE|MIXED|COMPLETING) ' | tr '\n' ' ' | sed 's/--/\\n/g' | perl -pe 's|.*CPUAlloc=(.*?) .*CPUTot=(.*?) .*NodeHostName=(.*?) .*ThreadsPerCore=(.*?) .*|\\1 \\2 \\3 \\4|g'", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
+        temp_nodeinfo = [x.split() for x in temp_nodeinfo.split("\n")]
+        temp_nodeinfo = [[partition, x[2], int(x[1]), int(x[1]) - int(x[0])] for x in temp_nodeinfo if (len(x) == 4) and (int(x[3]) > 1)]
+        nodeinfo += temp_nodeinfo
+    return sorted(nodeinfo, key = lambda x: x[3], reverse = True)
 
 def get_maxnnodes(partition):
     return eval(Popen("scontrol show partition '" + partition + "' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n"))

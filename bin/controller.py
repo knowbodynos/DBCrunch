@@ -992,7 +992,7 @@ def orderfreepartitions(partitions):
 #        sys.stdout.flush()
 #    return maxmemorypernode
 
-def get_freenodes(partitions):
+#def get_freenodes(partitions):
     #a = get_idlenodeCPUs(partitions)
     #b = get_mixnodeCPUs(partitions)
     #c = get_compnodeCPUs(partitions)
@@ -1001,7 +1001,7 @@ def get_freenodes(partitions):
     #print("COMP: "+str(c))
     #print("")
     #return sorted(a + b + c, key = lambda x: x[3], reverse = True)
-    return sorted(get_idlenodeCPUs(partitions) + get_mixnodeCPUs(partitions) + get_compnodeCPUs(partitions), key = lambda x: x[3], reverse = True)
+#    return sorted(get_idlenodeCPUs(partitions) + get_mixnodeCPUs(partitions) + get_compnodeCPUs(partitions), key = lambda x: x[3], reverse = True)
 
 #def distributeovernodes(partition, maxmemorypernode, scriptmemorylimit, nnodes, localmaxstepcount, niters):#, maxthreads):
 def distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnodes, localmaxstepcount, niters):
@@ -1437,6 +1437,39 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
             if maxthreads > ncores:
                 nextdocind -= niters
                 maxthreads -= 1
+    
+    freenodes = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
+    if len(freenodes) == 0:
+        return None
+    #freenodes = orderpartitions(partitions)
+    #i = 0
+    #while i < len(freenodes):
+    #    partition = freenodes[i]
+        #nnodes = 1
+    freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnodes, localmaxstepcount, niters)
+    if len(freenodesmem) == 0:
+        raise Exception("Memory requirement is too large for this cluster.")
+    ncores = sum([x[3] for x in freenodesmem])
+    maxthreads = 0
+    nextdocind = 0
+    if (nthreadsfield != "") and (not reloadjob):
+        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+            maxthreads += max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
+            nextdocind += niters
+        if nextdocind > len(docbatch):
+            nextdocind = len(docbatch)
+        if maxthreads > ncores:
+            nextdocind -= niters
+            maxthreads -= max([x[nthreadsfield] for x in docbatch[nextdocind:nextdocind + niters]])
+    else:
+        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
+            maxthreads += 1
+            nextdocind += niters
+        if nextdocind > len(docbatch):
+            nextdocind = len(docbatch)
+        if maxthreads > ncores:
+            nextdocind -= niters
+            maxthreads -= 1
     #docbatchwrite = docbatch[:nextdocind]
     docbatchwrite = [docbatch[i:i + niters] for i in range(0, nextdocind, niters)]
     #docbatchpass = docbatch[nextdocind:]
