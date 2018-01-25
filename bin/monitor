@@ -21,6 +21,7 @@ monitorjobs() {
             outsperc=$(echo "scale=2;(100*${outs})/${reads}" | bc)
             echo "${outsperc}% Finished: ${outs} of ${reads}"
         fi
+        echo "Status: $(cat ${controllerpath}/status)"
         controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.out 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')
         if [[ "${controllertime}" == "" ]]
         then

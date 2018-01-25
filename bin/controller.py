@@ -1206,6 +1206,11 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
     #print("storageleft: " + str(storageleft(controllerpath, storagelimit)))
     #sys.stdout.flush()
     #needslicense = (licensestream != None)
+    with open(statusstatefile, "r+") as statusstream:
+        startstatus = statusstream.readline()
+        statusstream.truncate(0)
+        statusstream.write("Waiting for slots.")
+        statusstream.flush()
     if needslicense:
         jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
         nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
@@ -1213,10 +1218,6 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
         freenodes = get_freenodes(partitions)
         releaseheldjobs(username, modname, controllername)
         if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
-            with open(statusstatefile, "w") as statusstream:
-                statusstream.truncate(0)
-                statusstream.write("Waiting")
-                statusstream.flush()
             while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
                 time.sleep(sleeptime)
                 jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
@@ -1254,10 +1255,6 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
         freenodes = get_freenodes(partitions)
         releaseheldjobs(username, modname, controllername)
         if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
-            with open(statusstatefile, "w") as statusstream:
-                statusstream.truncate(0)
-                statusstream.write("Waiting")
-                statusstream.flush()
             while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(freenodes) > 0) and storageleft(controllerpath, storagelimit)):
                 time.sleep(sleeptime)
                 jobslotsleft = clusterjobslotsleft(username, modname, controllername, globalmaxjobcount, localmaxjobcount)
@@ -1270,6 +1267,10 @@ def waitforslots(reloadjob, storagelimit, needslicense, username, modname, contr
         requeueskippedreloadjobs(modname, controllername, controllerpath, querystatefilename, base, counters, counterstatefile, counterheader, dbindexes)
     else:
         requeueskippedqueryjobs(modname, controllername, controllerpath, querystatefilename, base, counters, counterstatefile, counterheader, dbindexes)
+
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.write(startstatus)
+        statusstream.flush()
 
     return freenodes
 
@@ -1353,6 +1354,11 @@ def doinput(docbatch, querylimit, counters, reloadjob, storagelimit, nthreadsfie
                     nextdocind -= niters
                     maxthreads -= 1
         #nsteps = 0
+    
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.write("Populating job.")
+        statusstream.flush()
+
     #print {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
     #sys.stdout.flush()
     #return {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
@@ -1437,7 +1443,7 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
             if maxthreads > ncores:
                 nextdocind -= niters
                 maxthreads -= 1
-    
+
     freenodes = waitforslots(reloadjob, storagelimit, needslicense, username, modname, controllername, controllerpath, querystatefilename, base, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, sleeptime, partitions, dbindexes)
     if len(freenodes) == 0:
         return None
@@ -1488,6 +1494,11 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
     #if niters == 1:
     #    jobstepnames = [indexdoc2jobstepname(x, modname, controllername, dbindexes) for x in docbatchwrite]
     #else:
+
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.write("Initializing job.")
+        statusstream.flush()
+
     jobstepnames = ["crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_step_" + str(i + 1) for i in range(len(docbatchwrite))]
     #jobstepnamescontract = jobstepnamescontract(jobstepnames)
     jobname = "crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_steps_" + str((counters[1] + niters-1) / niters) + "-" + str((counters[1] + niters * len(docbatchwrite) - 1) / niters)
@@ -1521,10 +1532,6 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
         #    pendlicensestream.write(str(npendlicenses + niters) + ", " + str(npendsublicenses + totnthreadsfield))
         #else:
         #    pendlicensestream.write(str(npendlicenses + niters))
-    with open(statusstatefile, "w") as statusstream:
-        statusstream.truncate(0)
-        statusstream.write("Running")
-        statusstream.flush()
     #releaseheldjobs(username, modname, controllername)
     #print "End action"
     #sys.stdout.flush()
@@ -1617,6 +1624,11 @@ try:
     niters_orig = eval(sys.argv[33])
     nbatch_orig = eval(sys.argv[34])
     nworkers_orig = eval(sys.argv[35])
+
+    #with open(controllerpath + "/controller.config", "r") as controllerconfigstream:
+    #    cconfig = yaml.load(controllerconfigstream)
+    #    cconfig['controller']['controllername'] = 
+
     
     #Read seek position from file
     #with open(controllerpath + "/" + seekfile, "r") as seekstream:
@@ -1661,6 +1673,10 @@ try:
     print ""
     sys.stdout.flush()
 
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.write("Starting controller.")
+        statusstream.flush()
+
     controllerpath = get_controllerpath(controllerjobid)
 
     #statepath = rootpath + "/state"
@@ -1679,10 +1695,6 @@ try:
 
     for f in glob.iglob(workpath + "/*.lock"):
         os.remove(f)
-
-    with open(statusstatefile, "w") as statusstream:
-        statusstream.truncate(0)
-        statusstream.write("Starting")
 
     assert isinstance(configdoc["max-jobs"], int) or configdoc["max-jobs"] is None
     if isinstance(configdoc["max-jobs"], int):
@@ -1875,15 +1887,15 @@ try:
 
         submitcontrollerjob(controllerpath, "crunch_" + modname + "_" + controllername + "_controller", controllernnodes, controllerncores, controllerpartition, maxmemorypernode, resubmit = True)
         with open(statusstatefile, "w") as statusstream:
-            statusstream.truncate(0)
-            statusstream.write("Resubmitting")
+            statusstream.write("Resubmitting controller.")
+            statusstream.flush()
 
     else:
         #if pdffile != "":
         #    plotjobgraph(modname, controllerpath, controllername, workpath, pdffile)
         with open(statusstatefile, "w") as statusstream:
-            statusstream.truncate(0)
-            statusstream.write("Completing")
+            statusstream.write("Completing controller.")
+            statusstream.flush()
         print ""
         print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
         print "Completing job crunch_" + modname + "_" + controllername + "_controller\n"

@@ -872,18 +872,19 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         tempiostream.write("MaxVMSize: " + str(maxvmsize) + " bytes\n")
                         tempiostream.write("BSONSize: " + str(bsonsize) + " bytes\n")
                         tempiostream.flush()
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
-                    if kwargs['statslocal']:
-                        outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
-                        outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
-                        outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
-                        outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
                     statsmark = {}
                     if kwargs['statsdb']:
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                     if kwargs['markdone'] != "":
                         statsmark.update({modname + kwargs['markdone']: True})
+                    if kwargs['statslocal']:
+                        #outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
+                        #outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
+                        #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
+                        #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
+                        outiolist[-1] += "+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n"
+                    elif kwargs['writelocal']:
+                        outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     # Testing
                     #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
                     # Done testing
@@ -1129,18 +1130,19 @@ while not stdout_queue.empty():
                     tempiostream.write("MaxVMSize: " + str(maxvmsize) + " bytes\n")
                     tempiostream.write("BSONSize: " + str(bsonsize) + " bytes\n")
                     tempiostream.flush()
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
-                if kwargs['statslocal']:
-                    outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
-                    outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
-                    outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
-                    outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
                 statsmark = {}
                 if kwargs['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                 if kwargs['markdone'] != "":
                     statsmark.update({modname + kwargs['markdone']: True})
+                if kwargs['statslocal']:
+                    #outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
+                    #outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
+                    #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
+                    #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
+                    outiolist[-1] += "+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n"
+                elif kwargs['writelocal']:
+                    outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 # Testing
                 #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
                 # Done testing
