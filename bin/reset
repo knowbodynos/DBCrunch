@@ -18,7 +18,7 @@ rm ${controllerpath}/reloadstate* 2>/dev/null
 
 echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
 echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-echo "Pending" > ${controllerpath}/status 2>/dev/null
+echo "Controller pending." > ${controllerpath}/status 2>/dev/null
 
 echo "Finished resetting ${modname}_${controllername}."
 

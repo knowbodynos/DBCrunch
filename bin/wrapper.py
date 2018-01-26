@@ -173,7 +173,10 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
 
     def is_inprog(self):
         '''Check whether there is no more content to expect.'''
-        return self.is_alive() and os.path.exists("/proc/" + self._pid + "/smaps")
+        try:
+            return self.is_alive() and os.path.exists("/proc/" + self._pid + "/smaps")
+        except IOError:
+            return False
 
     def write_stdin(self):
         try:

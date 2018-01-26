@@ -1673,10 +1673,6 @@ try:
     print ""
     sys.stdout.flush()
 
-    with open(statusstatefile, "w") as statusstream:
-        statusstream.write("Starting controller.")
-        statusstream.flush()
-
     controllerpath = get_controllerpath(controllerjobid)
 
     #statepath = rootpath + "/state"
@@ -1690,6 +1686,10 @@ try:
     #globalmaxjobsfile = statepath + "/maxjobs"
     counterstatefile = controllerpath + "/batchcounter"
     statusstatefile = controllerpath + "/status"
+
+    with open(statusstatefile, "w") as statusstream:
+        statusstream.write("Starting controller.")
+        statusstream.flush()
     
     #querystatefile = controllerpath + "/querystate"
 
@@ -1731,16 +1731,25 @@ try:
     else:
         raise Exception("Only \"mongodb\" is currently supported.")
 
-    scriptext = (configdoc["software"][scriptlanguage]["extension"] if "extension" in configdoc["software"][scriptlanguage].keys() else "")
-    scriptcommand = (configdoc["software"][scriptlanguage]["command"] + " " if "command" in configdoc["software"][scriptlanguage].keys() else "")
-    scriptflags = (" ".join(configdoc["software"][scriptlanguage]["flags"]) + " " if "flags" in configdoc["software"][scriptlanguage].keys() else "")
-    needslicense = ("license-command" in configdoc["software"][scriptlanguage].keys())
-    if needslicense:
-        licensescript = configdoc["software"][scriptlanguage]["license-command"]
-        sublicensescript = (configdoc["software"][scriptlanguage]["sublicense-command"] + " " if "sublicense-command" in configdoc["software"][scriptlanguage].keys() else None)
-        licensestatefile = localbinpath + "/" + licensescript
-        #licensestream = open(licensestatefile, "a + ")
+    if scriptlanguage in configdoc["software"].keys():
+        scriptext = (configdoc["software"][scriptlanguage]["extension"] if "extension" in configdoc["software"][scriptlanguage].keys() else "")
+        scriptcommand = (configdoc["software"][scriptlanguage]["command"] + " " if "command" in configdoc["software"][scriptlanguage].keys() else "")
+        scriptflags = (" ".join(configdoc["software"][scriptlanguage]["flags"]) + " " if "flags" in configdoc["software"][scriptlanguage].keys() else "")
+        needslicense = ("license-command" in configdoc["software"][scriptlanguage].keys())
+        if needslicense:
+            licensescript = configdoc["software"][scriptlanguage]["license-command"]
+            sublicensescript = (configdoc["software"][scriptlanguage]["sublicense-command"] + " " if "sublicense-command" in configdoc["software"][scriptlanguage].keys() else None)
+            licensestatefile = localbinpath + "/" + licensescript
+            #licensestream = open(licensestatefile, "a + ")
+        else:
+            licensescript = None
+            sublicensescript = None
+            #licensestream = None
     else:
+        scriptext = ""
+        scriptcommand = ""
+        scriptflags = ""
+        needslicense = False
         licensescript = None
         sublicensescript = None
         #licensestream = None
