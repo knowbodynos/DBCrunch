@@ -1024,7 +1024,7 @@ def distributeovernodes(freenodes, partitionsmaxmemory, scriptmemorylimit, nnode
     #        tempnnodes -= 1
     #        nstepsdistribmempernode = float(maxsteps / tempnnodes)
     #else:
-    freenodesmem = [x + [partitionsmaxmemory[x[0]] * x[3] / x[2]] for x in freenodes if eval(scriptmemorylimit) <= partitionsmaxmemory[x[0]] * x[3] / x[2]]
+    freenodesmem = [x + [partitionsmaxmemory[x[0]] * x[3] / x[2]] for x in freenodes if scriptmemorylimit == "" or eval(scriptmemorylimit) <= partitionsmaxmemory[x[0]] * x[3] / x[2]]
 
     if (scriptmemorylimit == ""):# or (eval(scriptmemorylimit) == maxmemorypernode):
         nsteps = min(nnodes, localmaxstepcount) * niters
@@ -1087,12 +1087,12 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
     jobstring += "#Partition(s) to use for job\n"
     jobstring += "#SBATCH --partition=\"" + ','.join([x[0] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
-    jobstring += "#Number of tasks (CPUs) allocated for job\n"
-    jobstring += "#SBATCH -n " + str(ndocbatches) + "\n"
-    jobstring += "#################\n"
-    jobstring += "#Number of nodes to distribute n tasks across\n"
-    jobstring += "#SBATCH -N " + str(len(freenodesmem)) + "\n"
-    jobstring += "#################\n"
+    #jobstring += "#Number of tasks (CPUs) allocated for job\n"
+    #jobstring += "#SBATCH -n " + str(ndocbatches) + "\n"
+    #jobstring += "#################\n"
+    #jobstring += "#Number of nodes to distribute n tasks across\n"
+    #jobstring += "#SBATCH -N " + str(len(freenodesmem)) + "\n"
+    #jobstring += "#################\n"
     jobstring += "#List of nodes to distribute n tasks across\n"
     jobstring += "#SBATCH -w \"" + ','.join([x[1] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
@@ -1150,18 +1150,20 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
     k = 0
     for i in range(ndocbatches):
         with open(controllerpath + "/jobs/" + jobstepnames[i] + ".docs", "w") as docstream:
-            for doc in docbatches[i]:
+            for n in range(len(docbatches[i])):
+                if n > 0:
+                    docstream.write("\n");
                 if reloadjob:
-                    docstream.write(doc)
+                    docstream.write(docbatches[i][n])
                 else:
-                    docstream.write(json.dumps(doc, separators = (',',':')) + "\n")
+                    docstream.write(json.dumps(docbatches[i][n], separators = (',',':')))
                 docstream.flush()
         if nthreadsfield != "":
             nstepthreads = max([x[nthreadsfield] for x in docbatches[i]])
         else:
             nstepthreads = 1
         jobstring += "nstepthreads=" + str(nstepthreads) + "\n"
-        stepmem = nstepthreads * freenodesmem[j][4] / (1000000 * freenodesmem[j][3])
+        stepmem = nstepthreads * freenodesmem[j][4] / (1000000 * ndocbatches)#freenodesmem[j][3])
         jobstring += "stepmem=" + str(stepmem) + "\n"
         if not reloadjob:
             jobstring += "mpirun -srun -w \"" + freenodesmem[j][1] + "\" -n \"${nstepthreads}\" -J \"" + jobstepnames[i] + "\" --mem-per-cpu=\"${stepmem}${memunit}\" "
@@ -1377,7 +1379,7 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
     if querylimit == None:
         niters = niters_orig
     else:
-        niters = min(niters_orig, querylimit-counters[1] + 1)
+        niters = min(niters_orig, querylimit - counters[1] + 1)
     if len(docbatch) < nsteps:
         niters = min(niters, len(docbatch))
     if nbatch_orig > niters:
@@ -1501,7 +1503,7 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
 
     jobstepnames = ["crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_step_" + str(i + 1) for i in range(len(docbatchwrite))]
     #jobstepnamescontract = jobstepnamescontract(jobstepnames)
-    jobname = "crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_steps_" + str((counters[1] + niters-1) / niters) + "-" + str((counters[1] + niters * len(docbatchwrite) - 1) / niters)
+    jobname = "crunch_" + modname + "_" + controllername + "_job_" + str(counters[0]) + "_steps_" + str((counters[1] + niters_orig - 1) / niters_orig) + "-" + str((counters[1] + niters_orig * len(docbatchwrite) - 1) / niters_orig)
     #if reloadjob:
     #    jobstepnames = ["reload_" + x for x in jobstepnames]
     #    jobname = "reload_" + jobname
@@ -1540,6 +1542,12 @@ def doaction(counters, inputdoc, docbatch, querylimit, reloadjob, storagelimit, 
     #seekstream.seek(0)
     #doc = querystream.readline()
     releaseheldjobs(username, modname, controllername)
+
+    #with open(statusstatefile, "r+") as statusstream:
+    #    startstatus = statusstream.readline()
+    #    statusstream.truncate(0)
+    #    statusstream.write("Waiting for slots.")
+    #    statusstream.flush()
     return nextdocind;#docbatchpass
 
 def docounterupdate(counters, counterstatefile, counterheader):

@@ -28,7 +28,7 @@ def prevcontrollerjobsrunningq(username,dependencies):
     return njobsrunning > 0
 
 def get_submitjob(jobpath,jobname):
-    print("Line: sbatch " + jobpath + "/" + jobname + ".job")
+    #print("Line: sbatch " + jobpath + "/" + jobname + ".job")
     return Popen("sbatch " + jobpath + "/" + jobname + ".job", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n").split()[-1]
 
 def releaseheldjobs(username,modname,controllername):

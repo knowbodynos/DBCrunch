@@ -178,6 +178,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         except IOError:
             return False
 
+    '''
     def write_stdin(self):
         try:
             in_line = self._initerarg.next()
@@ -206,6 +207,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     #in_line = self._inqueue.get()
                     in_line = sys.stdin.readline().rstrip("\n")
                     if in_line == "":
+                        self._instream.write(in_line + self._delimiter)
                         self._instream.close()
                         #print("finally!")
                         #sys.stdout.flush()
@@ -242,11 +244,45 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             #self._instream.close()
             #print(in_line)
             #sys.stdout.flush()
+    '''
+
+    def write_stdin(self):
+        if self._initerfile != None and not self._initerfile.closed:
+            in_line = self._initerfile.readline().rstrip("\n")
+            if in_line == "":
+                name = self._initerfile.name
+                self._initerfile.close()
+                os.remove(name)
+                self._instream.write(in_line)
+                #print("a: " + in_line + self._delimiter)
+                #sys.stdout.flush()
+                self._instream.close()
+            else:
+                self._tempqueue.put(in_line)
+                self._instream.write(in_line + self._delimiter)
+                #print("a: " + in_line + self._delimiter)
+                #sys.stdout.flush()
+                self._instream.flush()
+                if (self._cleanup != None and self._cleanup_counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time() - self._starttime >= self._timelimit):
+                    with tempfile.NamedTemporaryFile(dir = "/".join(self._initerfile.name.split("/")[:-1]), delete = False) as tempstream:
+                        in_line = self._initerfile.readline()
+                        while in_line != "":
+                            tempstream.write(in_line)
+                            tempstream.flush()
+                            in_line = self._initerfile.readline()
+                        name = self._initerfile.name
+                        self._initerfile.close()
+                        os.rename(tempstream.name, name)
+                        self._initerfile = open(name, 'r')
+                    self._cleanup_counter = 0
 
     def get_stats(self):
         if any([k in self._lower_keys for k in self._time_keys]):
-            self._proc_stat.seek(0)
-            stat_line = self._proc_stat.read() if self.is_inprog() else ""
+            try:
+                self._proc_stat.seek(0)
+                stat_line = self._proc_stat.read() if self.is_inprog() else ""
+            except IOError:
+                stat_line = ""
             #print(stat_line)
             #sys.stdout.flush()
             if stat_line != "":
@@ -310,10 +346,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
-        #self.write_stdin()
+        self.write_stdin()
         while self.is_inprog():
-            self.write_stdin()
-
+            #self.write_stdin()
             try:
                 err_line = self._errgen.next()
             except StopIteration:
@@ -729,6 +764,8 @@ if any([kwargs[x] for x in ['writedb', 'statsdb']]):
             raise Exception("Only \"mongodb\" is currently supported.")
 
 process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, bufsize = 1)
+#print("a")
+#sys.stdout.flush()
 
 stdin_queue = Queue()
 if not kwargs['interactive']:
@@ -754,6 +791,8 @@ if not any([x.lower() == "elapsedtime" for x in kwargs['stats_list']]):
 
 handler = AsynchronousThreadStatsStreamReaderWriter(workpath, filename, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = stats_list if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
 handler.start()
+#print("b")
+#sys.stdout.flush()
 
 bulkcolls = {}
 bulkrequestslist = [{}]
@@ -772,12 +811,12 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
             line = stdout_queue.get().rstrip("\n")
             if line not in ignoredstrings:
-                linehead = re.sub("^([-+&@].*?>|None).*", r"\1", line)
+                linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
                 linemarker = linehead[0]
                 if linemarker == "-":
                     newcollection, strindexdoc = linehead[1:-1].split(".")
                     newindexdoc = json.loads(strindexdoc)
-                    linedoc = re.sub("^[-+&@].*?>", "", line).rstrip("\n")
+                    linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(linedoc)
                     if dbtype == "mongodb":
                         bsonsize -= get_bsonsize(doc)
@@ -804,7 +843,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     #sys.stdout.flush()
                     newcollection, strindexdoc = linehead[1:-1].split(".")
                     newindexdoc = json.loads(strindexdoc)
-                    linedoc = re.sub("^[-+&@].*?>", "", line).rstrip("\n")
+                    linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(linedoc)
                     if dbtype == "mongodb":
                         bsonsize += get_bsonsize(doc)
@@ -826,7 +865,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 elif linemarker == "&":
                     newcollection, strindexdoc = linehead[1:-1].split(".")
                     newindexdoc = json.loads(strindexdoc)
-                    linedoc = re.sub("^[-+&@].*?>", "", line).rstrip("\n")
+                    linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(linedoc)
                     if dbtype == "mongodb":
                         bsonsize += get_bsonsize(doc)
@@ -869,11 +908,8 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
                         sys.stdout.flush()
                     if kwargs['templocal']:
+                        tempiostream.write("+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n")
                         tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
-                        tempiostream.write("CPUTime: " + str(cputime) + " seconds\n")
-                        tempiostream.write("MaxRSS: " + str(maxrss) + " bytes\n")
-                        tempiostream.write("MaxVMSize: " + str(maxvmsize) + " bytes\n")
-                        tempiostream.write("BSONSize: " + str(bsonsize) + " bytes\n")
                         tempiostream.flush()
                     statsmark = {}
                     if kwargs['statsdb']:
@@ -886,7 +922,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
                         #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
                         outiolist[-1] += "+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n"
-                    elif kwargs['writelocal']:
+                    if kwargs['writelocal']:
                         outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     # Testing
                     #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
@@ -913,6 +949,15 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         countthisbatch = 0
                         nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
                         countallbatches += [0]
+                elif linemarker == "#":
+                    if kwargs['logging']:
+                        sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": " + line + "\n")
+                        sys.stdout.flush()
+                    if kwargs['templocal']:
+                        tempiostream.write(line + "\n")
+                        tempiostream.flush()
+                    if kwargs['writelocal']:
+                        outiolist[-1] += line + "\n"
                 else:
                     if kwargs['templocal']:
                         tempiostream.write(line + "\n")
@@ -1038,7 +1083,7 @@ while not stdout_queue.empty():
             if linemarker == "-":
                 newcollection, strindexdoc = linehead[1:-1].split(".")
                 newindexdoc = json.loads(strindexdoc)
-                linedoc = re.sub("^[-+&@].*?>", "", line).rstrip("\n")
+                linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(linedoc)
                 if dbtype == "mongodb":
                     bsonsize -= get_bsonsize(doc)
@@ -1062,7 +1107,7 @@ while not stdout_queue.empty():
                 #sys.stdout.flush()
                 newcollection, strindexdoc = linehead[1:-1].split(".")
                 newindexdoc = json.loads(strindexdoc)
-                linedoc = re.sub("^[-+&@].*?>", "", line).rstrip("\n")
+                linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(linedoc)
                 if dbtype == "mongodb":
                     bsonsize += get_bsonsize(doc)
@@ -1084,7 +1129,7 @@ while not stdout_queue.empty():
             elif linemarker == "&":
                 newcollection, strindexdoc = linehead[1:-1].split(".")
                 newindexdoc = json.loads(strindexdoc)
-                linedoc = re.sub("^[-+&@].*?>", "", line).rstrip("\n")
+                linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(linedoc)
                 if dbtype == "mongodb":
                     bsonsize += get_bsonsize(doc)
@@ -1127,11 +1172,8 @@ while not stdout_queue.empty():
                     sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
                     sys.stdout.flush()
                 if kwargs['templocal']:
+                    tempiostream.write("+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n")
                     tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
-                    tempiostream.write("CPUTime: " + str(cputime) + " seconds\n")
-                    tempiostream.write("MaxRSS: " + str(maxrss) + " bytes\n")
-                    tempiostream.write("MaxVMSize: " + str(maxvmsize) + " bytes\n")
-                    tempiostream.write("BSONSize: " + str(bsonsize) + " bytes\n")
                     tempiostream.flush()
                 statsmark = {}
                 if kwargs['statsdb']:
@@ -1144,7 +1186,7 @@ while not stdout_queue.empty():
                     #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
                     #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
                     outiolist[-1] += "+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n"
-                elif kwargs['writelocal']:
+                if kwargs['writelocal']:
                     outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 # Testing
                 #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
@@ -1171,6 +1213,15 @@ while not stdout_queue.empty():
                     countthisbatch = 0
                     nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
                     countallbatches += [0]
+            elif linemarker == "#":
+                if kwargs['logging']:
+                    sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": " + line + "\n")
+                    sys.stdout.flush()
+                if kwargs['templocal']:
+                    tempiostream.write(line + "\n")
+                    tempiostream.flush()
+                if kwargs['writelocal']:
+                    outiolist[-1] += line + "\n"
             else:
                 if kwargs['templocal']:
                     tempiostream.write(line + "\n")
