@@ -346,6 +346,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
+        errflag = False
         self.write_stdin()
         while self.is_inprog():
             #self.write_stdin()
@@ -355,13 +356,10 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 err_line = ""
                 pass
             while err_line != "":
+                errflag = True;
                 err_line = err_line.rstrip("\n")
                 if err_line not in self._ignoredstrings:
                     with open(self._filename + ".err", "a") as errfilestream:
-                        if self._stepid != None:
-                            exitcode = get_exitcode(self._stepid)
-                        if self._stepid != None:
-                            errfilestream.write("ExitCode: " + exitcode + "\n")
                         errfilestream.write(err_line + "\n")
                         errfilestream.flush()
                     sys.stderr.write(err_line + "\n")
@@ -393,6 +391,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 except StopIteration:
                     break
                 self.write_stdin()
+
+        if errflag:
+            with open(self._filename + ".err", "a") as errfilestream:
+                if self._stepid != None:
+                    exitcode = get_exitcode(self._stepid)
+                if self._stepid != None:
+                    errfilestream.write("ExitCode: " + exitcode)
 
     #def waiting(self):
     #    return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
