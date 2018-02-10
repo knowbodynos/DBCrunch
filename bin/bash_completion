@@ -7,7 +7,7 @@ _crunch()
 
     case ${COMP_CWORD} in
         1)
-            COMPREPLY=($(compgen -W "--modules-dir analyze cancel monitor plot requeue reset submit template test" -- ${cur}))
+            COMPREPLY=($(compgen -W "--modules-dir analyze cancel create monitor plot requeue reset submit template test" -- ${cur}))
             ;;
         #2)
         #    case ${prev} in
@@ -67,7 +67,7 @@ _crunch()
 
             case ${COMP_CWORD} in
                 $((1+${right_shift})) )
-                    COMPREPLY=($(compgen -W "analyze cancel monitor plot requeue reset submit template test" -- ${cur}))
+                    COMPREPLY=($(compgen -W "analyze cancel create monitor plot requeue reset submit template test" -- ${cur}))
                     ;;
                 *)
                     case ${COMP_WORDS[1+right_shift]} in

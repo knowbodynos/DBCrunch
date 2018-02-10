@@ -1,5 +1,6 @@
 from signal import signal, SIGPIPE, SIG_DFL
 from subprocess import Popen, PIPE
+from datetime import datetime as dt
 
 def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
@@ -98,3 +99,45 @@ def get_controllerpath(controllerjobid):
 
 def get_exitcode(jobid):
     return Popen("sacct -n -j " + jobid + " -o 'ExitCode' | sed 's/\s\s*/ /g' | cut -d' ' -f1 --complement | head -c -2", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0]
+
+def get_writejobfile(controllerconfigdoc, jobname):
+    jobstring = "#!/bin/bash\n"
+    jobstring += "\n"
+    jobstring += "# Created " + str(dt.utcnow().strftime("%Y %m %d %H:%M:%S UTC")) + "\n"
+    jobstring += "\n"
+    jobstring += "#Job name\n"
+    jobstring += "#SBATCH -J \"" + jobname + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Working directory\n"
+    jobstring += "#SBATCH -D \"" + controllerconfigdoc["workdir"] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job output file\n"
+    jobstring += "#SBATCH -o \"" + jobname + ".log\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job error file\n"
+    jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job file write mode\n"
+    jobstring += "#SBATCH --open-mode=\"" + controllerconfigdoc["writemode"] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Job max time\n"
+    jobstring += "#SBATCH --time=\"" + controllerconfigdoc["timelimit"] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Partition(s) to use for job\n"
+    jobstring += "#SBATCH --partition=\"" + get_freenodes(controllerconfigdoc["partitions"])[-1][0] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "#Number of tasks (CPUs) allocated for job\n"
+    jobstring += "#SBATCH -n " + str(controllerconfigdoc["ncpus"]) + "\n"
+    jobstring += "#################\n"
+    jobstring += "#Number of nodes to distribute n tasks across\n"
+    jobstring += "#SBATCH -N " + str(controllerconfigdoc["nnodes"]) + "\n"
+    jobstring += "#################\n"
+    jobstring += "#Requeue job on node failure\n"
+    jobstring += "#SBATCH --requeue\n"
+    jobstring += "#################\n"
+    jobstring += "\n"
+    jobstring += "python ${CRUNCH_ROOT}/bin/controller.py ${SLURM_JOBID} " + controllerconfigdoc["workdir"] + "\n"
+
+    with open(controllerconfigdoc["workdir"] + "/" + jobname + ".job", "w") as jobstream:
+        jobstream.write(jobstring)
+        jobstream.flush()

@@ -16,7 +16,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, glob, json, yaml, re, tempfile, datetime #, linecache, traceback, fcntl
+import sys, os, glob, json, yaml, traceback, tempfile, datetime #, re, linecache, fcntl
 from pprint import pprint
 from time import time, sleep
 from random import randint
@@ -120,7 +120,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, workpath, filename, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, temp_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
+    def __init__(self, controllerpath, jobstepname, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, intermed_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
         assert hasattr(in_iter_arg, '__iter__')
         assert isinstance(in_iter_file, file) or in_iter_file == None
         assert isinstance(in_queue, Queue)
@@ -131,8 +131,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         #assert callable(err_stream.readline)
         #assert callable(err_stream.write)
         Thread.__init__(self)
-        self._workpath = workpath
-        self._filename = filename
+        self._controllerpath = controllerpath
+        self._jobstepname = jobstepname
         self._pid = str(pid)
         self._instream = in_stream
         #self._outstream = out_stream
@@ -143,7 +143,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         self._initerargflag = False
         #self._initerfileflag = False
         self._inqueue = in_queue
-        self._tempqueue = temp_queue
+        self._intermedqueue = intermed_queue
         self._outqueue = out_queue
         #self._errqueue = err_queue
         self._delimiter = delimiter
@@ -192,7 +192,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     #print("finally!")
                     #sys.stdout.flush()
                 else:
-                    self._tempqueue.put(in_line)
+                    self._intermedqueue.put(in_line)
                     self._instream.write(in_line + self._delimiter)
                     #print("a: " + in_line + self._delimiter)
                     #sys.stdout.flush()
@@ -212,13 +212,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                         #print("finally!")
                         #sys.stdout.flush()
                     else:
-                        self._tempqueue.put(in_line)
+                        self._intermedqueue.put(in_line)
                         self._instream.write(in_line + self._delimiter)
                         #print("a: " + in_line + self._delimiter)
                         #sys.stdout.flush()
                         self._instream.flush()
                 else:
-                    self._tempqueue.put(in_line)
+                    self._intermedqueue.put(in_line)
                     self._instream.write(in_line + self._delimiter)
                     #print("a: " + in_line + self._delimiter)
                     #sys.stdout.flush()
@@ -236,7 +236,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                             self._initerfile = open(name, 'r')
                         self._cleanup_counter = 0
         else:
-            self._tempqueue.put(in_line)
+            self._intermedqueue.put(in_line)
             self._instream.write(in_line + self._delimiter)
             #print("a: " + in_line + self._delimiter)
             #sys.stdout.flush()
@@ -258,9 +258,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 #sys.stdout.flush()
                 self._instream.close()
             else:
-                self._tempqueue.put(in_line)
+                self._intermedqueue.put(in_line)
                 self._instream.write(in_line + self._delimiter)
-                #with open(self._filename + ".test", "a") as teststream:
+                #with open(self._controllerpath + "/logs/" + self._jobstepname + ".test", "a") as teststream:
                 #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: In: " + in_line + "\n")
                 #    teststream.flush()
                 #print("a: " + in_line + self._delimiter)
@@ -362,7 +362,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 errflag = True;
                 err_line = err_line.rstrip("\n")
                 if err_line not in self._ignoredstrings:
-                    with open(self._filename + ".err", "a") as errfilestream:
+                    with open(self._controllerpath + "/logs/" + self._jobstepname + ".err", "a") as errfilestream:
                         errfilestream.write(err_line + "\n")
                         errfilestream.flush()
                     sys.stderr.write(err_line + "\n")
@@ -380,16 +380,17 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             while out_line != "":
                 #for out_line in iter(self._outstream.readline, ''):
                 out_line = out_line.rstrip("\n")
-                #with open(self._filename + ".test", "a") as teststream:
+                #with open(self._controllerpath + "/logs/" + self._jobstepname + ".test", "a") as teststream:
                 #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Out: " + out_line + "\n")
                 #    teststream.flush()
                 #if out_line == "\n".decode('string_escape'):
-                #sys.stdout.write(self._filename+" out_line: \""+out_line+"\"\n")
+                #sys.stdout.write(self._controllerpath + "/logs/" + self._jobstepname + " out_line: \"" + out_line + "\"\n")
                 #sys.stdout.flush()
-                if out_line == "@":
+                if out_line == "":
                     if self._stats != None:
                         self.get_stats()
-                        self._nlocks = len(glob.glob(self._workpath + "/*.lock"))
+                        self._nlocks = len(glob.glob(self._controllerpath + "locks/*.lock"))
+                    self._cleanup_counter += 1
                     self.write_stdin()
                 self._outqueue.put(out_line.rstrip("\n"))
                 try:
@@ -399,7 +400,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 #self.write_stdin()
 
         if errflag:
-            with open(self._filename + ".err", "a") as errfilestream:
+            with open(self._controllerpath + "/logs/" + self._jobstepname + ".err", "a") as errfilestream:
                 if self._stepid != None:
                     exitcode = get_exitcode(self._stepid)
                 if self._stepid != None:
@@ -554,6 +555,12 @@ class AsynchronousThreadStatsReader(Thread):
         return dict((k, self._totstats[k] / self._nstats if self._nstats > 0 else 0) for k in self._totstats.keys())
 '''
 
+def merge_two_dicts(x, y):
+    """Given two dicts, merge them into a new dict as a shallow copy."""
+    z = x.copy()
+    z.update(y)
+    return z
+
 def timestamp2unit(timestamp, unit = "seconds"):
     if timestamp == "infinite":
         return timestamp
@@ -594,10 +601,11 @@ parser.add_argument('--dbusername', dest = 'dbusername', action = 'store', defau
 parser.add_argument('--dbpassword', dest = 'dbpassword', action = 'store', default = None, help = '')
 parser.add_argument('--dbname', dest = 'dbname', action = 'store', default = None, help = '')
 
-parser.add_argument('--logging', dest = 'logging', action = 'store_true', default = False, help = '')
-parser.add_argument('--temp-local', '-t', dest = 'templocal', action = 'store_true', default = False, help = '')
-parser.add_argument('--write-local', '-w', dest = 'writelocal', action = 'store_true', default = False, help = '')
-parser.add_argument('--write-db', '-W', dest = 'writedb', action = 'store_true', default = False, help = '')
+parser.add_argument('--intermed-log', dest = 'intermedlog', action = 'store_true', default = False, help = '')
+parser.add_argument('--intermed-local', '-t', dest = 'intermedlocal', action = 'store_true', default = False, help = '')
+parser.add_argument('--out-log', dest = 'outlog', action = 'store_true', default = False, help = '')
+parser.add_argument('--out-local', '-w', dest = 'outlocal', action = 'store_true', default = False, help = '')
+parser.add_argument('--out-db', '-W', dest = 'outdb', action = 'store_true', default = False, help = '')
 parser.add_argument('--stats-local', '-s', dest = 'statslocal', action = 'store_true', default = False, help = '')
 parser.add_argument('--stats-db', '-S', dest = 'statsdb', action = 'store_true', default = False, help = '')
 parser.add_argument('--basecoll', dest = 'basecoll', action = 'store', default = None, help = '')
@@ -614,9 +622,9 @@ parser.add_argument('--cleanup-after', dest = 'cleanup', action = 'store', defau
 parser.add_argument('--interactive', dest = 'interactive', action = 'store_true', default = False, help = '')
 parser.add_argument('--time-limit', dest = 'time_limit', action = 'store', default = None, help = '')
 parser.add_argument('--ignored-strings', dest = 'ignoredstrings', nargs = '+', default = [], help = '')
-parser.add_argument('--script-language', dest = 'scriptlanguage', action = 'store', default = None, help = '')
-parser.add_argument('--script', '-c', dest = 'scriptcommand', nargs = '+', required = True, help = '')
-parser.add_argument('--args', '-a', dest = 'scriptargs', nargs = REMAINDER, default = [], help = '')
+parser.add_argument('--module-language', dest = 'modlang', action = 'store', default = None, help = '')
+parser.add_argument('--module', '-c', dest = 'modcommand', nargs = '+', required = True, help = '')
+parser.add_argument('--args', '-a', dest = 'modargs', nargs = REMAINDER, default = [], help = '')
 
 kwargs = vars(parser.parse_known_args()[0])
 
@@ -640,17 +648,17 @@ else:
     kwargs['cleanup'] = eval(kwargs['cleanup'])
 
 if kwargs['modname'] == None:
-    modname = kwargs['scriptcommand'][-1].split("/")[-1].split(".")[0]
+    modname = kwargs['modcommand'][-1].split("/")[-1].split(".")[0]
 else:
     modname = kwargs['modname']
 
-script = " ".join(kwargs['scriptcommand'] + kwargs['scriptargs'])
+script = " ".join(kwargs['modcommand'] + kwargs['modargs'])
 
 ignoredstrings = kwargs['ignoredstrings']
 
 if kwargs['controllername'] == None:
     rootpath = os.getcwd()
-    workpath = rootpath
+    controllerpath = rootpath
     dbtype = kwargs['dbtype']
     dbhost = kwargs['dbhost']
     dbport = kwargs['dbport']
@@ -665,101 +673,125 @@ else:
     #    softwarestream.readline()
     #    for line in softwarestream:
     #        ext = line.split(',')[2]
-    #        if ext + " " in kwargs['scriptcommand']:
+    #        if ext + " " in kwargs['modcommand']:
     #            break
     #modulesfile = rootpath + "/state/modules"
     #with open(modulesfile, "r") as modulesstream:
     #    modulesstream.readline()
     #    for line in modulesstream:
     #        modname = line.rstrip("\n")
-    #        if " " + modname + ext + " " in kwargs['scriptcommand'] or "/" + modname + ext + " " in kwargs['scriptcommand']:
+    #        if " " + modname + ext + " " in kwargs['modcommand'] or "/" + modname + ext + " " in kwargs['modcommand']:
     #            break
     #controllerpath = rootpath + "/modules/" + modname + "/" + kwargs['controllername']
-    with open(rootpath + "/config.yaml", "r") as configstream:
-        configdoc = yaml.load(configstream)
+    with open(rootpath + "/crunch.config", "r") as crunchconfigstream:
+        crunchconfigdoc = yaml.load(crunchconfigstream)
 
-    if (kwargs['scriptlanguage'] != None) and (kwargs['scriptlanguage'] in configdoc["software"].keys()) and ("ignored-strings" in configdoc["software"][kwargs['scriptlanguage']].keys()):
-        ignoredstrings += configdoc["software"][kwargs['scriptlanguage']]["ignored-strings"]
+    if (kwargs['modlang'] != None) and (kwargs['modlang'] in crunchconfigdoc["software"].keys()) and ("ignored-strings" in crunchconfigdoc["software"][kwargs['modlang']].keys()):
+        ignoredstrings += crunchconfigdoc["software"][kwargs['modlang']]["ignored-strings"]
 
-    if configdoc["workload-manager"] == "slurm":
+    if crunchconfigdoc["workload-manager"] == "slurm":
         from crunch_slurm import *
 
     controllerpath = "/".join(get_controllerpath(kwargs['stepid']).split("/")[:-1])
-    workpath = controllerpath + "/jobs"
-    if not os.path.isdir(workpath):
-        os.mkdir(workpath)
-    controllerfile = controllerpath + "/crunch_" + modname + "_" + kwargs['controllername'] + "_controller.job"
-    with open(controllerfile, "r") as controllerstream:
-        for controllerline in controllerstream:
-            if "dbtype=" in controllerline:
-                dbtype = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if dbtype == "":
-                    dbtype = None
-            elif "dbhost=" in controllerline:
-                dbhost = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if dbhost == "":
-                    dbhost = None
-            elif "dbport=" in controllerline:
-                dbport = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if dbport == "":
-                    dbport = None
-            elif "dbusername=" in controllerline:
-                dbusername = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if dbusername == "":
-                    dbusername = None
-            elif "dbpassword=" in controllerline:
-                dbpassword = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if dbpassword == "":
-                    dbpassword = None
-            elif "dbname=" in controllerline:
-                dbname = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if dbname == "":
-                    dbname = None
-            elif "basecollection=" in controllerline:
-                basecoll = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
-                if basecoll == "":
-                    basecoll = None
+
+    with open(controllerpath + "/" + kwargs["modname"] + "_" + kwargs["controllername"] + ".config", "r") as controllerconfigstream:
+        controllerconfigdoc = yaml.load(controllerconfigstream)
+
+    dbtype = controllerconfigdoc['db']['type']
+    dbhost = str(controllerconfigdoc['db']['host'])
+    dbport = str(controllerconfigdoc['db']['port'])
+    dbusername = controllerconfigdoc['db']['username']
+    dbpassword = controllerconfigdoc['db']['password']
+    dbname = controllerconfigdoc['db']['name']
+    basecoll = controllerconfigdoc['db']['basecollection']
+
+    #workpath = controllerpath + "/logs"
+    #controllerfile = controllerpath + "/crunch_" + modname + "_" + kwargs['controllername'] + "_controller.job"
+    #with open(controllerfile, "r") as controllerstream:
+    #    for controllerline in controllerstream:
+    #        if "dbtype=" in controllerline:
+    #            dbtype = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if dbtype == "":
+    #                dbtype = None
+    #        elif "dbhost=" in controllerline:
+    #            dbhost = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if dbhost == "":
+    #                dbhost = None
+    #        elif "dbport=" in controllerline:
+    #            dbport = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if dbport == "":
+    #                dbport = None
+    #        elif "dbusername=" in controllerline:
+    #            dbusername = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if dbusername == "":
+    #                dbusername = None
+    #        elif "dbpassword=" in controllerline:
+    #            dbpassword = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if dbpassword == "":
+    #                dbpassword = None
+    #        elif "dbname=" in controllerline:
+    #            dbname = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if dbname == "":
+    #                dbname = None
+    #        elif "basecollection=" in controllerline:
+    #            basecoll = controllerline.split("=")[1].lstrip("\"").rstrip("\"\n")
+    #            if basecoll == "":
+    #                basecoll = None
+
+if not os.path.isdir(controllerpath + "/jobs"):
+    os.mkdir(controllerpath + "/jobs")
+if not os.path.isdir(controllerpath + "/docs"):
+    os.mkdir(controllerpath + "/docs")
+if not os.path.isdir(controllerpath + "/logs"):
+    os.mkdir(controllerpath + "/logs")
+if not os.path.isdir(controllerpath + "/locks"):
+    os.mkdir(controllerpath + "/locks")
+if not os.path.isdir(controllerpath + "/bkps") and (kwargs['intermedlocal'] or kwargs['outlocal'] or kwargs['statslocal']):
+    os.mkdir(controllerpath + "/bkps")
 
 if len(kwargs['input_list']) > 0:
     stdin_iter_arg = iter(kwargs['input_list'])
 else:
-    stdin_iter_arg = iter([])
+    stdin_iter_arg = iter([])    
 
 if kwargs['input_file'] != None:
-    if "/" not in kwargs['input_file']:
-        kwargs['input_file'] = workpath + "/" + kwargs['input_file']
-    stdin_iter_file = open(kwargs['input_file'], "r")
-else:
-    stdin_iter_file = None
-
-if kwargs['input_file'] != None:
-    filename = ".".join(kwargs['input_file'].split('.')[:-1])
-    stepsplit = kwargs['input_file'].split('/')[-1].split('.')[0].split("_step_")
+    if "/" in kwargs['input_file']:
+        kwargs['input_file'] = kwargs['input_file'].split('/')[-1]
+    stdin_iter_file = open(controllerpath + "/docs/" + kwargs['input_file'], "r")
+    jobstepname = kwargs['input_file'].split('.')[0]
+    #filename = ".".join(kwargs['input_file'].split('.')[:-1])
+    stepsplit = jobstepname.split("_step_")
     job = stepsplit[0].split("_job_")[1]
     step = stepsplit[1]
 else:
-    filename = workpath + "/" + kwargs['stepid']
-    stepsplit = kwargs['stepid'].split('.')
+    stdin_iter_file = None
+    #filename = workpath + "/" + kwargs['stepid']
+    jobstepname = kwargs['stepid']
+    stepsplit = jobstepname.split('.')
     job = stepsplit[0]
     if len(stepsplit) > 1:
         step = stepsplit[1]
     else:
         step = "1"
 
-if kwargs['logging']:
-    logiolist = [""]
+if kwargs['intermedlog']:
+    intermedlogstream = open(controllerpath + "/logs/" + jobstepname + ".log.intermed", "w")
 
-if kwargs['writelocal'] or kwargs['statslocal']:
-    outiolist = [""]
-    outiostream = open(filename + ".out", "w")
-    if kwargs['templocal']:
-        tempiostream = open(filename + ".temp", "w")
+if kwargs['outlog']:
+    outlogstream = open(controllerpath + "/logs/" + jobstepname + ".log", "w")
+    outlogiolist = [""]
+
+if kwargs['outlocal'] or kwargs['statslocal']:
+    outiolist = [{}]
+    #outiostream = open(controllerpath + "/bkps/" + jobstepname + ".out", "w")
+    #if kwargs['intermedlocal']:
+    #    intermediostream = open(controllerpath + "/bkps/" + jobstepname + ".intermed", "w")
     if (kwargs['dbindexes'] == None) or ((kwargs['controllername'] == None) and (basecoll == None)):
         parser.error("Both --write-local and --stats-local require either the options:\n--controllername --dbindexes, \nor the options: --basecoll --dbindexes")
 
-if any([kwargs[x] for x in ['writedb', 'statsdb']]):
+if any([kwargs[x] for x in ['outdb', 'statsdb']]):
     if (kwargs['dbindexes'] == None) or ((kwargs['controllername'] == None) and any([x == None for x in [dbtype, dbhost, dbport, dbusername, dbpassword, dbname, basecoll]])):
-        parser.error("Both --writedb and --statsdb require either the options:\n--controllername --dbindexes, \nor the options:\n--dbtype --dbhost --dbport --dbusername --dbpassword --dbname --basecoll --dbindexes")
+        parser.error("Both --outdb and --statsdb require either the options:\n--controllername --dbindexes, \nor the options:\n--dbtype --dbhost --dbport --dbusername --dbpassword --dbname --basecoll --dbindexes")
     else:
         if dbtype == "mongodb":
             from mongojoin import get_bsonsize
@@ -782,10 +814,10 @@ stdin_queue = Queue()
 if not kwargs['interactive']:
     stdin_queue.put("")
 
-temp_queue = Queue()
+intermed_queue = Queue()
 
 stdout_queue = Queue()
-#stdout_reader = AsynchronousThreadStreamReaderWriter(process.stdin, process.stdout, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+#stdout_reader = AsynchronousThreadStreamReaderWriter(process.stdin, process.stdout, stdin_iter_arg, stdin_iter_file, stdin_queue, intermed_queue, stdout_queue, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
 #stdout_reader.start()
 
 #stderr_queue = Queue()
@@ -800,7 +832,7 @@ stats_list = [x.lower() for x in kwargs['stats_list']]
 if not any([x.lower() == "elapsedtime" for x in kwargs['stats_list']]):
     stats_list += ["elapsedtime"]
 
-handler = AsynchronousThreadStatsStreamReaderWriter(workpath, filename, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, temp_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = stats_list if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+handler = AsynchronousThreadStatsStreamReaderWriter(controllerpath, jobstepname, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, intermed_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = stats_list if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
 handler.start()
 #print("b")
 #sys.stdout.flush()
@@ -808,7 +840,7 @@ handler.start()
 bulkcolls = {}
 bulkrequestslist = [{}]
 countallbatches = [0]
-#tempiostream = open(workpath + "/" + stepname + ".temp", "w")
+#intermediostream = open(workpath + "/" + stepname + ".temp", "w")
 bsonsize = 0
 countthisbatch = 0
 nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
@@ -821,84 +853,12 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
     while not stdout_queue.empty():
         while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
             line = stdout_queue.get().rstrip("\n")
-            #with open(filename + ".test", "a") as teststream:
+            #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
             #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Print: " + line + "\n")
             #    teststream.flush()
             if line not in ignoredstrings:
-                linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
-                linemarker = linehead[0]
-                if linemarker == "-":
-                    newcollection, strindexdoc = linehead[1:-1].split(".")
-                    newindexdoc = json.loads(strindexdoc)
-                    linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
-                    doc = json.loads(linedoc)
-                    if dbtype == "mongodb":
-                        bsonsize -= get_bsonsize(doc)
-                    if kwargs['templocal']:
-                        tempiostream.write(line + "\n")
-                        tempiostream.flush()
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + "\n"
-                    if kwargs['writedb']:
-                        if newcollection not in bulkcolls.keys():
-                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
-                            if dbtype == "mongodb":
-                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
-                        if newcollection not in bulkrequestslist[-1].keys():
-                            bulkrequestslist[-1][newcollection] = []
-                        #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
-                        if dbtype == "mongodb":
-                            bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
-                elif linemarker == "+":
-                    #tempiostream.write(linehead[1:-1].split(".") + "\n")
-                    #sys.stdout.flush()
-                    #print(line)
-                    #print(linehead)
-                    #sys.stdout.flush()
-                    newcollection, strindexdoc = linehead[1:-1].split(".")
-                    newindexdoc = json.loads(strindexdoc)
-                    linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
-                    doc = json.loads(linedoc)
-                    if dbtype == "mongodb":
-                        bsonsize += get_bsonsize(doc)
-                    if kwargs['templocal']:
-                        tempiostream.write(line + "\n")
-                        tempiostream.flush()
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + "\n"
-                    if kwargs['writedb']:
-                        if newcollection not in bulkcolls.keys():
-                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
-                            if dbtype == "mongodb":
-                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
-                        if newcollection not in bulkrequestslist[-1].keys():
-                            bulkrequestslist[-1][newcollection] = []
-                        #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set": doc})
-                        if dbtype == "mongodb":
-                            bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$set": doc}, upsert = True)]
-                elif linemarker == "&":
-                    newcollection, strindexdoc = linehead[1:-1].split(".")
-                    newindexdoc = json.loads(strindexdoc)
-                    linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
-                    doc = json.loads(linedoc)
-                    if dbtype == "mongodb":
-                        bsonsize += get_bsonsize(doc)
-                    if kwargs['templocal']:
-                        tempiostream.write(line + "\n")
-                        tempiostream.flush()
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + "\n"
-                    if kwargs['writedb']:
-                        if newcollection not in bulkcolls.keys():
-                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
-                            if dbtype == "mongodb":
-                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
-                        if newcollection not in bulkrequestslist[-1].keys():
-                            bulkrequestslist[-1][newcollection] = []
-                        #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
-                        if dbtype == "mongodb":
-                            bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
-                elif linemarker == "@":
+                line_split = line.split()
+                if line == "":
                     if kwargs['statslocal'] or kwargs['statsdb']:
                         cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
                         maxrss = handler.max_stat("Rss")
@@ -914,34 +874,40 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     #newcollection, strindexdoc = linehead[1:].split("<")[0].split(".")
                     #newindexdoc = json.loads(strindexdoc)
                     newcollection = basecoll
-                    doc = json.loads(temp_queue.get())
-                    newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);               
-                    if kwargs['logging']:
-                        duration = "%.2f" % handler.stat("ElapsedTime")
-                        logiolist[-1] += "Job " + job + ": Step " + step + ": " + "Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
-                        sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
-                        sys.stdout.flush()
-                    if kwargs['templocal']:
-                        tempiostream.write("+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n")
-                        tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
-                        tempiostream.flush()
+                    doc = json.loads(intermed_queue.get())
+                    newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);
+                    outext = newcollection + ".set"
+                    duration = "%.2f" % handler.stat("ElapsedTime")
+                    if kwargs['intermedlog']:
+                        intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                        intermedlogstream.flush()
+                    if kwargs['outlog']:
+                        outlogiolist[-1] += "Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     statsmark = {}
-                    if kwargs['statsdb']:
+                    if kwargs['statslocal'] or kwargs['statsdb']:
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                     if kwargs['markdone'] != "":
                         statsmark.update({modname + kwargs['markdone']: True})
-                    if kwargs['statslocal']:
-                        #outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
-                        #outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
-                        #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
-                        #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
-                        outiolist[-1] += "+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n"
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     # Testing
-                    #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
+                    #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
                     # Done testing
                     if len(statsmark) > 0:
+                        mergeddoc = merge_two_dicts(newindexdoc, statsmark)
+                        lineout = json.dumps(mergeddoc, separators = (',',':'))
+                        if kwargs['intermedlocal']:
+                            with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                                intermediostream.write(lineout + "\n")
+                                intermediostream.flush()
+                        if kwargs['statslocal']:
+                            #outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
+                            #outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
+                            #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
+                            #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
+                            if outext not in outiolist[-1].keys():
+                                outiolist[-1][outext] = ""
+                            outiolist[-1][outext] += lineout + "\n"
+                        #if kwargs['outlocal']:
+                        #    outiolist[-1] += newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                         if newcollection not in bulkcolls.keys():
                             #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
                             if dbtype == "mongodb":
@@ -956,30 +922,150 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     countallbatches[-1] += 1
                     if countthisbatch == nbatch:
                         bulkrequestslist += [{}]
-                        if kwargs['logging']:
-                            logiolist += [""]
-                        if kwargs['writelocal'] or kwargs['statslocal']:
-                            outiolist += [""]
+                        if kwargs['outlog']:
+                            outlogiolist += [""]
+                        if kwargs['outlocal'] or kwargs['statslocal']:
+                            outiolist += [{}]
                         countthisbatch = 0
                         nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
                         countallbatches += [0]
-                elif linemarker == "#":
-                    if kwargs['logging']:
-                        sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": " + line + "\n")
-                        sys.stdout.flush()
-                    if kwargs['templocal']:
-                        tempiostream.write(line + "\n")
-                        tempiostream.flush()
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + "\n"
+                elif line[0] == "#":
+                        if kwargs['intermedlog']:
+                            intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + "\n")
+                            intermedlogstream.flush()
+                        if kwargs['outlog']:
+                            outlogstream.write(line + "\n")
+                            outlogstream.flush()
+                elif len(line_split) == 4:
+                    #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
+                    #linemarker = linehead[0]
+                    if line_split[1] == "unset":
+                        newcollection = line_split[1]
+                        newindexdoc = json.loads(line_split[2])
+                        #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                        doc = json.loads(line_split[3])
+                        mergeddoc = merge_two_dicts(newindexdoc, doc)
+                        lineout = json.dumps(mergeddoc, separators = (',',':'))
+                        outext = newcollection + "." + line_split[1]
+                        if dbtype == "mongodb":
+                            bsonsize -= get_bsonsize(doc)
+                        if kwargs['intermedlocal']:
+                            with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                                intermediostream.write(lineout + "\n")
+                                intermediostream.flush()
+                        if kwargs['outlocal']:
+                            if outext not in outiolist[-1].keys():
+                                outiolist[-1][outext] = ""
+                            outiolist[-1][outext] += lineout + "\n"
+                        if kwargs['outdb']:
+                            if newcollection not in bulkcolls.keys():
+                                #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                                if dbtype == "mongodb":
+                                    bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                            if newcollection not in bulkrequestslist[-1].keys():
+                                bulkrequestslist[-1][newcollection] = []
+                            #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
+                            if dbtype == "mongodb":
+                                bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
+                    elif line_split[1] == "set":
+                        newcollection = line_split[1]
+                        newindexdoc = json.loads(line_split[2])
+                        #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                        doc = json.loads(line_split[3])
+                        mergeddoc = merge_two_dicts(newindexdoc, doc)
+                        lineout = json.dumps(mergeddoc, separators = (',',':'))
+                        outext = newcollection + "." + line_split[1]
+                        if dbtype == "mongodb":
+                            bsonsize += get_bsonsize(doc)
+                        if kwargs['intermedlocal']:
+                            with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                                intermediostream.write(lineout + "\n")
+                                intermediostream.flush()
+                        if kwargs['outlocal']:
+                            if outext not in outiolist[-1].keys():
+                                outiolist[-1][outext] = ""
+                            outiolist[-1][outext] += lineout + "\n"
+                        if kwargs['outdb']:
+                            if newcollection not in bulkcolls.keys():
+                                #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                                if dbtype == "mongodb":
+                                    bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                            if newcollection not in bulkrequestslist[-1].keys():
+                                bulkrequestslist[-1][newcollection] = []
+                            #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set": doc})
+                            if dbtype == "mongodb":
+                                bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$set": doc}, upsert = True)]
+                    elif line_split[1] == "addToSet":
+                        newcollection = line_split[1]
+                        newindexdoc = json.loads(line_split[2])
+                        #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                        doc = json.loads(line_split[3])
+                        mergeddoc = merge_two_dicts(newindexdoc, doc)
+                        lineout = json.dumps(mergeddoc, separators = (',',':'))
+                        outext = newcollection + "." + line_split[1]
+                        if dbtype == "mongodb":
+                            bsonsize += get_bsonsize(doc)
+                        if kwargs['intermedlocal']:
+                            with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                                intermediostream.write(lineout + "\n")
+                                intermediostream.flush()
+                        if kwargs['outlocal']:
+                            if outext not in outiolist[-1].keys():
+                                outiolist[-1][outext] = ""
+                            outiolist[-1][outext] += lineout + "\n"
+                        if kwargs['outdb']:
+                            if newcollection not in bulkcolls.keys():
+                                #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                                if dbtype == "mongodb":
+                                    bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                            if newcollection not in bulkrequestslist[-1].keys():
+                                bulkrequestslist[-1][newcollection] = []
+                            #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
+                            if dbtype == "mongodb":
+                                bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
+                    elif line_split[1] == "insert":
+                        newcollection = line_split[1]
+                        newindexdoc = json.loads(line_split[2])
+                        #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                        doc = json.loads(line_split[3])
+                        mergeddoc = merge_two_dicts(newindexdoc, doc)
+                        lineout = json.dumps(mergeddoc, separators = (',',':'))
+                        outext = newcollection + "." + line_split[1]
+                        if dbtype == "mongodb":
+                            bsonsize += get_bsonsize(doc)
+                        if kwargs['intermedlocal']:
+                            with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                                intermediostream.write(lineout + "\n")
+                                intermediostream.flush()
+                        if kwargs['outlocal']:
+                            if outext not in outiolist[-1].keys():
+                                outiolist[-1][outext] = ""
+                            outiolist[-1][outext] += lineout + "\n"
+                        if kwargs['outdb']:
+                            if newcollection not in bulkcolls.keys():
+                                #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                                if dbtype == "mongodb":
+                                    bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                            if newcollection not in bulkrequestslist[-1].keys():
+                                bulkrequestslist[-1][newcollection] = []
+                            #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
+                            if dbtype == "mongodb":
+                                bulkrequestslist[-1][newcollection] += [InsertOne(mergeddoc)]
                 else:
-                    if kwargs['templocal']:
-                        tempiostream.write(line + "\n")
-                        tempiostream.flush()
-                    if kwargs['writelocal']:
-                        outiolist[-1] += line + "\n"
+                    #if kwargs['intermedlocal']:
+                    #    intermediostream.write(line + "\n")
+                    #    intermediostream.flush()
+                    #if kwargs['outlocal']:
+                    #    outiolist[-1] += line + "\n"
+                    try:
+                        raise IndexError("Modules should only output commented lines, blank lines separating processed input documents, or line with 4 columns representing: collection name, update action, index document, output document.")
+                    except IndexError as e:
+                        with open(controllerpath + "/logs/" + jobstepname + ".err", "a") as errfilestream:
+                            traceback.print_exc(file = errfilestream)
+                            errfilestream.flush()
+                        raise
                 #if handler.nlocks() < kwargs['nworkers']:
-                #    lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
+                #    lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
                 #    with open(lockfile, 'w') as lockstream:
                 #        lockstream.write(str(countallbatches))
                 #        lockstream.flush()
@@ -994,11 +1080,11 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 #            break
                 #        except IOError:
                 #            sleep(0.01)
-                #    sys.stdout.write(tempiostream.getvalue())
+                #    sys.stdout.write(intermediostream.getvalue())
                 #    sys.stdout.flush()
                 #    fcntl.flock(sys.stdout, fcntl.LOCK_UN)
                 #    bulkdict = {}
-                #    tempiostream = cStringIO.StringIO()
+                #    intermediostream = cStringIO.StringIO()
                 #    countallbatches = 0
                 #    os.remove(lockfile)
 
@@ -1007,7 +1093,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         #    if stderr_line not in ignoredstrings:
         #        if kwargs['controllername'] != None:
         #            exitcode = get_exitcode(kwargs['stepid'])
-        #        with open(filename + ".err", "a") as errstream:
+        #        with open(controllerpath + "/logs/" + jobstepname + ".err", "a") as errstream:
         #            if kwargs['controllername'] != None:
         #                errstream.write("ExitCode: " + exitcode + "\n")
         #            errstream.write(stderr_line + "\n")
@@ -1023,7 +1109,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
         if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
-            #with open(filename + ".test", "a") as teststream:
+            #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
             #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
             #    teststream.flush()
             #if handler.nlocks() >= kwargs['nworkers']:
@@ -1033,7 +1119,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             #        sleep(0.01)
             #else:
             #    overlocked = False
-            lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
+            lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
             with open(lockfile, 'w') as lockstream:
                 lockstream.write("Writing " + str(countallbatches[0]) + " items.")
                 lockstream.flush()
@@ -1054,36 +1140,40 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             #        break
             #    except IOError:
             #        sleep(0.01)
-            #tempiostream.close()
-            #with open(workpath + "/" + stepname + ".temp", "r") as tempiostream, open(workpath + "/" + stepname + ".out", "a") as iostream:
-            #    for line in tempiostream:
+            #intermediostream.close()
+            #with open(workpath + "/" + stepname + ".temp", "r") as intermediostream, open(workpath + "/" + stepname + ".out", "a") as iostream:
+            #    for line in intermediostream:
             #        iostream.write(line)
             #        iostream.flush()
-            #    os.remove(tempiostream.name)
-            #sys.stdout.write(tempiostream.getvalue())
+            #    os.remove(intermediostream.name)
+            #sys.stdout.write(intermediostream.getvalue())
             #sys.stdout.flush()
-            if kwargs['logging']:
-                #print(len(logiolist[0].rstrip("\n").split("\n")))
+            if kwargs['outlog']:
+                #print(len(outlogiolist[0].rstrip("\n").split("\n")))
                 #sys.stdout.flush()
-                logiotime = ""
-                for logio in logiolist[0].rstrip("\n").split("\n"):
-                    if logio != "":
-                        logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-                sys.stdout.write(logiotime)
-                sys.stdout.flush()
-                del logiolist[0]
-            if kwargs['templocal']:
-                name = tempiostream.name
-                tempiostream.close()
-                os.remove(name)
-                tempiostream = open(name, "w")
-            if kwargs['writelocal'] or kwargs['statslocal']:
-                outiostream.write(outiolist[0])
-                outiostream.flush()
+                outlogiotime = ""
+                for outlogio in outlogiolist[0].rstrip("\n").split("\n"):
+                    if outlogio != "":
+                        outlogiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + outlogio + "\n"
+                outlogstream.write(outlogiotime)
+                outlogstream.flush()
+                del outlogiolist[0]
+            #if kwargs['intermedlocal']:
+                #name = intermediostream.name
+                #intermediostream.close()
+                #os.remove(name)
+                #intermediostream = open(name, "w")
+            if kwargs['outlocal'] or kwargs['statslocal']:
+                for outext, outio in outiolist[0].items():
+                    with open(controllerpath + "/bkps/" + jobstepname + "." + outext, "a") as outiostream:
+                        outiostream.write(outio)
+                        outiostream.flush()
+                    if kwargs['intermedlocal']:
+                        os.remove(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed")
                 del outiolist[0]
             #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
             #bulkdict = {}
-            #tempiostream = open(workpath + "/" + stepname + ".temp", "w")
+            #intermediostream = open(workpath + "/" + stepname + ".temp", "w")
             #countallbatches = 0
             os.remove(lockfile)
             #if overlocked:
@@ -1094,81 +1184,12 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
 while not stdout_queue.empty():
     while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
         line = stdout_queue.get().rstrip("\n")
-        #with open(filename + ".test", "a") as teststream:
+        #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
         #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Print: " + line + "\n")
         #    teststream.flush()
         if line not in ignoredstrings:
-            linehead = re.sub("^([- + &@].*?>|None).*", r"\1", line)
-            linemarker = linehead[0]
-            if linemarker == "-":
-                newcollection, strindexdoc = linehead[1:-1].split(".")
-                newindexdoc = json.loads(strindexdoc)
-                linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
-                doc = json.loads(linedoc)
-                if dbtype == "mongodb":
-                    bsonsize -= get_bsonsize(doc)
-                if kwargs['templocal']:
-                    tempiostream.write(line + "\n")
-                    tempiostream.flush()
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + "\n"
-                if kwargs['writedb']:
-                    if newcollection not in bulkcolls.keys():
-                        #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
-                        if dbtype == "mongodb":
-                            bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
-                    if newcollection not in bulkrequestslist[-1].keys():
-                        bulkrequestslist[-1][newcollection] = []
-                    #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
-                    if dbtype == "mongodb":
-                        bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
-            elif linemarker == "+":
-                #tempiostream.write(linehead[1:-1].split(".") + "\n")
-                #sys.stdout.flush()
-                newcollection, strindexdoc = linehead[1:-1].split(".")
-                newindexdoc = json.loads(strindexdoc)
-                linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
-                doc = json.loads(linedoc)
-                if dbtype == "mongodb":
-                    bsonsize += get_bsonsize(doc)
-                if kwargs['templocal']:
-                    tempiostream.write(line + "\n")
-                    tempiostream.flush()
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + "\n"
-                if kwargs['writedb']:
-                    if newcollection not in bulkcolls.keys():
-                        #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
-                        if dbtype == "mongodb":
-                            bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
-                    if newcollection not in bulkrequestslist[-1].keys():
-                        bulkrequestslist[-1][newcollection] = []
-                    #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set": doc})
-                    if dbtype == "mongodb":
-                        bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$set": doc}, upsert = True)]
-            elif linemarker == "&":
-                newcollection, strindexdoc = linehead[1:-1].split(".")
-                newindexdoc = json.loads(strindexdoc)
-                linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
-                doc = json.loads(linedoc)
-                if dbtype == "mongodb":
-                    bsonsize += get_bsonsize(doc)
-                if kwargs['templocal']:
-                    tempiostream.write(line + "\n")
-                    tempiostream.flush()
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + "\n"
-                if kwargs['writedb']:
-                    if newcollection not in bulkcolls.keys():
-                        #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
-                        if dbtype == "mongodb":
-                            bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
-                    if newcollection not in bulkrequestslist[-1].keys():
-                        bulkrequestslist[-1][newcollection] = []
-                    #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
-                    if dbtype == "mongodb":
-                        bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
-            elif linemarker == "@":
+            line_split = line.split()
+            if line == "":
                 if kwargs['statslocal'] or kwargs['statsdb']:
                     cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
                     maxrss = handler.max_stat("Rss")
@@ -1184,34 +1205,40 @@ while not stdout_queue.empty():
                 #newcollection, strindexdoc = linehead[1:].split("<")[0].split(".")
                 #newindexdoc = json.loads(strindexdoc)
                 newcollection = basecoll
-                doc = json.loads(temp_queue.get())
-                newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);               
-                if kwargs['logging']:
-                    duration = "%.2f" % handler.stat("ElapsedTime")
-                    logiolist[-1] += "Job " + job + ": Step " + step + ": " + "Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">OUT\n"
-                    sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": Duration " + duration + ": " + line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">TEMP\n")
-                    sys.stdout.flush()
-                if kwargs['templocal']:
-                    tempiostream.write("+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n")
-                    tempiostream.write(line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
-                    tempiostream.flush()
+                doc = json.loads(intermed_queue.get())
+                newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);
+                outext = newcollection + ".set"
+                duration = "%.2f" % handler.stat("ElapsedTime")
+                if kwargs['intermedlog']:
+                    intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                    intermedlogstream.flush()
+                if kwargs['outlog']:
+                    outlogiolist[-1] += "Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 statsmark = {}
-                if kwargs['statsdb']:
+                if kwargs['statslocal'] or kwargs['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                 if kwargs['markdone'] != "":
                     statsmark.update({modname + kwargs['markdone']: True})
-                if kwargs['statslocal']:
-                    #outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
-                    #outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
-                    #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
-                    #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
-                    outiolist[-1] += "+" + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + ">" + json.dumps(statsmark, separators = (',', ':')) + "\n"
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 # Testing
-                #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + filename.split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
+                #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
                 # Done testing
                 if len(statsmark) > 0:
+                    mergeddoc = merge_two_dicts(newindexdoc, statsmark)
+                    lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    if kwargs['intermedlocal']:
+                        with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                            intermediostream.write(lineout + "\n")
+                            intermediostream.flush()
+                    if kwargs['statslocal']:
+                        #outiolist[-1] += "CPUTime: " + str(cputime) + " seconds\n"
+                        #outiolist[-1] += "MaxRSS: " + str(maxrss) + " bytes\n"
+                        #outiolist[-1] += "MaxVMSize: " + str(maxvmsize) + " bytes\n"
+                        #outiolist[-1] += "BSONSize: " + str(bsonsize) + " bytes\n"
+                        if outext not in outiolist[-1].keys():
+                            outiolist[-1][outext] = ""
+                        outiolist[-1][outext] += lineout + "\n"
+                    #if kwargs['outlocal']:
+                    #    outiolist[-1] += newcollection + "." + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     if newcollection not in bulkcolls.keys():
                         #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
                         if dbtype == "mongodb":
@@ -1226,30 +1253,150 @@ while not stdout_queue.empty():
                 countallbatches[-1] += 1
                 if countthisbatch == nbatch:
                     bulkrequestslist += [{}]
-                    if kwargs['logging']:
-                        logiolist += [""]
-                    if kwargs['writelocal'] or kwargs['statslocal']:
-                        outiolist += [""]
+                    if kwargs['outlog']:
+                        outlogiolist += [""]
+                    if kwargs['outlocal'] or kwargs['statslocal']:
+                        outiolist += [{}]
                     countthisbatch = 0
                     nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
                     countallbatches += [0]
-            elif linemarker == "#":
-                if kwargs['logging']:
-                    sys.stdout.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Job " + job + ": Step " + step + ": " + line + "\n")
-                    sys.stdout.flush()
-                if kwargs['templocal']:
-                    tempiostream.write(line + "\n")
-                    tempiostream.flush()
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + "\n"
+            elif line[0] == "#":
+                    if kwargs['intermedlog']:
+                        intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + "\n")
+                        intermedlogstream.flush()
+                    if kwargs['outlog']:
+                        outlogstream.write(line + "\n")
+                        outlogstream.flush()
+            elif len(line_split) == 4:
+                #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
+                #linemarker = linehead[0]
+                if line_split[1] == "unset":
+                    newcollection = line_split[1]
+                    newindexdoc = json.loads(line_split[2])
+                    #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                    doc = json.loads(line_split[3])
+                    mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    outext = newcollection + "." + line_split[1]
+                    if dbtype == "mongodb":
+                        bsonsize -= get_bsonsize(doc)
+                    if kwargs['intermedlocal']:
+                        with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                            intermediostream.write(lineout + "\n")
+                            intermediostream.flush()
+                    if kwargs['outlocal']:
+                        if outext not in outiolist[-1].keys():
+                            outiolist[-1][outext] = ""
+                        outiolist[-1][outext] += lineout + "\n"
+                    if kwargs['outdb']:
+                        if newcollection not in bulkcolls.keys():
+                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                            if dbtype == "mongodb":
+                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                        if newcollection not in bulkrequestslist[-1].keys():
+                            bulkrequestslist[-1][newcollection] = []
+                        #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
+                        if dbtype == "mongodb":
+                            bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
+                elif line_split[1] == "set":
+                    newcollection = line_split[1]
+                    newindexdoc = json.loads(line_split[2])
+                    #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                    doc = json.loads(line_split[3])
+                    mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    outext = newcollection + "." + line_split[1]
+                    if dbtype == "mongodb":
+                        bsonsize += get_bsonsize(doc)
+                    if kwargs['intermedlocal']:
+                        with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                            intermediostream.write(lineout + "\n")
+                            intermediostream.flush()
+                    if kwargs['outlocal']:
+                        if outext not in outiolist[-1].keys():
+                            outiolist[-1][outext] = ""
+                        outiolist[-1][outext] += lineout + "\n"
+                    if kwargs['outdb']:
+                        if newcollection not in bulkcolls.keys():
+                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                            if dbtype == "mongodb":
+                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                        if newcollection not in bulkrequestslist[-1].keys():
+                            bulkrequestslist[-1][newcollection] = []
+                        #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set": doc})
+                        if dbtype == "mongodb":
+                            bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$set": doc}, upsert = True)]
+                elif line_split[1] == "addToSet":
+                    newcollection = line_split[1]
+                    newindexdoc = json.loads(line_split[2])
+                    #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                    doc = json.loads(line_split[3])
+                    mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    outext = newcollection + "." + line_split[1]
+                    if dbtype == "mongodb":
+                        bsonsize += get_bsonsize(doc)
+                    if kwargs['intermedlocal']:
+                        with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                            intermediostream.write(lineout + "\n")
+                            intermediostream.flush()
+                    if kwargs['outlocal']:
+                        if outext not in outiolist[-1].keys():
+                            outiolist[-1][outext] = ""
+                        outiolist[-1][outext] += lineout + "\n"
+                    if kwargs['outdb']:
+                        if newcollection not in bulkcolls.keys():
+                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                            if dbtype == "mongodb":
+                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                        if newcollection not in bulkrequestslist[-1].keys():
+                            bulkrequestslist[-1][newcollection] = []
+                        #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
+                        if dbtype == "mongodb":
+                            bulkrequestslist[-1][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
+                elif line_split[1] == "insert":
+                    newcollection = line_split[1]
+                    newindexdoc = json.loads(line_split[2])
+                    #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
+                    doc = json.loads(line_split[3])
+                    mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    outext = newcollection + "." + line_split[1]
+                    if dbtype == "mongodb":
+                        bsonsize += get_bsonsize(doc)
+                    if kwargs['intermedlocal']:
+                        with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
+                            intermediostream.write(lineout + "\n")
+                            intermediostream.flush()
+                    if kwargs['outlocal']:
+                        if outext not in outiolist[-1].keys():
+                            outiolist[-1][outext] = ""
+                        outiolist[-1][outext] += lineout + "\n"
+                    if kwargs['outdb']:
+                        if newcollection not in bulkcolls.keys():
+                            #bulkdict[newcollection] = db[newcollection].initialize_unordered_bulk_op()
+                            if dbtype == "mongodb":
+                                bulkcolls[newcollection] = db.get_collection(newcollection, write_concern = WriteConcern(w = "majority", fsync = True))
+                        if newcollection not in bulkrequestslist[-1].keys():
+                            bulkrequestslist[-1][newcollection] = []
+                        #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
+                        if dbtype == "mongodb":
+                            bulkrequestslist[-1][newcollection] += [InsertOne(mergeddoc)]
             else:
-                if kwargs['templocal']:
-                    tempiostream.write(line + "\n")
-                    tempiostream.flush()
-                if kwargs['writelocal']:
-                    outiolist[-1] += line + "\n"
+                #if kwargs['intermedlocal']:
+                #    intermediostream.write(line + "\n")
+                #    intermediostream.flush()
+                #if kwargs['outlocal']:
+                #    outiolist[-1] += line + "\n"
+                try:
+                    raise IndexError("Modules should only output commented lines, blank lines separating processed input documents, or line with 4 columns representing: collection name, update action, index document, output document.")
+                except IndexError as e:
+                    with open(controllerpath + "/logs/" + jobstepname + ".err", "a") as errfilestream:
+                        traceback.print_exc(file = errfilestream)
+                        errfilestream.flush()
+                    raise
             #if handler.nlocks() < kwargs['nworkers']:
-            #    lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
+            #    lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
             #    with open(lockfile, 'w') as lockstream:
             #        lockstream.write(str(countallbatches))
             #        lockstream.flush()
@@ -1264,11 +1411,11 @@ while not stdout_queue.empty():
             #            break
             #        except IOError:
             #            sleep(0.01)
-            #    sys.stdout.write(tempiostream.getvalue())
+            #    sys.stdout.write(intermediostream.getvalue())
             #    sys.stdout.flush()
             #    fcntl.flock(sys.stdout, fcntl.LOCK_UN)
             #    bulkdict = {}
-            #    tempiostream = cStringIO.StringIO()
+            #    intermediostream = cStringIO.StringIO()
             #    countallbatches = 0
             #    os.remove(lockfile)
 
@@ -1277,7 +1424,7 @@ while not stdout_queue.empty():
     #    if stderr_line not in ignoredstrings:
     #        if kwargs['controllername'] != None:
     #            exitcode = get_exitcode(kwargs['stepid'])
-    #        with open(filename + ".err", "a") as errstream:
+    #        with open(controllerpath + "/logs/" + jobstepname + ".err", "a") as errstream:
     #            if kwargs['controllername'] != None:
     #                errstream.write("ExitCode: " + exitcode + "\n")
     #            errstream.write(stderr_line + "\n")
@@ -1293,7 +1440,7 @@ while not stdout_queue.empty():
     #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
     if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
-        #with open(filename + ".test", "a") as teststream:
+        #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
         #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
         #    teststream.flush()
         #if handler.nlocks() >= kwargs['nworkers']:
@@ -1303,7 +1450,7 @@ while not stdout_queue.empty():
         #        sleep(0.01)
         #else:
         #    overlocked = False
-        lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
+        lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items.")
             lockstream.flush()
@@ -1324,36 +1471,40 @@ while not stdout_queue.empty():
         #        break
         #    except IOError:
         #        sleep(0.01)
-        #tempiostream.close()
-        #with open(workpath + "/" + stepname + ".temp", "r") as tempiostream, open(workpath + "/" + stepname + ".out", "a") as iostream:
-        #    for line in tempiostream:
+        #intermediostream.close()
+        #with open(workpath + "/" + stepname + ".temp", "r") as intermediostream, open(workpath + "/" + stepname + ".out", "a") as iostream:
+        #    for line in intermediostream:
         #        iostream.write(line)
         #        iostream.flush()
-        #    os.remove(tempiostream.name)
-        #sys.stdout.write(tempiostream.getvalue())
+        #    os.remove(intermediostream.name)
+        #sys.stdout.write(intermediostream.getvalue())
         #sys.stdout.flush()
-        if kwargs['logging']:
-            #print(len(logiolist[0].rstrip("\n").split("\n")))
-            sys.stdout.flush()
-            logiotime = ""
-            for logio in logiolist[0].rstrip("\n").split("\n"):
-                if logio != "":
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-            sys.stdout.write(logiotime)
-            sys.stdout.flush()
-            del logiolist[0]
-        if kwargs['templocal']:
-            name = tempiostream.name
-            tempiostream.close()
-            os.remove(name)
-            tempiostream = open(name, "w")
-        if kwargs['writelocal'] or kwargs['statslocal']:
-            outiostream.write(outiolist[0])
-            outiostream.flush()
+        if kwargs['outlog']:
+            #print(len(outlogiolist[0].rstrip("\n").split("\n")))
+            #sys.stdout.flush()
+            outlogiotime = ""
+            for outlogio in outlogiolist[0].rstrip("\n").split("\n"):
+                if outlogio != "":
+                    outlogiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + outlogio + "\n"
+            outlogstream.write(outlogiotime)
+            outlogstream.flush()
+            del outlogiolist[0]
+        #if kwargs['intermedlocal']:
+            #name = intermediostream.name
+            #intermediostream.close()
+            #os.remove(name)
+            #intermediostream = open(name, "w")
+        if kwargs['outlocal'] or kwargs['statslocal']:
+            for outext, outio in outiolist[0].items():
+                with open(controllerpath + "/bkps/" + jobstepname + "." + outext, "a") as outiostream:
+                    outiostream.write(outio)
+                    outiostream.flush()
+                if kwargs['intermedlocal']:
+                    os.remove(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed")
             del outiolist[0]
         #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
         #bulkdict = {}
-        #tempiostream = open(workpath + "/" + stepname + ".temp", "w")
+        #intermediostream = open(workpath + "/" + stepname + ".temp", "w")
         #countallbatches = 0
         os.remove(lockfile)
         #if overlocked:
@@ -1364,10 +1515,10 @@ while len(bulkrequestslist) > 0:
         sleep(kwargs['delay'])
 
     if (len(bulkrequestslist) > 0) and (handler.nlocks() < kwargs['nworkers']):
-        #with open(filename + ".test", "a") as teststream:
+        #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
         #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
         #    teststream.flush()
-        lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
+        lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items.")
             lockstream.flush()
@@ -1382,24 +1533,28 @@ while len(bulkrequestslist) > 0:
                     pprint(bwe.details)
             del bulkrequestslist[0]
 
-        if kwargs['logging']:
-            #print(len(logiolist[0].rstrip("\n").split("\n")))
-            sys.stdout.flush()
-            logiotime = ""
-            for logio in logiolist[0].rstrip("\n").split("\n"):
-                if logio != "":
-                    logiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + logio + "\n"
-            sys.stdout.write(logiotime)
-            sys.stdout.flush()
-            del logiolist[0]
-        if kwargs['templocal']:
-            name = tempiostream.name
-            tempiostream.close()
-            os.remove(name)
-            tempiostream = open(name, "w")
-        if kwargs['writelocal'] or kwargs['statslocal']:
-            outiostream.write(outiolist[0])
-            outiostream.flush()
+        if kwargs['outlog']:
+            #print(len(outlogiolist[0].rstrip("\n").split("\n")))
+            #sys.stdout.flush()
+            outlogiotime = ""
+            for outlogio in outlogiolist[0].rstrip("\n").split("\n"):
+                if outlogio != "":
+                    outlogiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + outlogio + "\n"
+            outlogstream.write(outlogiotime)
+            outlogstream.flush()
+            del outlogiolist[0]
+        #if kwargs['intermedlocal']:
+            #name = intermediostream.name
+            #intermediostream.close()
+            #os.remove(name)
+            #intermediostream = open(name, "w")
+        if kwargs['outlocal'] or kwargs['statslocal']:
+            for outext, outio in outiolist[0].items():
+                with open(controllerpath + "/bkps/" + jobstepname + "." + outext, "a") as outiostream:
+                    outiostream.write(outio)
+                    outiostream.flush()
+                if kwargs['intermedlocal']:
+                    os.remove(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed")
             del outiolist[0]
 
         os.remove(lockfile)
@@ -1407,13 +1562,21 @@ while len(bulkrequestslist) > 0:
 if kwargs['input_file'] != None:
     stdin_iter_file.close()
 
-if kwargs['templocal']:
-    if not tempiostream.closed:
-        tempiostream.close()
-    if os.path.exists(tempiostream.name):
-        os.remove(tempiostream.name)
-if kwargs['writelocal'] or kwargs['statslocal']:
-    outiostream.close()
+if kwargs['intermedlog']:
+    intermedlogstream.close()
+
+if kwargs['outlog']:
+    outlogstream.close()
+
+if kwargs['intermedlocal']:
+    #if not intermediostream.closed:
+    #    intermediostream.close()
+    #if os.path.exists(intermediostream.name):
+    #    os.remove(intermediostream.name)
+    for intermediofilename in glob.iglob(controllerpath + "/bkps/*.intermed"):
+        os.remove(intermediofilename)
+#if kwargs['outlocal'] or kwargs['statslocal']:
+#    outiostream.close()
 
 handler.join()
 #stderr_reader.join()

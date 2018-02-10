@@ -2,7 +2,7 @@
 
 modpath=$1
 controllerpath=$2
-workpath=$3
+#workpath=$3
 
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)

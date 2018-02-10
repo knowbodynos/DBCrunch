@@ -1,30 +1,31 @@
 #!/bin/bash
 
+ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
+
 modpath=$1
 controllerpath=$2
-workpath=$3
+#workpath=$3
 
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
 modulespath="${CRUNCH_ROOT}/modules/modules"
 
-#cp "${binpath}/reset.bash" "${controllerpath}/"
-cp -T "${modulespath}/${modname}/${modname}_slurm.job" "${controllerpath}/crunch_${modname}_${controllername}_controller.job"
-echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
-echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-echo "Pending" > ${controllerpath}/status 2>/dev/null
+cp -T "${modulespath}/${modname}/${modname}.config" "${controllerpath}/${modname}_${controllername}.config"
+#echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
 
-modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
+#modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
 
 files=$(find ${controllerpath} -mindepth 1 -type d -path '*/.*' -prune -o -type f -print 2>/dev/null)
 for file in ${files}
 do
     #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
-    sed -i "s|path\_to\_module|${modulesworkpath}|g" ${file}
+    sed -i "s|path\_to\_controller|${controllerpath}|g" ${file}
     sed -i "s|template|${controllername}|g" ${file}
     #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
     #mv ${file} ${newfile} 2>/dev/null
 done
 
-echo "Finished creating template for ${modname}_${controllername}."
+python ${ProgDir}/tools/create_controller.py ${controllerpath}
+
+echo "Finished creating controller job file for ${modname}_${controllername}."

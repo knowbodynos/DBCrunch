@@ -4,7 +4,7 @@ ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
 
 modpath=$1
 controllerpath=$2
-workpath=$3
+#workpath=$3
 
 max_job=$4
 max_time=$5
@@ -12,6 +12,6 @@ max_time=$5
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
-python ${ProgDir}/tools/analyze.py ${workpath} ${controllerpath} ${modname} ${controllername} usage.pdf ${max_job} ${max_time}
+python ${ProgDir}/tools/analyze.py ${controllerpath}/logs ${controllerpath} ${modname} ${controllername} usage.pdf ${max_job} ${max_time}
 
 echo "Finished generating resource usage graphs for ${modname}_${controllername}."

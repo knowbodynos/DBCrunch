@@ -2,13 +2,13 @@
 
 modpath=$1
 controllerpath=$2
-workpath=$3
+#workpath=$3
 
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
 #loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
-loadfilenames=$(find ${workpath} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.docs" -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
+loadfilenames=$(find ${controllerpath}/docs -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.docs" -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
 #loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
 #mkdir ${mainpath}/jobs/requeued 2>/dev/null
 #for patt in ${loadfilejobpatt}
@@ -21,7 +21,7 @@ do
     if [ -s "${loadfilename/.docs/.err}" ]
     then
         #errcode=$(cat ${mainpath}/jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
-        errcode=$(cat ${workpath}/${loadfilename/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
+        errcode=$(cat ${controllerpath}/logs/${loadfilename/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
         if [[ "${errcode}" == "" ]]
         then
             errcode="-1:0"
