@@ -1151,12 +1151,12 @@ def writejobfile(reloadjob, modname, logging, cleanup, templocal, writelocal, wr
     for i in range(ndocbatches):
         with open(controllerpath + "/jobs/" + jobstepnames[i] + ".docs", "w") as docstream:
             for n in range(len(docbatches[i])):
-                if n > 0:
-                    docstream.write("\n");
+                #if n > 0:
+                #    docstream.write("\n")
                 if reloadjob:
                     docstream.write(docbatches[i][n])
                 else:
-                    docstream.write(json.dumps(docbatches[i][n], separators = (',',':')))
+                    docstream.write(json.dumps(docbatches[i][n], separators = (',',':')) + "\n")
                 docstream.flush()
         if nthreadsfield != "":
             nstepthreads = max([x[nthreadsfield] for x in docbatches[i]])

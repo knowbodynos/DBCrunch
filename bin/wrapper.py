@@ -260,6 +260,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             else:
                 self._tempqueue.put(in_line)
                 self._instream.write(in_line + self._delimiter)
+                #with open(self._filename + ".test", "a") as teststream:
+                #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: In: " + in_line + "\n")
+                #    teststream.flush()
                 #print("a: " + in_line + self._delimiter)
                 #sys.stdout.flush()
                 self._instream.flush()
@@ -377,6 +380,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             while out_line != "":
                 #for out_line in iter(self._outstream.readline, ''):
                 out_line = out_line.rstrip("\n")
+                #with open(self._filename + ".test", "a") as teststream:
+                #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Out: " + out_line + "\n")
+                #    teststream.flush()
                 #if out_line == "\n".decode('string_escape'):
                 #sys.stdout.write(self._filename+" out_line: \""+out_line+"\"\n")
                 #sys.stdout.flush()
@@ -384,13 +390,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     if self._stats != None:
                         self.get_stats()
                         self._nlocks = len(glob.glob(self._workpath + "/*.lock"))
-                    #self.write_stdin()
+                    self.write_stdin()
                 self._outqueue.put(out_line.rstrip("\n"))
                 try:
                     out_line = self._outgen.next()
                 except StopIteration:
                     break
-                self.write_stdin()
+                #self.write_stdin()
 
         if errflag:
             with open(self._filename + ".err", "a") as errfilestream:
@@ -815,6 +821,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
     while not stdout_queue.empty():
         while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
             line = stdout_queue.get().rstrip("\n")
+            #with open(filename + ".test", "a") as teststream:
+            #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Print: " + line + "\n")
+            #    teststream.flush()
             if line not in ignoredstrings:
                 linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
                 linemarker = linehead[0]
@@ -1014,6 +1023,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
         if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
+            #with open(filename + ".test", "a") as teststream:
+            #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
+            #    teststream.flush()
             #if handler.nlocks() >= kwargs['nworkers']:
             #    overlocked = True
             #    os.kill(process.pid, signal.SIGSTOP)
@@ -1052,7 +1064,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             #sys.stdout.flush()
             if kwargs['logging']:
                 #print(len(logiolist[0].rstrip("\n").split("\n")))
-                sys.stdout.flush()
+                #sys.stdout.flush()
                 logiotime = ""
                 for logio in logiolist[0].rstrip("\n").split("\n"):
                     if logio != "":
@@ -1082,6 +1094,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
 while not stdout_queue.empty():
     while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
         line = stdout_queue.get().rstrip("\n")
+        #with open(filename + ".test", "a") as teststream:
+        #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Print: " + line + "\n")
+        #    teststream.flush()
         if line not in ignoredstrings:
             linehead = re.sub("^([- + &@].*?>|None).*", r"\1", line)
             linemarker = linehead[0]
@@ -1278,6 +1293,9 @@ while not stdout_queue.empty():
     #        #fcntl.flock(sys.stderr, fcntl.LOCK_UN)
 
     if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
+        #with open(filename + ".test", "a") as teststream:
+        #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
+        #    teststream.flush()
         #if handler.nlocks() >= kwargs['nworkers']:
         #    overlocked = True
         #    os.kill(process.pid, signal.SIGSTOP)
@@ -1346,6 +1364,9 @@ while len(bulkrequestslist) > 0:
         sleep(kwargs['delay'])
 
     if (len(bulkrequestslist) > 0) and (handler.nlocks() < kwargs['nworkers']):
+        #with open(filename + ".test", "a") as teststream:
+        #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
+        #    teststream.flush()
         lockfile = workpath + "/" + kwargs['stepid'] + ".lock"
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items.")
