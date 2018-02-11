@@ -16,7 +16,8 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, glob, json, yaml, traceback, tempfile, datetime #, re, linecache, fcntl
+import sys, os, json, yaml, traceback, tempfile, datetime #, re, linecache, fcntl
+from glob import iglob
 from pprint import pprint
 from time import time, sleep
 from random import randint
@@ -120,7 +121,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, controllerpath, jobstepname, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, intermed_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
+    def __init__(self, controllerpath, jobstepname, pid, in_stream, out_stream, err_stream, in_iter_arg, in_iter_file, in_queue, intermed_queue, out_queue, stepid = None, ignoredstrings = [], stats = None, stats_queue = None, delimiter = '', cleanup = None, time_limit = None, start_time = None):
         assert hasattr(in_iter_arg, '__iter__')
         assert isinstance(in_iter_file, file) or in_iter_file == None
         assert isinstance(in_queue, Queue)
@@ -152,22 +153,27 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         self._timelimit = time_limit
         self._starttime = start_time
         self._stepid = stepid
-        self._nlocks = 0
+        self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
         self._ignoredstrings = ignoredstrings
-        if stats == None:
+        self._signal = False
+        if stats == None or stats_queue == None:
             self._stats = stats
         else:
             self._stats = dict((s, 0) for s in stats)
             self._proc_smaps = open("/proc/" + str(pid) + "/smaps", "r")
             self._proc_stat = open("/proc/" + str(pid) + "/stat", "r")
             self._proc_uptime = open("/proc/uptime", "r")
-            self._iter_start_time = 0
+            self._prev_uptime = 0
+            self._prev_parent_cputime = 0
+            self._prev_child_cputime = 0
+            self._prev_total_cputime = 0
             self._maxstats = dict((s, 0) for s in stats)
             self._totstats = dict((s, 0) for s in stats)
             self._nstats = 0
             self._lower_keys = [k.lower() for k in self._stats.keys()]
             self._time_keys = ["elapsedtime", "totalcputime", "parentcputime", "childcputime", "parentcpuusage", "childcpuusage", "totalcpuusage"]
             self._hz = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+            self._statsqueue = stats_queue
 
         self.daemon = True
 
@@ -279,7 +285,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                         self._initerfile = open(name, 'r')
                     self._cleanup_counter = 0
 
-    def get_stats(self):
+    def get_stats(self, next_iter = False):
+        for k in self._stats.keys():
+            self._stats[k] = 0
         if any([k in self._lower_keys for k in self._time_keys]):
             try:
                 self._proc_stat.seek(0)
@@ -291,28 +299,42 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             if stat_line != "":
                 stat_line_split = stat_line.split()
                 utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
-                if self._iter_start_time == 0:
-                    self._iter_start_time = float(stat_line_split[21]) / self._hz
-                parent_cputime = utime + stime
-                child_cputime = cutime + cstime
-                total_cputime = parent_cputime + child_cputime
+                
+                starttime = float(stat_line_split[21]) / self._hz
+                if self._prev_uptime == 0:
+                    self._prev_uptime = starttime
                 self._proc_uptime.seek(0)
                 uptime_line = self._proc_uptime.read()
                 uptime = float(uptime_line.split()[0])
-                elapsedtime = uptime - self._iter_start_time
-                self._iter_start_time = uptime
+                elapsedtime = uptime - starttime
+                iter_elapsedtime = uptime - self._prev_uptime
+
+                parent_cputime = utime + stime
+                iter_parent_cputime = parent_cputime - self._prev_parent_cputime
+
+                child_cputime = cutime + cstime
+                iter_child_cputime = child_cputime - self._prev_child_cputime
+
+                total_cputime = parent_cputime + child_cputime
+                iter_total_cputime = iter_parent_cputime + iter_child_cputime
+
+                if next_iter:
+                    self._prev_uptime = uptime
+                    self._prev_parent_cputime = parent_cputime
+                    self._prev_child_cputime = child_cputime
+                
                 parent_cpuusage = 100 * parent_cputime / elapsedtime if elapsedtime > 0 else 0
                 child_cpuusage = 100 * child_cputime / elapsedtime if elapsedtime > 0 else 0
                 total_cpuusage = 100 * total_cputime / elapsedtime if elapsedtime > 0 else 0
                 for k in self._stats.keys():
                     if k.lower() == "elapsedtime":
-                        self._stats[k] = elapsedtime
+                        self._stats[k] = iter_elapsedtime
                     if k.lower() == "totalcputime":
-                        self._stats[k] = total_cputime
+                        self._stats[k] = iter_total_cputime
                     if k.lower() == "parentcputime":
-                        self._stats[k] = parent_cputime
+                        self._stats[k] = iter_parent_cputime
                     if k.lower() == "childcputime":
-                        self._stats[k] = child_cputime
+                        self._stats[k] = iter_child_cputime
                     if k.lower() == "parentcpuusage":
                         self._stats[k] = parent_cpuusage
                     if k.lower() == "childcpuusage":
@@ -341,7 +363,13 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     self._stats[stat_name.lower()] += multiplier * stat_size
             #smaps_line = self._proc_smaps.readline() if self.is_alive() else ""
         self._nstats += 1
+        if next_iter:
+            avgstats = dict((k, self._totstats[k] / self._nstats if self._nstats > 0 else 0) for k in self._totstats.keys())
+            self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats})
         for k in self._stats.keys():
+            if next_iter:
+                self._totstats[k] = 0
+                self._maxstats[k] = 0
             self._totstats[k] += self._stats[k]
             if self._stats[k] >= self._maxstats[k]:
                 self._maxstats[k] = self._stats[k]
@@ -351,7 +379,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         '''The body of the thread: read lines and put them on the queue.'''
         errflag = False
         self.write_stdin()
-        while self.is_inprog():
+        while self.is_inprog() and not self._signal:
             #self.write_stdin()
             try:
                 err_line = self._errgen.next()
@@ -371,6 +399,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     err_line = self._errgen.next()
                 except StopIteration:
                     break
+                self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
+                if self._stats != None:
+                    self.get_stats(next_iter = False)
                         
             try:
                 out_line = self._outgen.next()
@@ -388,23 +419,31 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 #sys.stdout.flush()
                 if out_line == "":
                     if self._stats != None:
-                        self.get_stats()
-                        self._nlocks = len(glob.glob(self._controllerpath + "locks/*.lock"))
+                        self.get_stats(next_iter = True)
                     self._cleanup_counter += 1
                     self.write_stdin()
+                else:
+                    if self._stats != None:
+                        self.get_stats(next_iter = False)
                 self._outqueue.put(out_line.rstrip("\n"))
                 try:
                     out_line = self._outgen.next()
                 except StopIteration:
                     break
                 #self.write_stdin()
+                self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
+            self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
+            if self._stats != None:
+                self.get_stats(next_iter = False)
 
         if errflag:
             with open(self._controllerpath + "/logs/" + self._jobstepname + ".err", "a") as errfilestream:
                 if self._stepid != None:
                     exitcode = get_exitcode(self._stepid)
-                if self._stepid != None:
                     errfilestream.write("ExitCode: " + exitcode)
+
+        while not self._signal:
+            self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
 
     #def waiting(self):
     #    return self.is_alive() and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
@@ -415,6 +454,9 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
     def eof(self):
         '''Check whether there is no more content to expect.'''
         return (not self.is_alive()) and self._initerargflag and self._initerfile.closed and self._inqueue.empty() and self._outqueue.empty()
+
+    def signal(self):
+        self._signal = True
 
     def stat(self, stat_name):
         return self._stats[stat_name.lower()]
@@ -817,6 +859,10 @@ if not kwargs['interactive']:
 intermed_queue = Queue()
 
 stdout_queue = Queue()
+
+if kwargs['statslocal'] or kwargs['statsdb']:
+    stats_queue = Queue()
+
 #stdout_reader = AsynchronousThreadStreamReaderWriter(process.stdin, process.stdout, stdin_iter_arg, stdin_iter_file, stdin_queue, intermed_queue, stdout_queue, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
 #stdout_reader.start()
 
@@ -832,7 +878,15 @@ stats_list = [x.lower() for x in kwargs['stats_list']]
 if not any([x.lower() == "elapsedtime" for x in kwargs['stats_list']]):
     stats_list += ["elapsedtime"]
 
-handler = AsynchronousThreadStatsStreamReaderWriter(controllerpath, jobstepname, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, intermed_queue, stdout_queue, stepid = kwargs['stepid'], ignoredstrings = kwargs['ignoredstrings'], stats = stats_list if kwargs['statslocal'] or kwargs['statsdb'] else None, delimiter = kwargs['delimiter'], cleanup = kwargs['cleanup'], time_limit = kwargs['time_limit'], start_time = start_time)
+handler = AsynchronousThreadStatsStreamReaderWriter(controllerpath, jobstepname, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, intermed_queue, stdout_queue,
+                                                    stepid = kwargs['stepid'],
+                                                    ignoredstrings = kwargs['ignoredstrings'],
+                                                    stats = stats_list if kwargs['statslocal'] or kwargs['statsdb'] else None,
+                                                    stats_queue = stats_queue if kwargs['statslocal'] or kwargs['statsdb'] else None,
+                                                    delimiter = kwargs['delimiter'],
+                                                    cleanup = kwargs['cleanup'],
+                                                    time_limit = kwargs['time_limit'],
+                                                    start_time = start_time)
 handler.start()
 #print("b")
 #sys.stdout.flush()
@@ -860,9 +914,13 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 line_split = line.split()
                 if line == "":
                     if kwargs['statslocal'] or kwargs['statsdb']:
-                        cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
-                        maxrss = handler.max_stat("Rss")
-                        maxvmsize = handler.max_stat("Size")
+                        #cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
+                        #maxrss = handler.max_stat("Rss")
+                        #maxvmsize = handler.max_stat("Size")
+                        stats = stats_queue.get()
+                        cputime = eval("%.4f" % stats["stats"]["totalcputime"])
+                        maxrss = stats["max"]["rss"]
+                        maxvmsize = stats["max"]["size"]
                     #    stats = getstats("sstat", ["MaxRSS", "MaxVMSize"], kwargs['stepid'])
                     #    if (len(stats) == 1) and (stats[0] == ""):
                     #        newtotcputime, maxrss, maxvmsize = [eval(x) for x in getstats("sacct", ["CPUTimeRAW", "MaxRSS", "MaxVMSize"], kwargs['stepid'])]
@@ -877,7 +935,8 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     doc = json.loads(intermed_queue.get())
                     newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);
                     outext = newcollection + ".set"
-                    duration = "%.2f" % handler.stat("ElapsedTime")
+                    #duration = "%.2f" % handler.stat("ElapsedTime")
+                    duration = "%.4f" % stats["stats"]["elapsedtime"]
                     if kwargs['intermedlog']:
                         intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                         intermedlogstream.flush()
@@ -1119,9 +1178,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             #        sleep(0.01)
             #else:
             #    overlocked = False
-            lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
+            lockfile = controllerpath + "/locks/" + jobstepname + ".lock"
             with open(lockfile, 'w') as lockstream:
-                lockstream.write("Writing " + str(countallbatches[0]) + " items.")
+                lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
                 lockstream.flush()
             del countallbatches[0]
             #print(bulkdict)
@@ -1191,9 +1250,13 @@ while not stdout_queue.empty():
             line_split = line.split()
             if line == "":
                 if kwargs['statslocal'] or kwargs['statsdb']:
-                    cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
-                    maxrss = handler.max_stat("Rss")
-                    maxvmsize = handler.max_stat("Size")
+                    #cputime = eval("%.2f" % handler.stat("TotalCPUTime"))
+                    #maxrss = handler.max_stat("Rss")
+                    #maxvmsize = handler.max_stat("Size")
+                    stats = stats_queue.get()
+                    cputime = eval("%.4f" % stats["stats"]["totalcputime"])
+                    maxrss = stats["max"]["rss"]
+                    maxvmsize = stats["max"]["size"]
                 #    stats = getstats("sstat", ["MaxRSS", "MaxVMSize"], kwargs['stepid'])
                 #    if (len(stats) == 1) and (stats[0] == ""):
                 #        newtotcputime, maxrss, maxvmsize = [eval(x) for x in getstats("sacct", ["CPUTimeRAW", "MaxRSS", "MaxVMSize"], kwargs['stepid'])]
@@ -1208,7 +1271,8 @@ while not stdout_queue.empty():
                 doc = json.loads(intermed_queue.get())
                 newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);
                 outext = newcollection + ".set"
-                duration = "%.2f" % handler.stat("ElapsedTime")
+                #duration = "%.2f" % handler.stat("ElapsedTime")
+                duration = "%.4f" % stats["stats"]["elapsedtime"]
                 if kwargs['intermedlog']:
                     intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                     intermedlogstream.flush()
@@ -1450,9 +1514,9 @@ while not stdout_queue.empty():
         #        sleep(0.01)
         #else:
         #    overlocked = False
-        lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
+        lockfile = controllerpath + "/locks/" + jobstepname + ".lock"
         with open(lockfile, 'w') as lockstream:
-            lockstream.write("Writing " + str(countallbatches[0]) + " items.")
+            lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
             lockstream.flush()
         del countallbatches[0]
         #print(bulkdict)
@@ -1518,9 +1582,9 @@ while len(bulkrequestslist) > 0:
         #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
         #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
         #    teststream.flush()
-        lockfile = controllerpath + "/locks/" + kwargs['stepid'] + ".lock"
+        lockfile = controllerpath + "/locks/" + jobstepname + ".lock"
         with open(lockfile, 'w') as lockstream:
-            lockstream.write("Writing " + str(countallbatches[0]) + " items.")
+            lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
             lockstream.flush()
         del countallbatches[0]
 
@@ -1573,11 +1637,11 @@ if kwargs['intermedlocal']:
     #    intermediostream.close()
     #if os.path.exists(intermediostream.name):
     #    os.remove(intermediostream.name)
-    for intermediofilename in glob.iglob(controllerpath + "/bkps/*.intermed"):
+    for intermediofilename in iglob(controllerpath + "/bkps/*.intermed"):
         os.remove(intermediofilename)
 #if kwargs['outlocal'] or kwargs['statslocal']:
 #    outiostream.close()
-
+handler.signal()
 handler.join()
 #stderr_reader.join()
 #if kwargs['statslocal'] or kwargs['statsdb']:

@@ -107,7 +107,11 @@ write_done = np.zeros(0, dtype = int)
 
 print("Analyzing resource usage statistics...")
 
-for log_file_path in iglob(in_path + "/*.log"):
+for log_file_path in iglob(in_path + "/*.log.*"):
+    log_filename = log_file_path.split("/")[-1]
+    log_job = int(log_filename.split("_job_")[1].split("_")[0])
+    log_step = int(log_filename.split("_step_")[1].split(".")[0])
+    log_state = log_filename.split(".")[1]
     with open(log_file_path,"r") as log_stream:
         for log_line in log_stream:
             log_line_split = log_line.rstrip("\n").split()
@@ -115,15 +119,13 @@ for log_file_path in iglob(in_path + "/*.log"):
                 break
             log_timestamp = datetime.datetime.strptime(" ".join(log_line_split[:2]), '%d/%m/%Y %H:%M:%S').replace(tzinfo = utc)
             log_time = int((log_timestamp - epoch).total_seconds())
-            log_job = int(log_line_split[4].rstrip(':'))
-            log_step = int(log_line_split[6].rstrip(':'))
-            log_duration = int(eval(log_line_split[8].rstrip(':')))
-            log_id, log_state = log_line_split[9].split('>')
+            log_duration = int(eval(log_line_split[4].rstrip(':')))
+            log_id = log_line_split[5]
             if job_limit == None or log_job <= job_limit:
                 if time_limit == None or min_time == None or log_time <= min_time + time_limit:
                     if log_job not in job_min_max.keys():
                         job_min_max[log_job] = [None, 0]
-                    if log_state == "TEMP":
+                    if log_state == ".log.intermed":
                         id_times[log_id] = log_time
                         if proc.shape[0] <= log_time:
                             proc.resize(log_time + 1)
@@ -134,7 +136,7 @@ for log_file_path in iglob(in_path + "/*.log"):
                         #    min_time = log_time - log_duration
                         if job_min_max[log_job][0] == None or log_time - log_duration < job_min_max[log_job][0]:
                             job_min_max[log_job][0] = log_time - log_duration
-                    elif log_state == "OUT":
+                    elif log_state == ".log":
                         if write.shape[0] <= log_time:
                             write.resize(log_time + 1)
                             write_done.resize(log_time + 1)
@@ -145,7 +147,7 @@ for log_file_path in iglob(in_path + "/*.log"):
                         if log_time > job_min_max[log_job][1]:
                             job_min_max[log_job][1] = log_time
                     else:
-                        raise Exception("Log files should only contain \">TEMP\" and \">OUT\" lines.")
+                        raise Exception("Logs should only consist of .log.intermed and .log files.")
 
 #if max_time < min_time:
 #    max_time = min_time
@@ -172,7 +174,7 @@ for j in job_min_max.values():
     jobs[j[0] - min_time:j[1] - min_time] += np.ones(j[1] - j[0], dtype = int)
 
 #plot_labels = ["# Jobs", "# Steps", "Processing", "Processed", "Writing", "Written"]
-#plot_lists = [jobs, steps, run, temp, wait, out]
+#plot_lists = [jobs, steps, run, intermed, wait, out]
 
 #dpi = 10
 #xmargin = 0
