@@ -1,13 +1,22 @@
 #!/bin/bash
 
+ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
+
 modpath=$1
 controllerpath=$2
 #workpath=$3
 
-jobs=$(find ${controllerpath} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.job" -print 2>/dev/null)
-for job in ${jobs}
-do
-    jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
-    jobmsg=$(sbatch ${job} 2>&1)
-    echo "${jobmsg} as ${jobname}."
-done
+modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+
+python ${ProgDir}/tools/create_controller.py ${controllerpath}
+
+#jobs=$(find ${controllerpath} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.job" -print 2>/dev/null)
+#for job in ${jobs}
+#do
+jobname="crunch_${modname}_${controllername}_controller"
+job="${controllerpath}/crunch_${modname}_${controllername}_controller.job"
+#jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
+jobmsg=$(sbatch ${job} 2>&1)
+echo "${jobmsg} as ${jobname}."
+#done

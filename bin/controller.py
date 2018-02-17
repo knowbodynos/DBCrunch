@@ -21,6 +21,8 @@ import time
 starttime = time.time()
 
 import sys, os, glob, errno, re, linecache, fcntl, traceback, operator, functools, datetime, tempfile, json, yaml
+from math import ceil
+from pytz import utc
 from signal import signal, SIGPIPE, SIG_DFL
 from subprocess import Popen, PIPE
 from contextlib import contextmanager
@@ -505,34 +507,34 @@ def clusterlicensesleft(nlicensesplit, minthreads):#, minnsteps = 1):
 #        ntot = eval(Popen("echo \"$(cat $(find " + controllerpath + "/jobs/ -type f -name '*.docs' -o -name '*.docs.pend' 2>/dev/null) 2>/dev/null | wc -l)+$(cat " + controllerpath + "/jobs/*.job.log 2>/dev/null | grep 'CPUTime' | wc -l)\" | bc | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
 #        return ntot >= querylimit
 
-def submitjob(controllerpath, jobname, jobinfo, nnodes, ncores, niters, nbatch, resubmit = False):
+def submitjob(controllerpath, jobname, jobinfo, nnodes, ncpus, niters, nbatch, resubmit = False):
     jobspath = controllerpath + "/jobs"
     jobid = get_submitjob(jobspath, jobname)
-    partitions = [x[1] for x in jobinfo]
+    partitions = [x["partition"] for x in jobinfo]
     partitions = sorted([partitions[i] for i in range(len(partitions)) if partitions[i] not in partitions[:i]])
-    totmem = sum([x[3] for x in jobinfo])
+    totmem = sum([x["stepmem"] for x in jobinfo])
     #Print information about controller job submission
     if resubmit:
         #jobid = submitcomm.split(' ')[-1]
         #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
         print ""
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
-        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
+        print datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncpus) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
         for jobstepnum in range(len(jobinfo)):
             #with open(jobspath + "/" + jobstepnames[i] + ".error", "a") as statstream:
             #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
             #    statstream.flush()
-            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum][0] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum][1] + " with " + str(jobinfo[jobstepnum][2]) + " CPU(s) and " + str(jobinfo[jobstepnum][3]) + "MB RAM allocated."
+            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum]["jobstepname"] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum]["partition"] + " with " + str(jobinfo[jobstepnum]["nsteptasks"]) + " tasks, " + str(jobinfo[jobstepnum]["nsteptasks"] * jobinfo[jobstepnum]["cpuspertask"]) + " CPU(s), and " + str(jobinfo[jobstepnum]["stepmem"]) + "MB RAM allocated."
         print ""
         print ""
     else:
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
-        print "Submitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncores) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
+        print datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        print "Submitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncpus) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
         for jobstepnum in range(len(jobinfo)):
             #with open(jobspath + "/" + jobstepnames[i] + ".error", "a") as statstream:
             #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
             #    statstream.flush()
-            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum][0] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum][1] + " with " + str(jobinfo[jobstepnum][2]) + " CPU(s) and " + str(jobinfo[jobstepnum][3]) + "MB RAM allocated."
+            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum]["jobstepname"] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum]["partition"] + " with " + str(jobinfo[jobstepnum]["nsteptasks"]) + " tasks, " + str(jobinfo[jobstepnum]["nsteptasks"] * jobinfo[jobstepnum]["cpuspertask"]) + " CPU(s), and " + str(jobinfo[jobstepnum]["stepmem"]) + "MB RAM allocated."
         print ""
     sys.stdout.flush()
 
@@ -543,12 +545,12 @@ def submitcontrollerjob(controllerpath, jobname, controllernnodes, controllernco
         #jobid = submitcomm.split(' ')[-1]
         #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
         print ""
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         print "Resubmitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
         print ""
         print ""
     else:
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         print "Submitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
         print ""
     sys.stdout.flush()
@@ -1017,9 +1019,7 @@ def controllerconfig(controllername, controllerpath):
         controllerconfigdoc = yaml.load(controllerconfigstream)
 
     if isinstance(controllerconfigdoc["controller"]["storagelimit"], str):
-        if controllerconfigdoc["controller"]["storagelimit"] == "":
-            controllerconfigdoc["controller"]["storagelimit"] = None
-        else:
+        if controllerconfigdoc["controller"]["storagelimit"] != None:
             controllerstoragelimit_num = ""
             controllerstoragelimit_unit = ""
             for x in controllerconfigdoc["controller"]["storagelimit"]:
@@ -1037,9 +1037,7 @@ def controllerconfig(controllername, controllerpath):
                 controllerconfigdoc["controller"]["storagelimit"] = float(controllerstoragelimit_num) * 1000 * 1000 * 1024
 
     if isinstance(controllerconfigdoc["module"]["memorylimit"], str):
-        if controllerconfigdoc["module"]["memorylimit"] == "":
-            controllerconfigdoc["module"]["memorylimit"] = None
-        else:
+        if controllerconfigdoc["module"]["memorylimit"] != None:
             modulememorylimit_num = ""
             modulememorylimit_unit = ""
             for x in controllerconfigdoc["module"]["memorylimit"]:
@@ -1063,13 +1061,16 @@ def controllerconfig(controllername, controllerpath):
     if isinstance(crunchconfigdoc["max-steps"], int):
         localmaxstepcount = min(crunchconfigdoc["max-steps"], localmaxstepcount)
 
-    if controllerconfigdoc["job"]["joblimit"] == "":
+    if controllerconfigdoc["job"]["joblimit"] == None:
         localmaxjobcount = globalmaxjobcount
     else:
         localmaxjobcount = min(int(controllerconfigdoc["job"]["joblimit"]), globalmaxjobcount)
 
-    if controllerconfigdoc["module"]["buffertime"] == "":
+    if controllerconfigdoc["module"]["buffertime"] == None:
         controllerconfigdoc["module"]["buffertime"] = "00:00:00"
+
+    if controllerconfigdoc["options"]["markdone"] == None:
+        controllerconfigdoc["options"]["markdone"] = ""
 
     assert "resources" in crunchconfigdoc.keys()
     partitionsmaxmemory = crunchconfigdoc["resources"]
@@ -1078,8 +1079,8 @@ def controllerconfig(controllername, controllerpath):
 
     return controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory
 
-#def distributeovernodes(partition, maxmemorypernode, controllerconfigdoc["module"]["memorylimit"], nnodes, localmaxstepcount, niters):#, maxthreads):
-def distributeovernodes(freenodes, partitionsmaxmemory, modulememorylimit, nnodes, localmaxstepcount, niters):
+#def distributeovernodes(partition, maxmemorypernode, controllerconfigdoc["module"]["memorylimit"], nnodes, localmaxstepcount, niters):#, ntasks):
+def distributeovernodes(freenodes, partitionsmaxmemory, modulememorylimit, localmaxstepcount, minthreads):
     #print partitions
     #sys.stdout.flush()
     #partition = partitions[0]
@@ -1099,21 +1100,30 @@ def distributeovernodes(freenodes, partitionsmaxmemory, modulememorylimit, nnode
     #        tempnnodes -= 1
     #        nstepsdistribmempernode = float(maxsteps / tempnnodes)
     #else:
-    freenodesmem = [x + [partitionsmaxmemory[x[0]] * x[3] / x[2]] for x in freenodes if modulememorylimit == None or modulememorylimit <= partitionsmaxmemory[x[0]] * x[3] / x[2]]
-
-    if (modulememorylimit == None):# or (eval(controllerconfigdoc["module"]["memorylimit"]) == maxmemorypernode):
-        nsteps = min(nnodes, localmaxstepcount) * niters
+    freenodesmem = []
+    for x in freenodes:
+        jobmem = (partitionsmaxmemory[x["partition"]] * x["ncpus"]) / x["ntotcpus"]
+        nsteps = min((x["ncpus"] * x["threadspercpu"]) / minthreads, localmaxstepcount)
+        #print((x["ncpus"] * x["threadspercpu"], minthreads, localmaxstepcount))
+        if modulememorylimit != None and modulememorylimit <= jobmem:
+            nsteps = min(nsteps, jobmem / modulememorylimit)
+        x.update({"jobmem": jobmem, "nsteps": nsteps})
+        freenodesmem += [x]
+    #print(freenodesmem)
+    #if (modulememorylimit == None):# or (eval(controllerconfigdoc["module"]["memorylimit"]) == maxmemorypernode):
+    #    nthreads = sum([min(x["availcpus"], localmaxstepcount) * x["threadspercpu"] for x in freenodesmem[:nnodes]])
+        #nsteps = min([nnodes] + maxstepcounts) * niters
         #memoryperstep = maxmemorypernode
     #elif eval(controllerconfigdoc["module"]["memorylimit"]) > maxmemorypernode:
     #    return None
-    else:
-        nstepsdistribmem = sum([x[4] / modulememorylimit for x in freenodesmem[:nnodes]])
+    #else:
+    #    nthreads = sum([(min(x["jobmem"] * minthreads) / modulememorylimit, x["availcpus"] * x["threadspercpu"], localmaxstepcount * x["threadspercpu"]) for x in freenodesmem[:nnodes]])
         #print "a: " + str(nstepsdistribmem)
-        nsteps = min(localmaxstepcount, nstepsdistribmem) * niters
+        #nsteps = min([nstepsdistribmem] + maxstepcounts) * niters
         #print "b: " + str(nsteps)
         #memoryperstep = nnodes * maxmemorypernode / nsteps
         #print "c: " + str(memoryperstep)
-
+    #nsteps = nthreads / minthreads
     #nstepsfloat = min(float(ndocsleft), float(partitionncorespernode), nstepsdistribmempernode)
     #nnodes = int(min(maxnnodes, math.ceil(1./nstepsfloat)))
     #ncores = nnodes * partitionncorespernode
@@ -1121,7 +1131,7 @@ def distributeovernodes(freenodes, partitionsmaxmemory, modulememorylimit, nnode
     #nnodes = 1
     #if nstepsdistribmempernode < 1:
     #    if len(partitions) > 1:
-    #        return distributeovernodes(resourcesstatefile, controllerconfigdoc["job"]["partitions"][1:], controllerconfigdoc["module"]["memorylimit"], nnodes, maxsteps, maxthreads)
+    #        return distributeovernodes(resourcesstatefile, controllerconfigdoc["job"]["partitions"][1:], controllerconfigdoc["module"]["memorylimit"], nnodes, maxsteps, ntasks)
     #    else:
     #        print "Memory requirement is too large for this cluster."
     #        sys.stdout.flush()
@@ -1132,14 +1142,28 @@ def distributeovernodes(freenodes, partitionsmaxmemory, modulememorylimit, nnode
     #    memoryperstep = nnodes * maxmemorypernode / nsteps
     #else:
     #    memoryperstep = maxmemorypernode
-    return freenodesmem[:nnodes], nsteps
+    return freenodesmem
 
-def writejobfile(controllerconfigdoc, reloadjob, jobname, jobstepnames, controllerpath, partitiontimelimits, freenodesmem, counters, scriptcommand, scriptflags, scriptext, dbindexes, nbatch, nworkers, docbatches):
+#def allocatejob(jobname, controllerpath, partitiontimelimits, freenodesmem, writemode):
+#    allocstring = "salloc "
+#    allocstring += "-J \"" + jobname + "\" "
+#    allocstring += "-D \"" + controllerpath + "/logs\" "
+#    allocstring += "--time=\"" + max([partitiontimelimits[i][0] for i in range(len(partitiontimelimits))]) + "\" "
+#    allocstring += "--partition=\"" + ','.join([x[0] for x in freenodesmem]) + "\" "
+#    allocstring += "-w \"" + ','.join([x[1] for x in freenodesmem]) + "\" "
+#    if controllerconfigdoc["job"]["writemode"] == "append":
+#        allocstring += "2>> \"" + jobname + ".err\" 1>> \"" + jobname + ".debug\""
+#    elif controllerconfigdoc["job"]["writemode"] == "truncate":
+#        allocstring += "2> \"" + jobname + ".err\" 1> \"" + jobname + ".debug\""
+#    
+#    return get_allocatejob(allocstring)
+
+def writejobfile(controllerconfigdoc, reloadjob, minthreads, jobname, jobstepnames, controllerpath, partitiontimelimits, freenodesmem, counters, scriptcommand, scriptflags, scriptext, dbindexes, nbatch, nworkers, docbatches):
     ndocbatches = len(docbatches)
-    outputlinemarkers = ["-", " + ", "&", "@", "CPUTime:", "MaxRSS:", "MaxVMSize:", "BSONSize:", "None"]
+    #outputlinemarkers = ["-", " + ", "&", "@", "CPUTime:", "MaxRSS:", "MaxVMSize:", "BSONSize:", "None"]
     jobstring = "#!/bin/bash\n"
     jobstring += "\n"
-    jobstring += "# Created " + str(datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")) + "\n"
+    jobstring += "# Created " + str(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")) + "\n"
     jobstring += "\n"
     jobstring += "#Job name\n"
     jobstring += "#SBATCH -J \"" + jobname + "\"\n"
@@ -1160,16 +1184,16 @@ def writejobfile(controllerconfigdoc, reloadjob, jobname, jobstepnames, controll
     jobstring += "#SBATCH --time=\"" + max([partitiontimelimits[i][0] for i in range(len(partitiontimelimits))]) + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Partition(s) to use for job\n"
-    jobstring += "#SBATCH --partition=\"" + ','.join([x[0] for x in freenodesmem]) + "\"\n"
+    jobstring += "#SBATCH --partition=\"" + ','.join([x["partition"] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
-    #jobstring += "#Number of tasks (CPUs) allocated for job\n"
-    #jobstring += "#SBATCH -n " + str(ndocbatches) + "\n"
-    #jobstring += "#################\n"
+    jobstring += "#Number of tasks (CPUs) allocated for job\n"
+    jobstring += "#SBATCH -n " + str(sum([x["nsteps"] for x in freenodesmem])) + "\n"
+    jobstring += "#################\n"
     #jobstring += "#Number of nodes to distribute n tasks across\n"
     #jobstring += "#SBATCH -N " + str(len(freenodesmem)) + "\n"
     #jobstring += "#################\n"
     jobstring += "#List of nodes to distribute n tasks across\n"
-    jobstring += "#SBATCH -w \"" + ','.join([x[1] for x in freenodesmem]) + "\"\n"
+    jobstring += "#SBATCH -w \"" + ','.join([x["hostname"] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
     #jobstring += "#Lock down N nodes for job\n"
     #jobstring += "#SBATCH --exclusive\n"
@@ -1193,7 +1217,7 @@ def writejobfile(controllerconfigdoc, reloadjob, jobname, jobstepnames, controll
     else:
         jobstring += "modlang=\"" + controllerconfigdoc["module"]["language"] + "\"\n"
     jobstring += "nbatch=" + str(nbatch) + "\n"
-    jobstring += "nworkers=" + str(min(nworkers, ndocbatches)) + "\n"
+    jobstring += "nworkers=" + str(nworkers) + "\n"
     jobstring += "\n"
     jobstring += "# Option info\n"
     #jobstring += "controllerconfigdoc["options"]["intermedlog"]=\"" + str(controllerconfigdoc["options"]["intermedlog"]) + "\"\n"
@@ -1223,32 +1247,34 @@ def writejobfile(controllerconfigdoc, reloadjob, jobname, jobstepnames, controll
     #    jobstring += "controllerconfigdoc["db"]["basecollection"]=\"" + base + "\"\n"
     #    jobstring += "dbindexes=\"" + str([str(x) for x in dbindexes]).replace(" ", "") + "\"\n"
     #    jobstring += "\n"
-    jobstring += "# MPI info\n"
+    jobstring += "# Job step info\n"
     jobinfo = []
     j = 0
     k = 0
     for i in range(ndocbatches):
-        with open(controllerpath + "/docs/" + jobstepnames[i] + ".docs", "w") as docstream:
-            for n in range(len(docbatches[i])):
-                #if n > 0:
-                #    docstream.write("\n")
-                if reloadjob:
-                    docstream.write(docbatches[i][n])
-                else:
-                    docstream.write(json.dumps(docbatches[i][n], separators = (',',':')) + "\n")
-                docstream.flush()
-        if controllerconfigdoc["db"]["nthreadsfield"] != None:
-            nstepthreads = max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatches[i]])
+        #with open(controllerpath + "/docs/" + jobstepnames[i] + ".docs", "w") as docstream:
+        #    for n in range(len(docbatches[i])):
+        #        #if n > 0:
+        #        #    docstream.write("\n")
+        #        if reloadjob:
+        #            docstream.write(docbatches[i][n])
+        #        else:
+        #            docstream.write(json.dumps(docbatches[i][n], separators = (',',':')) + "\n")
+        #        docstream.flush()
+        if controllerconfigdoc["db"]["ntasksfield"] != None:
+            nsteptasks = max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatches[i]])
         else:
-            nstepthreads = 1
-        jobstring += "nstepthreads=" + str(nstepthreads) + "\n"
-        stepmem = nstepthreads * freenodesmem[j][4] / (1000000 * ndocbatches)#freenodesmem[j][3])
+            nsteptasks = 1
+        jobstring += "nsteptasks=" + str(nsteptasks) + "\n"
+        stepmem = (nsteptasks * freenodesmem[j]["jobmem"]) / (1000000 * freenodesmem[j]["nsteps"])
+        cpuspertask = minthreads / freenodesmem[j]["threadspercpu"]
+        jobstring += "cpuspertask=" + str(cpuspertask) + "\n"
         jobstring += "stepmem=" + str(stepmem) + "\n"
         if not reloadjob:
-            jobstring += "mpirun -srun -w \"" + freenodesmem[j][1] + "\" -n \"${nstepthreads}\" -J \"" + jobstepnames[i] + "\" --mem-per-cpu=\"${stepmem}${memunit}\" "
+            jobstring += "mpirun -srun -w \"" + freenodesmem[j]["hostname"] + "\" -n \"${nsteptasks}\" --cpus-per-task \"${cpuspertask}\" -J \"" + jobstepnames[i] + "\" --mem-per-cpu=\"${stepmem}${memunit}\" "
             if partitiontimelimits[j][1] != "infinite":
                 jobstring += "--time=\"" + partitiontimelimits[j][1] + "\" "
-            jobstring += "python ${binpath}/wrapper.py --mod \"${modname}\" --controller \"${controllername}\" --stepid \"${SLURM_JOBID}." + str(i) + "\" --delay \"0.1\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" "
+            jobstring += "python ${binpath}/wrapper.py --mod \"${modname}\" --controller \"${controllername}\" --stepid \"${SLURM_JOBID}." + str(i) + "\" --mark-done \"${markdone}\" --delay \"0.1\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" "
             if partitiontimelimits[j][1] != "infinite":
                 jobstring += "--time-limit \"" + partitiontimelimits[j][1] + "\" "
             jobstring += "--cleanup-after \"${cleanup}\" --nbatch \"${nbatch}\" --nworkers \"${nworkers}\" --dbindexes " + " ".join(["\"" + x + "\"" for x in dbindexes]) + " --file \"" + jobstepnames[i] + ".docs\" "#--random-nbatch "
@@ -1271,23 +1297,23 @@ def writejobfile(controllerconfigdoc, reloadjob, jobname, jobstepnames, controll
                 jobstring += "--args " + controllerconfigdoc["module"]["args"] + " "
             jobstring += "&"
         jobstring += "\n"
-        jobinfo += [[jobstepnames[i], freenodesmem[j][0], nstepthreads, stepmem]]
-        k += nstepthreads
-        if k == freenodesmem[j][3]:
+        jobinfo += [{"jobstepname": jobstepnames[i], "partition": freenodesmem[j]["partition"], "nsteptasks": nsteptasks, "cpuspertask": cpuspertask, "stepmem": stepmem}]
+        k += nsteptasks
+        if k == freenodesmem[j]["ncpus"]:
             j += 1
             k = 0
     jobstring += "wait"
     #if reloadjob:
-    #    jobstring += "python \"${binpath}/reloadjobmanager.py\" \"${controllerconfigdoc["controller"]["modname"]}\" \"${controllerconfigdoc["controller"]["controllername"]}\" \"${controllerconfigdoc["module"]["language"]}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${controllerconfigdoc["options"]["intermedlog"]}\" \"${controllerconfigdoc["options"]["outlog"]}\" \"${controllerconfigdoc["options"]["cleanup"]}\" \"${controllerconfigdoc["options"]["intermedlocal"]}\" \"${controllerconfigdoc["options"]["outlocal"]}\" \"${controllerconfigdoc["options"]["outdb"]}\" \"${controllerconfigdoc["options"]["statslocal"]}\" \"${controllerconfigdoc["options"]["statsdb"]}\" \"${controllerconfigdoc["options"]["markdone"]}\" \"${rootpath}\" \"${nstepthreads[@]}\""
+    #    jobstring += "python \"${binpath}/reloadjobmanager.py\" \"${controllerconfigdoc["controller"]["modname"]}\" \"${controllerconfigdoc["controller"]["controllername"]}\" \"${controllerconfigdoc["module"]["language"]}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${controllerconfigdoc["options"]["intermedlog"]}\" \"${controllerconfigdoc["options"]["outlog"]}\" \"${controllerconfigdoc["options"]["cleanup"]}\" \"${controllerconfigdoc["options"]["intermedlocal"]}\" \"${controllerconfigdoc["options"]["outlocal"]}\" \"${controllerconfigdoc["options"]["outdb"]}\" \"${controllerconfigdoc["options"]["statslocal"]}\" \"${controllerconfigdoc["options"]["statsdb"]}\" \"${controllerconfigdoc["options"]["markdone"]}\" \"${rootpath}\" \"${nsteptasks[@]}\""
     #else:
-    #    jobstring += "python \"${binpath}/queryjobmanager.py\" \"${controllerconfigdoc["controller"]["modname"]}\" \"${controllerconfigdoc["controller"]["controllername"]}\" \"${controllerconfigdoc["module"]["language"]}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${controllerconfigdoc["options"]["intermedlog"]}\" \"${controllerconfigdoc["options"]["outlog"]}\" \"${controllerconfigdoc["options"]["cleanup"]}\" \"${controllerconfigdoc["options"]["intermedlocal"]}\" \"${controllerconfigdoc["options"]["outlocal"]}\" \"${controllerconfigdoc["options"]["outdb"]}\"\"${controllerconfigdoc["options"]["statslocal"]}\" \"${controllerconfigdoc["options"]["statsdb"]}\" \"${controllerconfigdoc["options"]["markdone"]}\" \"${rootpath}\" \"${controllerconfigdoc["db"]["basecollection"]}\" \"${dbindexes}\" \"${nstepthreads[@]}\""
+    #    jobstring += "python \"${binpath}/queryjobmanager.py\" \"${controllerconfigdoc["controller"]["modname"]}\" \"${controllerconfigdoc["controller"]["controllername"]}\" \"${controllerconfigdoc["module"]["language"]}\" \"${scriptcommand}\" \"${scriptflags}\" \"${scriptext}\" \"${outputlinemarkers}\" \"${SLURM_JOBID}\" \"${jobnum}\" \"${memunit}\" \"${totmem}\" \"${steptime}\" \"${nbatch}\" \"${nworkers}\" \"${controllerconfigdoc["options"]["intermedlog"]}\" \"${controllerconfigdoc["options"]["outlog"]}\" \"${controllerconfigdoc["options"]["cleanup"]}\" \"${controllerconfigdoc["options"]["intermedlocal"]}\" \"${controllerconfigdoc["options"]["outlocal"]}\" \"${controllerconfigdoc["options"]["outdb"]}\"\"${controllerconfigdoc["options"]["statslocal"]}\" \"${controllerconfigdoc["options"]["statsdb"]}\" \"${controllerconfigdoc["options"]["markdone"]}\" \"${rootpath}\" \"${controllerconfigdoc["db"]["basecollection"]}\" \"${dbindexes}\" \"${nsteptasks[@]}\""
     with open(controllerpath + "/jobs/" + jobname + ".job", "w") as jobstream:
         jobstream.write(jobstring)
         jobstream.flush()
 
     return jobinfo
 
-def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, dbindexes):
+def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, ntasks, starttime, controllerbuffertimelimit, statusstatefile, dbindexes):
     #print("dir_size/controllerconfigdoc["controller"]["storagelimit"]: " + str(dir_size(controllerpath)) + "/" + str(controllerconfigdoc["controller"]["storagelimit"]))
     #print("storageleft: " + str(storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])))
     #sys.stdout.flush()
@@ -1300,16 +1326,16 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
     if needslicense:
         jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
         nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
-        licensesleft = clusterlicensesleft(nlicensesplit, maxthreads)
-        freenodes = get_freenodes(partitions)
+        licensesleft = clusterlicensesleft(nlicensesplit, ntasks)
+        freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
         releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(freenodes) > 0) and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
             while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and (len(freenodes) > 0) and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
                 time.sleep(controllerconfigdoc["controller"]["sleeptime"])
                 jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
                 nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
-                licensesleft = clusterlicensesleft(nlicensesplit, maxthreads)
-                freenodes = get_freenodes(partitions)
+                licensesleft = clusterlicensesleft(nlicensesplit, ntasks)
+                freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
                 releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         #fcntl.flock(licensestream, fcntl.LOCK_EX)
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-controllerconfigdoc["options"]["blocking"] and loop until lock is acquired.
@@ -1360,56 +1386,56 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
 
     return freenodes
 
-def doinput(docbatch, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes):
+def doinput(docbatch, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, minthreads, needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes):
     crunchconfigdoc = crunchconfig(rootpath)
     controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory = controllerconfig(controllerconfigdoc["controller"]["controllername"], controllerpath)
     if querylimit == None:
         niters = controllerconfigdoc["options"]["niters"]
     else:
-        niters = min(controllerconfigdoc["options"]["niters"], querylimit-counters[1] + 1)
+        niters = min(controllerconfigdoc["options"]["niters"], querylimit - counters[1] + 1)
     if len(docbatch) == 1:
         niters = min(niters, len(docbatch[0]))
-    if (len(docbatch) > 0) and (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-        maxthreads = max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[0:niters]])
+    if (len(docbatch) > 0) and (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+        ntasks = max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[0:niters]])
     else:
-        maxthreads = 1
-    freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
+        ntasks = 1
+    nnodes = 1
+    freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, ntasks, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
     if len(freenodes) == 0:
         return None
     #freenodes = orderpartitions(partitions)
-    nnodes = 1
     #i = 0
     #while i < len(freenodes):
     #    partition = freenodes[i]
         #nnodes = 1
-    freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], nnodes, localmaxstepcount, niters)
+    freenodesmem = distributeovernodes(freenodes[:nnodes], partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], localmaxstepcount, minthreads)
     if len(freenodesmem) == 0:
         raise Exception("Memory requirement is too large for this cluster.")
-    ncores = sum([x[3] for x in freenodesmem])
+    ncpus = sum([x["ncpus"] for x in freenodesmem])
     if len(docbatch) > 0:
-        maxthreads = 0
+        ntasks = 0
         nextdocind = 0
-        if (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-                maxthreads += max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+        if (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+            while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+                ntasks += max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
                 nextdocind += niters
             if nextdocind > len(docbatch):
                 nextdocind = len(docbatch)
-            if maxthreads > ncores:
+            if ntasks > ncpus:
                 nextdocind -= niters
-                maxthreads -= max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+                ntasks -= max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
         else:
-            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-                maxthreads += 1
+            while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+                ntasks += 1
                 nextdocind += niters
             if nextdocind > len(docbatch):
                 nextdocind = len(docbatch)
-            if maxthreads > ncores:
+            if ntasks > ncpus:
                 nextdocind -= niters
-                maxthreads -= 1
-        while maxthreads == 0:
+                ntasks -= 1
+        while ntasks == 0:
             nnodes += 1
-            freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
+            freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, ntasks, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
             if len(freenodes) == 0:
                 return None
             #freenodes = orderpartitions(partitions)
@@ -1417,32 +1443,36 @@ def doinput(docbatch, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, 
             #while i < len(freenodes):
             #    partition = freenodes[i]
                 #nnodes = 1
-            freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], nnodes, localmaxstepcount, niters)
+            freenodesmem = distributeovernodes(freenodes[:nnodes], partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], localmaxstepcount, minthreads)
             if len(freenodesmem) == 0:
                 raise Exception("Memory requirement is too large for this cluster.")
-            ncores = sum([x[3] for x in freenodesmem])
-            maxthreads = 0
-            nextdocind = 0
-            if (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-                while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-                    maxthreads += max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
-                    nextdocind += niters
-                if nextdocind > len(docbatch):
-                    nextdocind = len(docbatch)
-                if maxthreads > ncores:
-                    nextdocind -= niters
-                    maxthreads -= max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
-            else:
-                while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-                    maxthreads += 1
-                    nextdocind += niters
-                if nextdocind > len(docbatch):
-                    nextdocind = len(docbatch)
-                if maxthreads > ncores:
-                    nextdocind -= niters
-                    maxthreads -= 1
+            ncpus = sum([x["ncpus"] for x in freenodesmem])
+            if len(docbatch) > 0:
+                ntasks = 0
+                nextdocind = 0
+                if (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+                    while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+                        ntasks += max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+                        nextdocind += niters
+                    if nextdocind > len(docbatch):
+                        nextdocind = len(docbatch)
+                    if ntasks > ncpus:
+                        nextdocind -= niters
+                        ntasks -= max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+                else:
+                    while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+                        ntasks += 1
+                        nextdocind += niters
+                    if nextdocind > len(docbatch):
+                        nextdocind = len(docbatch)
+                    if ntasks > ncpus:
+                        nextdocind -= niters
+                        ntasks -= 1
         #nsteps = 0
-    
+    ndocs = sum([x["nsteps"] for x in freenodesmem]) * niters
+    #print(niters)
+    #print(docbatch)
+
     with open(statusstatefile, "w") as statusstream:
         statusstream.write("Populating job.")
         statusstream.flush()
@@ -1450,14 +1480,14 @@ def doinput(docbatch, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, 
     #print {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
     #sys.stdout.flush()
     #return {"partition": partition, "nnodes": nnodes, "ncores": ncores, "nsteps": nsteps, "maxmemorypernode": maxmemorypernode}
-    return {"freenodesmem": freenodesmem, "nsteps": nsteps}
+    return {"freenodesmem": freenodesmem, "ndocs": ndocs}
 
-def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, querylimit, reloadjob, needslicense, username, controllerpath, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes, scriptcommand, scriptflags, scriptext, querystatefilename, counterstatefile, counterheader):
+def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, querylimit, reloadjob, minthreads, needslicense, username, controllerpath, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes, scriptcommand, scriptflags, scriptext, querystatefilename, counterstatefile, counterheader):
     #partition = inputdoc['partition']
     freenodesmem = inputdoc['freenodesmem']
     nnodes = len(freenodesmem)
-    ncores = sum([x[3] for x in freenodesmem])
-    nsteps = inputdoc['nsteps']
+    ncpus = sum([x["ncpus"] for x in freenodesmem])
+    ndocs = inputdoc['ndocs']
     #totmem = sum([x[4] for x in freenodesmem])
     #maxmemorypernode = inputdoc["maxmemorypernode"]
     #print(docbatch)
@@ -1466,7 +1496,7 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
         niters = controllerconfigdoc["options"]["niters"]
     else:
         niters = min(controllerconfigdoc["options"]["niters"], querylimit - counters[1] + 1)
-    if len(docbatch) < nsteps:
+    if len(docbatch) < ndocs:
         niters = min(niters, len(docbatch))
     if controllerconfigdoc["options"]["nbatch"] > niters:
         nbatch = niters
@@ -1477,29 +1507,29 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
         nworkers = int(ndocs / nbatch) + int(ndocs % nbatch > 0)
     else:
         nworkers = controllerconfigdoc["options"]["nworkers"]
-    maxthreads = 0
+    ntasks = 0
     nextdocind = 0
-    if (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-            maxthreads += max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+    if (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+        while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+            ntasks += max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
             nextdocind += niters
         if nextdocind > len(docbatch):
             nextdocind = len(docbatch)
-        if maxthreads > ncores:
+        if ntasks > ncpus:
             nextdocind -= niters
-            maxthreads -= max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+            ntasks -= max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
     else:
-        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-            maxthreads += 1
+        while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+            ntasks += 1
             nextdocind += niters
         if nextdocind > len(docbatch):
             nextdocind = len(docbatch)
-        if maxthreads > ncores:
+        if ntasks > ncpus:
             nextdocind -= niters
-            maxthreads -= 1
-    while maxthreads == 0:
+            ntasks -= 1
+    while ntasks == 0:
         nnodes += 1
-        freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
+        freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, ntasks, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
         if len(freenodes) == 0:
             return None
         #freenodes = orderpartitions(partitions)
@@ -1507,32 +1537,33 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
         #while i < len(freenodes):
         #    partition = freenodes[i]
             #nnodes = 1
-        freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], nnodes, localmaxstepcount, niters)
+        freenodesmem = distributeovernodes(freenodes[:nnodes], partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], localmaxstepcount, minthreads)
         if len(freenodesmem) == 0:
             raise Exception("Memory requirement is too large for this cluster.")
-        ncores = sum([x[3] for x in freenodesmem])
-        maxthreads = 0
-        nextdocind = 0
-        if (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-                maxthreads += max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
-                nextdocind += niters
-            if nextdocind > len(docbatch):
-                nextdocind = len(docbatch)
-            if maxthreads > ncores:
-                nextdocind -= niters
-                maxthreads -= max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
-        else:
-            while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-                maxthreads += 1
-                nextdocind += niters
-            if nextdocind > len(docbatch):
-                nextdocind = len(docbatch)
-            if maxthreads > ncores:
-                nextdocind -= niters
-                maxthreads -= 1
+        ncpus = sum([x["ncpus"] for x in freenodesmem])
+        if len(docbatch) > 0:
+            ntasks = 0
+            nextdocind = 0
+            if (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+                while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+                    ntasks += max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+                    nextdocind += niters
+                if nextdocind > len(docbatch):
+                    nextdocind = len(docbatch)
+                if ntasks > ncpus:
+                    nextdocind -= niters
+                    ntasks -= max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+            else:
+                while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+                    ntasks += 1
+                    nextdocind += niters
+                if nextdocind > len(docbatch):
+                    nextdocind = len(docbatch)
+                if ntasks > ncpus:
+                    nextdocind -= niters
+                    ntasks -= 1
 
-    freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, maxthreads, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
+    freenodes = waitforslots(controllerconfigdoc, reloadjob, needslicense, username, controllerpath, querystatefilename, globalmaxjobcount, localmaxjobcount, localbinpath, licensescript, sublicensescript, ntasks, starttime, controllerbuffertimelimit, statusstatefile, dbindexes)
     if len(freenodes) == 0:
         return None
     #freenodes = orderpartitions(partitions)
@@ -1540,30 +1571,33 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
     #while i < len(freenodes):
     #    partition = freenodes[i]
         #nnodes = 1
-    freenodesmem, nsteps = distributeovernodes(freenodes, partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], nnodes, localmaxstepcount, niters)
+    freenodesmem = distributeovernodes(freenodes[:nnodes], partitionsmaxmemory, controllerconfigdoc["module"]["memorylimit"], localmaxstepcount, minthreads)
     if len(freenodesmem) == 0:
         raise Exception("Memory requirement is too large for this cluster.")
-    ncores = sum([x[3] for x in freenodesmem])
-    maxthreads = 0
+
+    #allocatejob(jobname, controllerpath, partitiontimelimits, freenodesmem, controllerconfigdoc["job"]["writemode"])
+    
+    ncpus = sum([x["ncpus"] for x in freenodesmem])
+    ntasks = 0
     nextdocind = 0
-    if (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-            maxthreads += max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+    if (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+        while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+            ntasks += max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
             nextdocind += niters
         if nextdocind > len(docbatch):
             nextdocind = len(docbatch)
-        if maxthreads > ncores:
+        if ntasks > ncpus:
             nextdocind -= niters
-            maxthreads -= max([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
+            ntasks -= max([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch[nextdocind:nextdocind + niters]])
     else:
-        while (nextdocind < len(docbatch)) and (maxthreads <= ncores):
-            maxthreads += 1
+        while (nextdocind < len(docbatch)) and (ntasks <= ncpus):
+            ntasks += 1
             nextdocind += niters
         if nextdocind > len(docbatch):
             nextdocind = len(docbatch)
-        if maxthreads > ncores:
+        if ntasks > ncpus:
             nextdocind -= niters
-            maxthreads -= 1
+            ntasks -= 1
     #docbatches = docbatch[:nextdocind]
     docbatches = [docbatch[i:i + niters] for i in range(0, nextdocind, niters)]
     #docbatchpass = docbatch[nextdocind:]
@@ -1572,10 +1606,10 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
     #ncoresused = len(docbatches)
     #memoryperstep = totmem / ncoresused
     #niters = len(docbatch)
-    #if controllerconfigdoc["db"]["nthreadsfield"] == None:
-    #    totcontrollerconfigdoc["db"]["nthreadsfield"] = niters
+    #if controllerconfigdoc["db"]["ntasksfield"] == None:
+    #    totcontrollerconfigdoc["db"]["ntasksfield"] = niters
     #else:
-    #    totcontrollerconfigdoc["db"]["nthreadsfield"] = sum([x[controllerconfigdoc["db"]["nthreadsfield"]] for x in docbatch])
+    #    totcontrollerconfigdoc["db"]["ntasksfield"] = sum([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch])
     #while not clusterjobslotsleft(globalmaxjobcount, scriptext, minnsteps = inputdoc["nsteps"]):
     #    time.sleep(controllerconfigdoc["controller"]["sleeptime"])
     #doc = json.loads(doc.rstrip('\n'))
@@ -1593,16 +1627,28 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
     #if reloadjob:
     #    jobstepnames = ["reload_" + x for x in jobstepnames]
     #    jobname = "reload_" + jobname
-    partitiontimelimits = [getpartitiontimelimit(x[0], controllerconfigdoc["module"]["timelimit"], controllerconfigdoc["module"]["buffertime"]) for x in freenodesmem]
+    #partitiontimelimits = [getpartitiontimelimit(x[0], controllerconfigdoc["module"]["timelimit"], controllerconfigdoc["module"]["buffertime"]) for x in freenodesmem]
+    partitiontimelimits = [getpartitiontimelimit(x["partition"], controllerconfigdoc["module"]["timelimit"], controllerconfigdoc["module"]["buffertime"]) for x in freenodesmem]
     #if len(docbatch) < inputdoc["nsteps"]:
     #    inputdoc["memoryperstep"] = (memoryperstep * inputdoc["nsteps"]) / len(docbatch)
-    jobinfo = writejobfile(controllerconfigdoc, reloadjob, jobname, jobstepnames, controllerpath, partitiontimelimits, freenodesmem, counters, scriptcommand, scriptflags, scriptext, dbindexes, nbatch, nworkers, docbatches)
+    jobinfo = writejobfile(controllerconfigdoc, reloadjob, minthreads, jobname, jobstepnames, controllerpath, partitiontimelimits, freenodesmem, counters, scriptcommand, scriptflags, scriptext, dbindexes, nbatch, nworkers, docbatches)
     #Submit job file
-    if (controllerconfigdoc["db"]["nthreadsfield"] != None) and (not reloadjob):
-        nthreads = [max([y[controllerconfigdoc["db"]["nthreadsfield"]] for y in x]) for x in docbatches]
+    if (controllerconfigdoc["db"]["ntasksfield"] != None) and (not reloadjob):
+        nthreads = [max([y[controllerconfigdoc["db"]["ntasksfield"]] for y in x]) for x in docbatches]
     else:
         nthreads = [1 for x in docbatches]
-    submitjob(controllerpath, jobname, jobinfo, nnodes, ncores, niters, nbatch, resubmit = False)
+    submitjob(controllerpath, jobname, jobinfo, nnodes, ncpus, niters, nbatch, resubmit = False)
+
+    for i in range(len(docbatches)):
+        with open(controllerpath + "/docs/" + jobstepnames[i] + ".docs", "w") as docstream:
+            for n in range(len(docbatches[i])):
+                #if n > 0:
+                #    docstream.write("\n")
+                if reloadjob:
+                    docstream.write(docbatches[i][n])
+                else:
+                    docstream.write(json.dumps(docbatches[i][n], separators = (',',':')) + "\n")
+                docstream.flush()
     #needslicense = (licensestream != None)
     #if needslicense:
     #    fcntl.flock(licensestream, fcntl.LOCK_UN)
@@ -1617,7 +1663,7 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
         #npendlicenses = npendlicensesplit[0]
         #if len(npendlicensesplit) > 1:
         #    npendsublicenses = npendlicensesplit[1]
-        #    pendlicensestream.write(str(npendlicenses + niters) + ", " + str(npendsublicenses + totcontrollerconfigdoc["db"]["nthreadsfield"]))
+        #    pendlicensestream.write(str(npendlicenses + niters) + ", " + str(npendsublicenses + totcontrollerconfigdoc["db"]["ntasksfield"]))
         #else:
         #    pendlicensestream.write(str(npendlicenses + niters))
     #releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
@@ -1685,7 +1731,7 @@ try:
     controllerpartition, controllertimelimit, controllernnodes, controllerncores = controllerstats
     controllerpartitiontimelimit, controllerbuffertimelimit = getpartitiontimelimit(controllerpartition, controllertimelimit, controllerconfigdoc["controller"]["buffertime"])
 
-    print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+    print datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print "Starting job crunch_" + controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_controller"
     print ""
     print ""
@@ -1840,9 +1886,9 @@ try:
             if (querylimit == None) or (counters[1] <= querylimit):
                 counters = reloadcrawl(reloadpath, reloadpattern, controllerpath,
                                        reloadstatefilename = reloadstatefilename,
-                                       inputfunc = lambda x: doinput(x, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
-                                       inputdoc = doinput([], controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
-                                       action = lambda x, y, z: doaction(x, y, z, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, querylimit, reloadjob, needslicense, username, controllerpath, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes, scriptcommand, scriptflags, scriptext, querystatefilename, counterstatefile, counterheader),
+                                       inputfunc = lambda x: doinput(x, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, crunchconfigdoc["min-threads"], needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
+                                       inputdoc = doinput([], controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, crunchconfigdoc["min-threads"], needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
+                                       action = lambda x, y, z: doaction(x, y, z, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, querylimit, reloadjob, crunchconfigdoc["min-threads"], needslicense, username, controllerpath, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes, scriptcommand, scriptflags, scriptext, querystatefilename, counterstatefile, counterheader),
                                        filereadform = lambda x: x,
                                        filewriteform = lambda x: x,
                                        docwriteform = lambda x: "_".join(indexdoc2indexsplit(x, dbindexes)),
@@ -1857,9 +1903,9 @@ try:
                 if controllerconfigdoc["db"]["type"] == "mongodb":
                     counters = mongojoin.dbcrawl(db, controllerconfigdoc["db"]["query"], controllerpath,
                                                  statefilename = querystatefilename,
-                                                 inputfunc = lambda x: doinput(x, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
-                                                 inputdoc = doinput([], controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
-                                                 action = lambda x, y, z: doaction(x, y, z, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, querylimit, reloadjob, needslicense, username, controllerpath, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes, scriptcommand, scriptflags, scriptext, querystatefilename, counterstatefile, counterheader),
+                                                 inputfunc = lambda x: doinput(x, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, crunchconfigdoc["min-threads"], needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
+                                                 inputdoc = doinput([], controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, rootpath, querylimit, counters, reloadjob, crunchconfigdoc["min-threads"], needslicense, username, controllerpath, querystatefilename, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes),
+                                                 action = lambda x, y, z: doaction(x, y, z, controllerconfigdoc, globalmaxjobcount, localmaxjobcount, localmaxstepcount, partitionsmaxmemory, querylimit, reloadjob, crunchconfigdoc["min-threads"], needslicense, username, controllerpath, localbinpath, licensescript, sublicensescript, starttime, controllerbuffertimelimit, statusstatefile, dbindexes, scriptcommand, scriptflags, scriptext, querystatefilename, counterstatefile, counterheader),
                                                  readform = lambda x: indexsplit2indexdoc(x.split("_")[2:], dbindexes),
                                                  writeform = lambda x: controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_" + "_".join(indexdoc2indexsplit(x, dbindexes)),
                                                  timeleft = lambda: timeleft(starttime, controllerbuffertimelimit),
@@ -1918,7 +1964,7 @@ try:
             statusstream.write("Completing controller.")
             statusstream.flush()
         print ""
-        print datetime.datetime.utcnow().strftime("%Y %m %d %H:%M:%S UTC")
+        print datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         print "Completing job crunch_" + controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_controller\n"
         sys.stdout.flush()
 

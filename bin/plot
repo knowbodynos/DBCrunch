@@ -3,15 +3,52 @@
 ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
 
 modpath=$1
-controllerpath=$2
+shift
+controllerpath=$1
+shift
 #workpath=$3
 
-max_job=$4
-max_time=$5
+#max_job=$1
+#shift
+#max_time=$1
+#shift
+
+SHORTOPTS="j:t:" 
+LONGOPTS="job-limit:time-limit:" 
+
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@" ) 
+
+eval set -- "$ARGS" 
+
+job_limit=""
+time_limit=""
+
+while true
+do
+    case $1 in
+        -j | --job-limit)
+            job_limit=$2
+            shift
+            ;;
+        -t | --time-limit)
+            time_limit=$2
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            shift
+            break
+            ;;
+    esac
+    shift
+done
 
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
-python ${ProgDir}/tools/plot.py ${controllerpath}/logs ${controllerpath} plot_INTERMED.pdf plot_OUT.pdf ${max_job} ${max_time}
+python ${ProgDir}/tools/create_tool.py "plot.py" "${job_limit}" "${time_limit}" "${controllerpath}/logs" "${controllerpath}/plot" "${modname}" "${controllername}" "${controllerpath}" "plot_INTERMED.pdf" "plot_OUT.pdf"
 
 echo "Finished generating job graphs for ${modname}_${controllername}."

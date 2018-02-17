@@ -16,13 +16,14 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, json, yaml, traceback, tempfile, datetime #, re, linecache, fcntl
+import sys, os, json, yaml, traceback, tempfile, datetime, linecache #, re, fcntl
+from pytz import utc
 from glob import iglob
 from pprint import pprint
 from time import time, sleep
 from random import randint
 from subprocess import Popen, PIPE
-from threading import Thread
+from threading import Thread, active_count
 from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK, read
 from locale import getpreferredencoding
@@ -31,6 +32,17 @@ try:
     from Queue import Queue, Empty
 except ImportError:
     from queue import Queue, Empty  # python 3.x
+
+def PrintException():
+    "If an exception is raised, print traceback of it to output log."
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    linecache.checkcache(filename)
+    line = linecache.getline(filename, lineno, f.f_globals)
+    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
+    print "More info: ", traceback.format_exc()
 
 def nonblocking_readlines(f):
     """Generator which yields lines from F (a file object, used only for
@@ -180,7 +192,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
     def is_inprog(self):
         '''Check whether there is no more content to expect.'''
         try:
-            return self.is_alive() and os.path.exists("/proc/" + self._pid + "/smaps")
+            return os.path.exists("/proc/" + self._pid) and self.is_alive()
         except IOError:
             return False
 
@@ -267,7 +279,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 self._intermedqueue.put(in_line)
                 self._instream.write(in_line + self._delimiter)
                 #with open(self._controllerpath + "/logs/" + self._jobstepname + ".test", "a") as teststream:
-                #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: In: " + in_line + "\n")
+                #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: In: " + in_line + "\n")
                 #    teststream.flush()
                 #print("a: " + in_line + self._delimiter)
                 #sys.stdout.flush()
@@ -342,7 +354,10 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     if k.lower() == "totalcpuusage":
                         self._stats[k] = total_cpuusage
         self._proc_smaps.seek(0)
-        smaps_lines = self._proc_smaps.readlines() if self.is_inprog() and os.path.exists("/proc/" + self._pid) else ""
+        if self.is_inprog():
+            smaps_lines = self._proc_smaps.readlines()
+        else:
+            smaps_lines = ""
         for smaps_line in smaps_lines:
             smaps_line_split = smaps_line.split()
             if len(smaps_line_split) == 3:
@@ -380,6 +395,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         errflag = False
         self.write_stdin()
         while self.is_inprog() and not self._signal:
+            print("NThreads: " + str(active_count()))
+            sys.stdout.flush()
             #self.write_stdin()
             try:
                 err_line = self._errgen.next()
@@ -387,6 +404,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 err_line = ""
                 pass
             while err_line != "":
+                print("NThreads: " + str(active_count()))
+                sys.stdout.flush()
                 errflag = True;
                 err_line = err_line.rstrip("\n")
                 if err_line not in self._ignoredstrings:
@@ -409,10 +428,12 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 out_line = ""
                 pass
             while out_line != "":
+                #print("NThreads: " + str(active_count()))
+                #sys.stdout.flush()
                 #for out_line in iter(self._outstream.readline, ''):
                 out_line = out_line.rstrip("\n")
                 #with open(self._controllerpath + "/logs/" + self._jobstepname + ".test", "a") as teststream:
-                #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Out: " + out_line + "\n")
+                #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: Out: " + out_line + "\n")
                 #    teststream.flush()
                 #if out_line == "\n".decode('string_escape'):
                 #sys.stdout.write(self._controllerpath + "/logs/" + self._jobstepname + " out_line: \"" + out_line + "\"\n")
@@ -652,7 +673,7 @@ parser.add_argument('--stats-local', '-s', dest = 'statslocal', action = 'store_
 parser.add_argument('--stats-db', '-S', dest = 'statsdb', action = 'store_true', default = False, help = '')
 parser.add_argument('--basecoll', dest = 'basecoll', action = 'store', default = None, help = '')
 parser.add_argument('--dbindexes', dest = 'dbindexes', nargs = '+', default = None, help = '')
-parser.add_argument('--markdone', dest = 'markdone', action = 'store', default = "MARK", help = '')
+parser.add_argument('--mark-done', dest = 'markdone', action = 'store', default = "MARK", help = '')
 
 parser.add_argument('--delay', dest = 'delay', action = 'store', default = 0, help = '')
 parser.add_argument('--stats', dest = 'stats_list', nargs = '+', action = 'store', default = [], help = '')
@@ -799,7 +820,18 @@ else:
 if kwargs['input_file'] != None:
     if "/" in kwargs['input_file']:
         kwargs['input_file'] = kwargs['input_file'].split('/')[-1]
-    stdin_iter_file = open(controllerpath + "/docs/" + kwargs['input_file'], "r")
+    input_path = controllerpath + "/docs/" + kwargs['input_file']
+    try:
+        input_size = os.path.getsize(input_path)
+    except OSError:
+        input_size = 0
+    while input_size == 0:
+        try:
+            input_size = os.path.getsize(input_path)
+        except OSError:
+            input_size = 0
+        sleep(kwargs['delay'])
+    stdin_iter_file = open(input_path, "r")
     jobstepname = kwargs['input_file'].split('.')[0]
     #filename = ".".join(kwargs['input_file'].split('.')[:-1])
     stepsplit = jobstepname.split("_step_")
@@ -843,7 +875,6 @@ if any([kwargs[x] for x in ['outdb', 'statsdb']]):
                 dbclient = MongoClient("mongodb://" + dbhost + ":" + dbport + "/" + dbname)
             else:
                 dbclient = MongoClient("mongodb://" + dbusername + ":" + dbpassword + "@" + dbhost + ":" + dbport + "/" + dbname + "?authMechanism=SCRAM-SHA-1")
-
             db = dbclient[dbname]
         else:
             raise Exception("Only \"mongodb\" is currently supported.")
@@ -908,7 +939,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
             line = stdout_queue.get().rstrip("\n")
             #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
-            #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Print: " + line + "\n")
+            #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: Print: " + line + "\n")
             #    teststream.flush()
             if line not in ignoredstrings:
                 line_split = line.split()
@@ -935,20 +966,20 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     doc = json.loads(intermed_queue.get())
                     newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);
                     outext = newcollection + ".set"
-                    #duration = "%.2f" % handler.stat("ElapsedTime")
-                    duration = "%.4f" % stats["stats"]["elapsedtime"]
+                    #runtime = "%.2f" % handler.stat("ElapsedTime")
+                    runtime = "%.2f" % stats["stats"]["elapsedtime"]
                     if kwargs['intermedlog']:
-                        intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                        intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                         intermedlogstream.flush()
                     if kwargs['outlog']:
-                        outlogiolist[-1] += "Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                        outlogiolist[-1] += runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     statsmark = {}
                     if kwargs['statslocal'] or kwargs['statsdb']:
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                     if kwargs['markdone'] != "":
                         statsmark.update({modname + kwargs['markdone']: True})
                     # Testing
-                    #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
+                    #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC"})
                     # Done testing
                     if len(statsmark) > 0:
                         mergeddoc = merge_two_dicts(newindexdoc, statsmark)
@@ -990,7 +1021,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         countallbatches += [0]
                 elif line[0] == "#":
                         if kwargs['intermedlog']:
-                            intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + "\n")
+                            intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: " + line + "\n")
                             intermedlogstream.flush()
                         if kwargs['outlog']:
                             outlogstream.write(line + "\n")
@@ -1169,7 +1200,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
 
         if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
             #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
-            #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
+            #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: Work\n")
             #    teststream.flush()
             #if handler.nlocks() >= kwargs['nworkers']:
             #    overlocked = True
@@ -1185,6 +1216,10 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             del countallbatches[0]
             #print(bulkdict)
             #sys.stdout.flush()
+
+            if kwargs['outlog']:
+                start_writetime = time()
+
             if dbtype == "mongodb":
                 for coll, requests in bulkrequestslist[0].items():
                     try:
@@ -1210,10 +1245,13 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             if kwargs['outlog']:
                 #print(len(outlogiolist[0].rstrip("\n").split("\n")))
                 #sys.stdout.flush()
+                writetime = time() - start_writetime
+                outlogiosplit = outlogiolist[0].rstrip("\n").split("\n")
+                avgwritetime = "%.2f" % (writetime / len(outlogiosplit))
                 outlogiotime = ""
-                for outlogio in outlogiolist[0].rstrip("\n").split("\n"):
+                for outlogio in outlogiosplit:
                     if outlogio != "":
-                        outlogiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + outlogio + "\n"
+                        outlogiotime += datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogio + "\n"
                 outlogstream.write(outlogiotime)
                 outlogstream.flush()
                 del outlogiolist[0]
@@ -1244,7 +1282,7 @@ while not stdout_queue.empty():
     while (not stdout_queue.empty()) and ((len(bulkrequestslist) <= 1 and countthisbatch < nbatch) or (handler.nlocks() >= kwargs['nworkers'])):
         line = stdout_queue.get().rstrip("\n")
         #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
-        #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Print: " + line + "\n")
+        #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: Print: " + line + "\n")
         #    teststream.flush()
         if line not in ignoredstrings:
             line_split = line.split()
@@ -1271,20 +1309,20 @@ while not stdout_queue.empty():
                 doc = json.loads(intermed_queue.get())
                 newindexdoc = dict([(x, doc[x]) for x in kwargs['dbindexes']]);
                 outext = newcollection + ".set"
-                #duration = "%.2f" % handler.stat("ElapsedTime")
-                duration = "%.4f" % stats["stats"]["elapsedtime"]
+                #runtime = "%.2f" % handler.stat("ElapsedTime")
+                runtime = "%.2f" % stats["stats"]["elapsedtime"]
                 if kwargs['intermedlog']:
-                    intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                    intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                     intermedlogstream.flush()
                 if kwargs['outlog']:
-                    outlogiolist[-1] += "Duration " + duration + ": " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                    outlogiolist[-1] += runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 statsmark = {}
                 if kwargs['statslocal'] or kwargs['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
                 if kwargs['markdone'] != "":
                     statsmark.update({modname + kwargs['markdone']: True})
                 # Testing
-                #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC"})
+                #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC"})
                 # Done testing
                 if len(statsmark) > 0:
                     mergeddoc = merge_two_dicts(newindexdoc, statsmark)
@@ -1326,7 +1364,7 @@ while not stdout_queue.empty():
                     countallbatches += [0]
             elif line[0] == "#":
                     if kwargs['intermedlog']:
-                        intermedlogstream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + line + "\n")
+                        intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: " + line + "\n")
                         intermedlogstream.flush()
                     if kwargs['outlog']:
                         outlogstream.write(line + "\n")
@@ -1505,7 +1543,7 @@ while not stdout_queue.empty():
 
     if (len(bulkrequestslist) > 1) and (handler.nlocks() < kwargs['nworkers']):
         #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
-        #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
+        #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: Work\n")
         #    teststream.flush()
         #if handler.nlocks() >= kwargs['nworkers']:
         #    overlocked = True
@@ -1521,6 +1559,9 @@ while not stdout_queue.empty():
         del countallbatches[0]
         #print(bulkdict)
         #sys.stdout.flush()
+        if kwargs['outlog']:
+            start_writetime = time()
+
         if dbtype == "mongodb":
             for coll, requests in bulkrequestslist[0].items():
                 try:
@@ -1546,10 +1587,13 @@ while not stdout_queue.empty():
         if kwargs['outlog']:
             #print(len(outlogiolist[0].rstrip("\n").split("\n")))
             #sys.stdout.flush()
+            writetime = time() - start_writetime
+            outlogiosplit = outlogiolist[0].rstrip("\n").split("\n")
+            avgwritetime = "%.2f" % (writetime / len(outlogiosplit))
             outlogiotime = ""
-            for outlogio in outlogiolist[0].rstrip("\n").split("\n"):
+            for outlogio in outlogiosplit:
                 if outlogio != "":
-                    outlogiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + outlogio + "\n"
+                    outlogiotime += datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogio + "\n"
             outlogstream.write(outlogiotime)
             outlogstream.flush()
             del outlogiolist[0]
@@ -1580,13 +1624,16 @@ while len(bulkrequestslist) > 0:
 
     if (len(bulkrequestslist) > 0) and (handler.nlocks() < kwargs['nworkers']):
         #with open(controllerpath + "/logs/" + jobstepname + ".test", "a") as teststream:
-        #    teststream.write(datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: Work\n")
+        #    teststream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: Work\n")
         #    teststream.flush()
         lockfile = controllerpath + "/locks/" + jobstepname + ".lock"
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
             lockstream.flush()
         del countallbatches[0]
+
+        if kwargs['outlog']:
+            start_writetime = time()
 
         if dbtype == "mongodb":
             for coll, requests in bulkrequestslist[0].items():
@@ -1596,14 +1643,30 @@ while len(bulkrequestslist) > 0:
                 except BulkWriteError as bwe:
                     pprint(bwe.details)
             del bulkrequestslist[0]
-
+        #while True:
+        #    try:
+        #        fcntl.flock(sys.stdout, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        #        break
+        #    except IOError:
+        #        sleep(0.01)
+        #intermediostream.close()
+        #with open(workpath + "/" + stepname + ".temp", "r") as intermediostream, open(workpath + "/" + stepname + ".out", "a") as iostream:
+        #    for line in intermediostream:
+        #        iostream.write(line)
+        #        iostream.flush()
+        #    os.remove(intermediostream.name)
+        #sys.stdout.write(intermediostream.getvalue())
+        #sys.stdout.flush()
         if kwargs['outlog']:
             #print(len(outlogiolist[0].rstrip("\n").split("\n")))
             #sys.stdout.flush()
+            writetime = time() - start_writetime
+            outlogiosplit = outlogiolist[0].rstrip("\n").split("\n")
+            avgwritetime = "%.2f" % (writetime / len(outlogiosplit))
             outlogiotime = ""
-            for outlogio in outlogiolist[0].rstrip("\n").split("\n"):
+            for outlogio in outlogiosplit:
                 if outlogio != "":
-                    outlogiotime += datetime.datetime.utcnow().strftime("%d/%m/%Y %H:%M:%S") + " UTC: " + outlogio + "\n"
+                    outlogiotime += datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogio + "\n"
             outlogstream.write(outlogiotime)
             outlogstream.flush()
             del outlogiolist[0]

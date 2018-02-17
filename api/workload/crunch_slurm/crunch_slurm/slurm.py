@@ -14,13 +14,13 @@ def get_pendjobnamespaths(username):
 def get_nglobaljobs(username):
     return eval(Popen("squeue -h -r -u " + username + " -o '%.130j %.2t' | grep 'crunch_' | grep -v ' CG ' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
 
-def get_nlocaljobs(username,modname,controllername):
+def get_nlocaljobs(username, modname, controllername):
     return eval(Popen("squeue -h -r -u " + username + " -o '%.130j %.2t' | grep 'crunch_' | grep -v ' CG ' | grep 'crunch_" + modname + "_" + controllername + "_job_' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
 
-def controllerjobsrunningq(username,modname,controllername):
+def controllerjobsrunningq(username, modname, controllername):
     return eval(Popen("squeue -h -u " + username + " -o '%j' | grep 'crunch_" + modname + "_" + controllername + "_job' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])>0
 
-def prevcontrollerjobsrunningq(username,dependencies):
+def prevcontrollerjobsrunningq(username, dependencies):
     if len(dependencies) == 0:
         njobsrunning = 0
     else:
@@ -28,11 +28,15 @@ def prevcontrollerjobsrunningq(username,dependencies):
         njobsrunning = eval(Popen("squeue -h -u " + username + " -o '%j' | grep 'crunch_\(" + grepstr + "\)_' | wc -l | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])
     return njobsrunning > 0
 
-def get_submitjob(jobpath,jobname):
+def get_allocatejob(allocstring):
+    #print("Line: sbatch " + jobpath + "/" + jobname + ".job")
+    return Popen(allocstring, shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n").split()[-1]
+
+def get_submitjob(jobpath, jobname):
     #print("Line: sbatch " + jobpath + "/" + jobname + ".job")
     return Popen("sbatch " + jobpath + "/" + jobname + ".job", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n").split()[-1]
 
-def releaseheldjobs(username,modname,controllername):
+def releaseheldjobs(username, modname, controllername):
     Popen("for job in $(squeue -h -u " + username + " -o '%j %A %r' | grep 'crunch_" + modname + "_" + controllername + "_' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done", shell=True,preexec_fn=default_sigpipe)
 
 def get_partitionsidle(partitions):
@@ -77,10 +81,11 @@ def get_freenodes(partitions):
     nodeinfo = []
     for partition in partitions:
         temp_nodeinfo = Popen("sinfo -h -r -p " + partition + " -o '%N' | xargs scontrol show node | grep -B4 -E 'State=(IDLE|MIXED|COMPLETING) ' | tr '\n' ' ' | sed 's/--/\\n/g' | perl -pe 's|.*CPUAlloc=(.*?) .*CPUTot=(.*?) .*NodeHostName=(.*?) .*ThreadsPerCore=(.*?) .*|\\1 \\2 \\3 \\4|g'", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
+        #temp_nodeinfo = Popen("sinfo -h -r -p " + partition + " -o '%N' | xargs scontrol show node | grep -B4 -E 'State=(IDLE|MIXED) ' | tr '\n' ' ' | sed 's/--/\\n/g' | perl -pe 's|.*CPUAlloc=(.*?) .*CPUTot=(.*?) .*NodeHostName=(.*?) .*ThreadsPerCore=(.*?) .*|\\1 \\2 \\3 \\4|g'", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n")
         temp_nodeinfo = [x.split() for x in temp_nodeinfo.split("\n")]
-        temp_nodeinfo = [[partition, x[2], int(x[1]), int(x[1]) - int(x[0])] for x in temp_nodeinfo if (len(x) == 4) and (int(x[3]) > 1)]
+        temp_nodeinfo = [{"partition": partition, "hostname": x[2], "ntotcpus": int(x[1]), "ncpus": int(x[1]) - int(x[0]), "threadspercpu": int(x[3])} for x in temp_nodeinfo if (len(x) == 4)]
         nodeinfo += temp_nodeinfo
-    return sorted(nodeinfo, key = lambda x: x[3], reverse = True)
+    return sorted(nodeinfo, key = lambda x: x["ncpus"], reverse = True)
 
 def get_maxnnodes(partition):
     return eval(Popen("scontrol show partition '" + partition + "' | grep 'MaxNodes=' | sed 's/^.*\sMaxNodes=\([0-9]*\)\s.*$/\\1/g' | head -c -1", shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0].rstrip("\n"))
@@ -124,7 +129,7 @@ def get_writejobfile(controllerconfigdoc, jobname):
     jobstring += "#SBATCH --time=\"" + controllerconfigdoc["timelimit"] + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Partition(s) to use for job\n"
-    jobstring += "#SBATCH --partition=\"" + get_freenodes(controllerconfigdoc["partitions"])[-1][0] + "\"\n"
+    jobstring += "#SBATCH --partition=\"" + get_freenodes(controllerconfigdoc["partitions"])[-1]["partition"] + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Number of tasks (CPUs) allocated for job\n"
     jobstring += "#SBATCH -n " + str(controllerconfigdoc["ncpus"]) + "\n"

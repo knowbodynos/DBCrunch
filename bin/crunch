@@ -261,7 +261,7 @@ sub_test(){
 SHORTOPTS="m:" 
 LONGOPTS="modules-dir:" 
 
-ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@" ) 
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@") 
 
 eval set -- "$ARGS" 
 
