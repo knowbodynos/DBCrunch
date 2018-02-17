@@ -9,7 +9,7 @@ monitorjobs() {
         modname=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f2)
         controllername=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f3)
         logspath="${controllerpath}/logs"
-        intermeds=$(cat ${logspath}/*.log.intermed 2>/dev/null | wc -l)
+        intermeds=$(cat ${logspath}/*.log.intermed ${logspath}/*.log 2>/dev/null | rev | sort -u -k1,1 | wc -l)
         outs=$(cat ${logspath}/*.log 2>/dev/null | wc -l)
         #docs=$(cat ${docspath}/*.docs 2>/dev/null | wc -l)
         reads=$(($(cat ${controllerpath}/batchcounter 2>/dev/null | tail -n +2 | cut -d' ' -f2)-1))

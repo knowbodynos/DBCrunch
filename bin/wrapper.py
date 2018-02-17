@@ -44,6 +44,33 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
     print "More info: ", traceback.format_exc()
 
+def cleanup_intermedlog(controllerpath, jobstepname, countlogout):
+    with open(controllerpath + "/logs/" + jobstepname + ".log.intermed", "r") as intermedlogstream:
+        with tempfile.NamedTemporaryFile(dir = controllerpath + "/logs", delete = False) as tempstream:
+            count = 0
+            intermedlogline = intermedlogstream.readline()
+            while intermedlogline != "":
+                if count >= countlogout:
+                    tempstream.write(intermedlogline)
+                    tempstream.flush()
+                intermedlogline = intermedlogstream.readline()
+                count += 1
+            os.rename(tempstream.name, intermedlogstream.name)
+
+def cleanup_intermedio(controllerpath, jobstepname, countioouts):
+    for outext in countioouts.keys():
+        with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "r") as intermediostream:
+            with tempfile.NamedTemporaryFile(dir = controllerpath + "/bkps", delete = False) as tempstream:
+                count = 0
+                intermedioline = intermediostream.readline()
+                while intermedioline != "":
+                    if count >= countioouts[outext]:
+                        tempstream.write(intermedioline)
+                        tempstream.flush()
+                    intermedioline = intermediostream.readline()
+                    count += 1
+                os.rename(tempstream.name, intermediostream.name)
+
 def nonblocking_readlines(f):
     """Generator which yields lines from F (a file object, used only for
        its fileno()) without blocking.  If there is no data, you get an
@@ -853,7 +880,7 @@ if kwargs['intermedlog']:
 
 if kwargs['outlog']:
     outlogstream = open(controllerpath + "/logs/" + jobstepname + ".log", "w")
-    outlogiolist = [""]
+    outloglist = [""]
 
 if kwargs['outlocal'] or kwargs['statslocal']:
     outiolist = [{}]
@@ -929,6 +956,9 @@ countallbatches = [0]
 bsonsize = 0
 countthisbatch = 0
 nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
+countioouts = {}
+countlogout = 0
+countbatchesout = 0
 #while process.poll() == None and stats_reader.is_inprog() and not (stdout_reader.eof() or stderr_reader.eof()):
 while process.poll() == None and handler.is_inprog() and not handler.eof():
     #if handler.waiting():
@@ -974,7 +1004,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                             intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                             intermedlogstream.flush()
                         if kwargs['outlog']:
-                            outlogiolist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                            outloglist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     statsmark = {}
                     if kwargs['statslocal'] or kwargs['statsdb']:
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1015,7 +1045,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     if countthisbatch == nbatch:
                         bulkrequestslist += [{}]
                         if kwargs['outlog']:
-                            outlogiolist += [""]
+                            outloglist += [""]
                         if kwargs['outlocal'] or kwargs['statslocal']:
                             outiolist += [{}]
                         countthisbatch = 0
@@ -1217,6 +1247,7 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             with open(lockfile, 'w') as lockstream:
                 lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
                 lockstream.flush()
+            countbatchesout += countallbatches[0]
             del countallbatches[0]
             #print(bulkdict)
             #sys.stdout.flush()
@@ -1247,18 +1278,21 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             #sys.stdout.write(intermediostream.getvalue())
             #sys.stdout.flush()
             if kwargs['outlog']:
-                #print(len(outlogiolist[0].rstrip("\n").split("\n")))
+                #print(len(outloglist[0].rstrip("\n").split("\n")))
                 #sys.stdout.flush()
                 writetime = time() - start_writetime
-                outlogiosplit = outlogiolist[0].rstrip("\n").split("\n")
+                outlogiosplit = outloglist[0].rstrip("\n").split("\n")
                 avgwritetime = "%.2f" % (writetime / len(outlogiosplit))
-                outlogiotime = ""
-                for outlogio in outlogiosplit:
-                    if outlogio != "":
-                        outlogiotime += datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogio + "\n"
-                outlogstream.write(outlogiotime)
-                outlogstream.flush()
-                del outlogiolist[0]
+                #outlogiotime = ""
+                for outlogioline in outlogiosplit:
+                    if outlogioline != "":
+                        outlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogioline + "\n")
+                        outlogstream.flush()
+                        countlogout += 1
+                del outloglist[0]
+                if kwargs['intermedlog'] and countbatchesout >= kwargs["cleanup"]:
+                    cleanup_intermedlog(controllerpath, jobstepname, countlogout)
+                    countlogout = 0
             #if kwargs['intermedlocal']:
                 #name = intermediostream.name
                 #intermediostream.close()
@@ -1267,11 +1301,22 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             if kwargs['outlocal'] or kwargs['statslocal']:
                 for outext, outio in outiolist[0].items():
                     with open(controllerpath + "/bkps/" + jobstepname + "." + outext, "a") as outiostream:
-                        outiostream.write(outio)
-                        outiostream.flush()
-                    if kwargs['intermedlocal']:
-                        os.remove(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed")
+                        outiosplit = outio.rstrip("\n").split("\n")
+                        for outioline in outlogiosplit:
+                            if outioline != "":
+                                outiostream.write(outioline + "\n")
+                                outiostream.flush()
+                                if outext in countioouts.keys():
+                                    countioouts[outext] += 1
+                                else:
+                                    countioouts[outext] = 1
                 del outiolist[0]
+                if kwargs['intermedlocal'] and countbatchesout >= kwargs["cleanup"]:
+                    cleanup_intermedio(controllerpath, jobstepname, countioouts)
+                    countioouts = {}
+
+            if countbatchesout >= kwargs["cleanup"]:
+                countbatchesout = 0
             #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
             #bulkdict = {}
             #intermediostream = open(workpath + "/" + stepname + ".temp", "w")
@@ -1321,7 +1366,7 @@ while not stdout_queue.empty():
                         intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                         intermedlogstream.flush()
                     if kwargs['outlog']:
-                        outlogiolist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                        outloglist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 statsmark = {}
                 if kwargs['statslocal'] or kwargs['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1362,7 +1407,7 @@ while not stdout_queue.empty():
                 if countthisbatch == nbatch:
                     bulkrequestslist += [{}]
                     if kwargs['outlog']:
-                        outlogiolist += [""]
+                        outloglist += [""]
                     if kwargs['outlocal'] or kwargs['statslocal']:
                         outiolist += [{}]
                     countthisbatch = 0
@@ -1564,9 +1609,11 @@ while not stdout_queue.empty():
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
             lockstream.flush()
+        countbatchesout += countallbatches[0]
         del countallbatches[0]
         #print(bulkdict)
         #sys.stdout.flush()
+
         if kwargs['outlog']:
             start_writetime = time()
 
@@ -1593,18 +1640,21 @@ while not stdout_queue.empty():
         #sys.stdout.write(intermediostream.getvalue())
         #sys.stdout.flush()
         if kwargs['outlog']:
-            #print(len(outlogiolist[0].rstrip("\n").split("\n")))
+            #print(len(outloglist[0].rstrip("\n").split("\n")))
             #sys.stdout.flush()
             writetime = time() - start_writetime
-            outlogiosplit = outlogiolist[0].rstrip("\n").split("\n")
+            outlogiosplit = outloglist[0].rstrip("\n").split("\n")
             avgwritetime = "%.2f" % (writetime / len(outlogiosplit))
-            outlogiotime = ""
-            for outlogio in outlogiosplit:
-                if outlogio != "":
-                    outlogiotime += datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogio + "\n"
-            outlogstream.write(outlogiotime)
-            outlogstream.flush()
-            del outlogiolist[0]
+            #outlogiotime = ""
+            for outlogioline in outlogiosplit:
+                if outlogioline != "":
+                    outlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogioline + "\n")
+                    outlogstream.flush()
+                    countlogout += 1
+            del outloglist[0]
+            if kwargs['intermedlog'] and countbatchesout >= kwargs["cleanup"]:
+                cleanup_intermedlog(controllerpath, jobstepname, countlogout)
+                countlogout = 0
         #if kwargs['intermedlocal']:
             #name = intermediostream.name
             #intermediostream.close()
@@ -1613,11 +1663,22 @@ while not stdout_queue.empty():
         if kwargs['outlocal'] or kwargs['statslocal']:
             for outext, outio in outiolist[0].items():
                 with open(controllerpath + "/bkps/" + jobstepname + "." + outext, "a") as outiostream:
-                    outiostream.write(outio)
-                    outiostream.flush()
-                if kwargs['intermedlocal']:
-                    os.remove(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed")
+                    outiosplit = outio.rstrip("\n").split("\n")
+                    for outioline in outlogiosplit:
+                        if outioline != "":
+                            outiostream.write(outioline + "\n")
+                            outiostream.flush()
+                            if outext in countioouts.keys():
+                                countioouts[outext] += 1
+                            else:
+                                countioouts[outext] = 1
             del outiolist[0]
+            if kwargs['intermedlocal'] and countbatchesout >= kwargs["cleanup"]:
+                cleanup_intermedio(controllerpath, jobstepname, countioouts)
+                countioouts = {}
+
+        if countbatchesout >= kwargs["cleanup"]:
+            countbatchesout = 0
         #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
         #bulkdict = {}
         #intermediostream = open(workpath + "/" + stepname + ".temp", "w")
@@ -1638,7 +1699,10 @@ while len(bulkrequestslist) > 0:
         with open(lockfile, 'w') as lockstream:
             lockstream.write("Writing " + str(countallbatches[0]) + " items to job " + kwargs['stepid'] + ".")
             lockstream.flush()
+        countbatchesout += countallbatches[0]
         del countallbatches[0]
+        #print(bulkdict)
+        #sys.stdout.flush()
 
         if kwargs['outlog']:
             start_writetime = time()
@@ -1666,18 +1730,21 @@ while len(bulkrequestslist) > 0:
         #sys.stdout.write(intermediostream.getvalue())
         #sys.stdout.flush()
         if kwargs['outlog']:
-            #print(len(outlogiolist[0].rstrip("\n").split("\n")))
+            #print(len(outloglist[0].rstrip("\n").split("\n")))
             #sys.stdout.flush()
             writetime = time() - start_writetime
-            outlogiosplit = outlogiolist[0].rstrip("\n").split("\n")
+            outlogiosplit = outloglist[0].rstrip("\n").split("\n")
             avgwritetime = "%.2f" % (writetime / len(outlogiosplit))
-            outlogiotime = ""
-            for outlogio in outlogiosplit:
-                if outlogio != "":
-                    outlogiotime += datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogio + "\n"
-            outlogstream.write(outlogiotime)
-            outlogstream.flush()
-            del outlogiolist[0]
+            #outlogiotime = ""
+            for outlogioline in outlogiosplit:
+                if outlogioline != "":
+                    outlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + str(avgwritetime) + "s " + outlogioline + "\n")
+                    outlogstream.flush()
+                    countlogout += 1
+            del outloglist[0]
+            if kwargs['intermedlog'] and countbatchesout >= kwargs["cleanup"]:
+                cleanup_intermedlog(controllerpath, jobstepname, countlogout)
+                countlogout = 0
         #if kwargs['intermedlocal']:
             #name = intermediostream.name
             #intermediostream.close()
@@ -1686,13 +1753,29 @@ while len(bulkrequestslist) > 0:
         if kwargs['outlocal'] or kwargs['statslocal']:
             for outext, outio in outiolist[0].items():
                 with open(controllerpath + "/bkps/" + jobstepname + "." + outext, "a") as outiostream:
-                    outiostream.write(outio)
-                    outiostream.flush()
-                if kwargs['intermedlocal']:
-                    os.remove(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed")
+                    outiosplit = outio.rstrip("\n").split("\n")
+                    for outioline in outlogiosplit:
+                        if outioline != "":
+                            outiostream.write(outioline + "\n")
+                            outiostream.flush()
+                            if outext in countioouts.keys():
+                                countioouts[outext] += 1
+                            else:
+                                countioouts[outext] = 1
             del outiolist[0]
+            if kwargs['intermedlocal'] and countbatchesout >= kwargs["cleanup"]:
+                cleanup_intermedio(controllerpath, jobstepname, countioouts)
+                countioouts = {}
 
+        if countbatchesout >= kwargs["cleanup"]:
+            countbatchesout = 0
+        #fcntl.flock(sys.stdout, fcntl.LOCK_UN)
+        #bulkdict = {}
+        #intermediostream = open(workpath + "/" + stepname + ".temp", "w")
+        #countallbatches = 0
         os.remove(lockfile)
+        #if overlocked:
+        #    os.kill(process.pid, signal.SIGCONT)
 
 if kwargs['input_file'] != None:
     stdin_iter_file.close()

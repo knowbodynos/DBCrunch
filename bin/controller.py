@@ -1187,7 +1187,7 @@ def writejobfile(controllerconfigdoc, reloadjob, minthreads, jobname, jobstepnam
     jobstring += "#SBATCH --partition=\"" + ','.join([x["partition"] for x in freenodesmem]) + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Number of tasks (CPUs) allocated for job\n"
-    jobstring += "#SBATCH -n " + str(sum([x["nsteps"] for x in freenodesmem])) + "\n"
+    jobstring += "#SBATCH -n " + str(sum([x["ncpus"] for x in freenodesmem])) + "\n"
     jobstring += "#################\n"
     #jobstring += "#Number of nodes to distribute n tasks across\n"
     #jobstring += "#SBATCH -N " + str(len(freenodesmem)) + "\n"
