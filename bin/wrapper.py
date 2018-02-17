@@ -395,8 +395,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         errflag = False
         self.write_stdin()
         while self.is_inprog() and not self._signal:
-            print("NThreads: " + str(active_count()))
-            sys.stdout.flush()
+            #print("NThreads: " + str(active_count()))
+            #sys.stdout.flush()
             #self.write_stdin()
             try:
                 err_line = self._errgen.next()
@@ -404,8 +404,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                 err_line = ""
                 pass
             while err_line != "":
-                print("NThreads: " + str(active_count()))
-                sys.stdout.flush()
+                #print("NThreads: " + str(active_count()))
+                #sys.stdout.flush()
                 errflag = True;
                 err_line = err_line.rstrip("\n")
                 if err_line not in self._ignoredstrings:
