@@ -968,11 +968,13 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     outext = newcollection + ".set"
                     #runtime = "%.2f" % handler.stat("ElapsedTime")
                     runtime = "%.2f" % stats["stats"]["elapsedtime"]
-                    if kwargs['intermedlog']:
-                        intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
-                        intermedlogstream.flush()
-                    if kwargs['outlog']:
-                        outlogiolist[-1] += runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                    if kwargs['intermedlog'] or kwargs['outlog']:
+                        intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                        if kwargs['intermedlog']:
+                            intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                            intermedlogstream.flush()
+                        if kwargs['outlog']:
+                            outlogiolist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     statsmark = {}
                     if kwargs['statslocal'] or kwargs['statsdb']:
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1020,11 +1022,13 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
                         countallbatches += [0]
                 elif line[0] == "#":
+                    if kwargs['intermedlog'] or kwargs['outlog']:
+                        intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                         if kwargs['intermedlog']:
-                            intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: " + line + "\n")
+                            intermedlogstream.write("# " + intermedtime + " " + line + "\n")
                             intermedlogstream.flush()
                         if kwargs['outlog']:
-                            outlogstream.write(line + "\n")
+                            outlogstream.write("# " + intermedtime + " " + line + "\n")
                             outlogstream.flush()
                 elif len(line_split) == 4:
                     #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
@@ -1311,11 +1315,13 @@ while not stdout_queue.empty():
                 outext = newcollection + ".set"
                 #runtime = "%.2f" % handler.stat("ElapsedTime")
                 runtime = "%.2f" % stats["stats"]["elapsedtime"]
-                if kwargs['intermedlog']:
-                    intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
-                    intermedlogstream.flush()
-                if kwargs['outlog']:
-                    outlogiolist[-1] += runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                if kwargs['intermedlog'] or kwargs['outlog']:
+                    intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    if kwargs['intermedlog']:
+                        intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                        intermedlogstream.flush()
+                    if kwargs['outlog']:
+                        outlogiolist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 statsmark = {}
                 if kwargs['statslocal'] or kwargs['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1363,11 +1369,13 @@ while not stdout_queue.empty():
                     nbatch = randint(1, kwargs['nbatch']) if kwargs['random_nbatch'] else kwargs['nbatch']
                     countallbatches += [0]
             elif line[0] == "#":
+               if kwargs['intermedlog'] or kwargs['outlog']:
+                    intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     if kwargs['intermedlog']:
-                        intermedlogstream.write(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " UTC: " + line + "\n")
+                        intermedlogstream.write("# " + intermedtime + " " + line + "\n")
                         intermedlogstream.flush()
                     if kwargs['outlog']:
-                        outlogstream.write(line + "\n")
+                        outlogstream.write("# " + intermedtime + " " + line + "\n")
                         outlogstream.flush()
             elif len(line_split) == 4:
                 #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
@@ -1691,6 +1699,7 @@ if kwargs['input_file'] != None:
 
 if kwargs['intermedlog']:
     intermedlogstream.close()
+    os.remove(controllerpath + "/logs/" + jobstepname + ".log.intermed")
 
 if kwargs['outlog']:
     outlogstream.close()
@@ -1700,7 +1709,7 @@ if kwargs['intermedlocal']:
     #    intermediostream.close()
     #if os.path.exists(intermediostream.name):
     #    os.remove(intermediostream.name)
-    for intermediofilename in iglob(controllerpath + "/bkps/*.intermed"):
+    for intermediofilename in iglob(controllerpath + "/bkps/" + jobstepname + ".*.intermed"):
         os.remove(intermediofilename)
 #if kwargs['outlocal'] or kwargs['statslocal']:
 #    outiostream.close()

@@ -113,36 +113,36 @@ out_done = np.zeros(0, dtype = int)
 
 print("Analyzing resource usage statistics...")
 
-for log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
-    log_filename = log_file_path.split("/")[-1]
-    log_job = int(log_filename.split("_job_")[1].split("_")[0])
-    log_step = int(log_filename.split("_step_")[1].split(".")[0])
-    log_state = '.'.join(log_filename.split(".")[1:])
-    if log_job not in job_min_max.keys():
-        job_min_max[log_job] = [None, 0]
-    if args['job_limit'] == None or log_job <= args['job_limit']:
-        with open(log_file_path, "r") as log_stream:
-            for log_line in log_stream:
-                log_line_split = log_line.rstrip("\n").split()
-                if len(log_line_split) < 3:
-                    break
-                log_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
-                log_time = int((log_timestamp - epoch).total_seconds())
-                log_runtime = int(eval(log_line_split[1].rstrip('s')))
-                log_id = log_line_split[2]
-                if job_min_max[log_job][0] == None or log_time - log_runtime < job_min_max[log_job][0]:
-                    job_min_max[log_job][0] = log_time - log_runtime
-                if log_time > job_min_max[log_job][1]:
-                    job_min_max[log_job][1] = log_time
-                #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
-                #id_times[log_id] = log_time
-                if intermed.shape[0] <= log_time:
-                    intermed.resize(log_time + 1)
-                    intermed_done.resize(log_time + 1)
-                intermed[log_time - log_runtime:log_time + 1] += np.ones(log_runtime + 1, dtype = int)
-                intermed_done[log_time] += 1
-                #if min_time == None or log_time - log_runtime < min_time:
-                #    min_time = log_time - log_runtime
+#for log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
+#    log_filename = log_file_path.split("/")[-1]
+#    log_job = int(log_filename.split("_job_")[1].split("_")[0])
+#    log_step = int(log_filename.split("_step_")[1].split(".")[0])
+#    log_state = '.'.join(log_filename.split(".")[1:])
+#    if log_job not in job_min_max.keys():
+#        job_min_max[log_job] = [None, 0]
+#    if args['job_limit'] == None or log_job <= args['job_limit']:
+#        with open(log_file_path, "r") as log_stream:
+#            for log_line in log_stream:
+#                log_line_split = log_line.rstrip("\n").split()
+#                if len(log_line_split) < 3:
+#                    break
+#                log_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+#                log_time = int((log_timestamp - epoch).total_seconds())
+#                log_runtime = int(eval(log_line_split[1].rstrip('s')))
+#                log_id = log_line_split[2]
+#                if job_min_max[log_job][0] == None or log_time - log_runtime < job_min_max[log_job][0]:
+#                    job_min_max[log_job][0] = log_time - log_runtime
+#                if log_time > job_min_max[log_job][1]:
+#                    job_min_max[log_job][1] = log_time
+#                #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
+#                #id_times[log_id] = log_time
+#                if intermed.shape[0] <= log_time:
+#                    intermed.resize(log_time + 1)
+#                    intermed_done.resize(log_time + 1)
+#                intermed[log_time - log_runtime:log_time + 1] += np.ones(log_runtime + 1, dtype = int)
+#                intermed_done[log_time] += 1
+#                #if min_time == None or log_time - log_runtime < min_time:
+#                #    min_time = log_time - log_runtime
 
 for log_file_path in iglob(args['in_path'] + "/*.log"):
     log_filename = log_file_path.split("/")[-1]
@@ -155,24 +155,31 @@ for log_file_path in iglob(args['in_path'] + "/*.log"):
         with open(log_file_path, "r") as log_stream:
             for log_line in log_stream:
                 log_line_split = log_line.rstrip("\n").split()
-                if len(log_line_split) < 4:
+                if len(log_line_split) < 5:
                     break
-                log_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
-                log_time = int((log_timestamp - epoch).total_seconds())
-                log_writetime = int(eval(log_line_split[2].rstrip('s')))
-                #log_runtime = int(eval(log_line_split[2].rstrip('s')))
-                log_id = log_line_split[3]
-                if job_min_max[log_job][0] == None or log_time - log_runtime < job_min_max[log_job][0]:
-                    job_min_max[log_job][0] = log_time - log_runtime
-                if log_time > job_min_max[log_job][1]:
-                    job_min_max[log_job][1] = log_time
+                log_out_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+                log_out_time = int((log_out_timestamp - epoch).total_seconds())
+                log_out_runtime = int(eval(log_line_split[1].rstrip('s')))
+                log_intermed_timestamp = datetime.datetime.strptime(log_line_split[2], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+                log_intermed_time = int((log_out_timestamp - epoch).total_seconds())
+                log_intermed_runtime = int(eval(log_line_split[3].rstrip('s')))
+                log_id = log_line_split[4]
+                if job_min_max[log_job][0] == None or log_intermed_time - log_intermed_runtime < job_min_max[log_job][0]:
+                    job_min_max[log_job][0] = log_intermed_time - log_intermed_runtime
+                if log_out_time > job_min_max[log_job][1]:
+                    job_min_max[log_job][1] = log_out_time
                 #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
-                if out.shape[0] <= log_time:
-                    out.resize(log_time + 1)
-                    out_done.resize(log_time + 1)
+                if intermed.shape[0] <= log_intermed_time:
+                    intermed.resize(log_intermed_time + 1)
+                    intermed_done.resize(log_intermed_time + 1)
+                intermed[log_intermed_time - log_intermed_runtime:log_intermed_time + 1] += np.ones(log_intermed_runtime + 1, dtype = int)
+                intermed_done[log_intermed_time] += 1
+                if out.shape[0] <= log_out_time:
+                    out.resize(log_out_time + 1)
+                    out_done.resize(log_out_time + 1)
                 #out[id_times[log_id] + 1:log_time + 1] += np.ones(log_time - id_times[log_id], dtype = int)
-                out[log_time - log_writetime:log_time + 1] += np.ones(log_writetime + 1, dtype = int)
-                out_done[log_time] += 1
+                out[log_out_time - log_out_runtime:log_out_time + 1] += np.ones(log_out_runtime + 1, dtype = int)
+                out_done[log_out_time] += 1
                 #if log_time > max_time:
                 #    max_time = log_time
 
