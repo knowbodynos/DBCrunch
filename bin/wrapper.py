@@ -16,7 +16,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, json, yaml, traceback, tempfile, datetime, linecache #, re, fcntl
+import sys, os, json, yaml, traceback, tempfile, datetime, linecache
+from fcntl import flock, LOCK_EX, LOCK_NB, LOCK_UN
+from errno import EAGAIN
 from pytz import utc
 from glob import iglob
 from pprint import pprint
@@ -325,6 +327,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     self._cleanup_counter = 0
 
     def get_stats(self, next_iter = False):
+        if next_iter:
+            timestamp = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         for k in self._stats.keys():
             self._stats[k] = 0
         if any([k in self._lower_keys for k in self._time_keys]):
@@ -382,7 +386,10 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                         self._stats[k] = total_cpuusage
         self._proc_smaps.seek(0)
         if self.is_inprog():
-            smaps_lines = self._proc_smaps.readlines()
+            try:
+                smaps_lines = self._proc_smaps.readlines()
+            except IOError:
+                smaps_lines = ""
         else:
             smaps_lines = ""
         for smaps_line in smaps_lines:
@@ -405,16 +412,17 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
                     self._stats[stat_name.lower()] += multiplier * stat_size
             #smaps_line = self._proc_smaps.readline() if self.is_alive() else ""
         self._nstats += 1
-        if next_iter:
-            avgstats = dict((k, self._totstats[k] / self._nstats if self._nstats > 0 else 0) for k in self._totstats.keys())
-            self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats})
+        avgstats={}
         for k in self._stats.keys():
-            if next_iter:
-                self._totstats[k] = 0
-                self._maxstats[k] = 0
             self._totstats[k] += self._stats[k]
+            avgstats.update({k: self._totstats[k] / self._nstats if self._nstats > 0 else 0})
             if self._stats[k] >= self._maxstats[k]:
                 self._maxstats[k] = self._stats[k]
+        if next_iter:
+            self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats, "timestamp": timestamp})
+            for k in self._stats.keys():
+                self._totstats[k] = 0
+                self._maxstats[k] = 0
         #sleep(self._statsdelay)
 
     def run(self):
@@ -875,6 +883,19 @@ else:
     else:
         step = "1"
 
+while True:
+    try:
+        flock(sys.stdout, LOCK_EX | LOCK_NB)
+        break
+    except IOError as e:
+        if e.errno != EAGAIN:
+            raise
+        else:
+            sleep(0.1)
+print(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + jobstepname + " START")
+sys.stdout.flush()
+flock(sys.stdout, LOCK_UN)
+
 if kwargs['intermedlog']:
     intermedlogstream = open(controllerpath + "/logs/" + jobstepname + ".log.intermed", "w")
 
@@ -935,6 +956,8 @@ if kwargs['statslocal'] or kwargs['statsdb']:
 stats_list = [x.lower() for x in kwargs['stats_list']]
 if not any([x.lower() == "elapsedtime" for x in kwargs['stats_list']]):
     stats_list += ["elapsedtime"]
+if not any([x.lower() == "timestamp" for x in kwargs['stats_list']]):
+    stats_list += ["timestamp"]
 
 handler = AsynchronousThreadStatsStreamReaderWriter(controllerpath, jobstepname, process.pid, process.stdin, process.stdout, process.stderr, stdin_iter_arg, stdin_iter_file, stdin_queue, intermed_queue, stdout_queue,
                                                     stepid = kwargs['stepid'],
@@ -998,8 +1021,8 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     outext = newcollection + ".set"
                     #runtime = "%.2f" % handler.stat("ElapsedTime")
                     runtime = "%.2f" % stats["stats"]["elapsedtime"]
+                    intermedtime = stats["timestamp"]
                     if kwargs['intermedlog'] or kwargs['outlog']:
-                        intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                         if kwargs['intermedlog']:
                             intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                             intermedlogstream.flush()
@@ -1053,12 +1076,11 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         countallbatches += [0]
                 elif line[0] == "#":
                     if kwargs['intermedlog'] or kwargs['outlog']:
-                        intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                         if kwargs['intermedlog']:
-                            intermedlogstream.write("# " + intermedtime + " " + line + "\n")
+                            intermedlogstream.write("# " + line + "\n")
                             intermedlogstream.flush()
                         if kwargs['outlog']:
-                            outlogstream.write("# " + intermedtime + " " + line + "\n")
+                            outlogstream.write("# " + line + "\n")
                             outlogstream.flush()
                 elif len(line_split) == 4:
                     #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
@@ -1360,8 +1382,8 @@ while not stdout_queue.empty():
                 outext = newcollection + ".set"
                 #runtime = "%.2f" % handler.stat("ElapsedTime")
                 runtime = "%.2f" % stats["stats"]["elapsedtime"]
+                intermedtime = stats["timestamp"]
                 if kwargs['intermedlog'] or kwargs['outlog']:
-                    intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     if kwargs['intermedlog']:
                         intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                         intermedlogstream.flush()
@@ -1415,12 +1437,11 @@ while not stdout_queue.empty():
                     countallbatches += [0]
             elif line[0] == "#":
                if kwargs['intermedlog'] or kwargs['outlog']:
-                    intermedtime = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     if kwargs['intermedlog']:
-                        intermedlogstream.write("# " + intermedtime + " " + line + "\n")
+                        intermedlogstream.write("# " + line + "\n")
                         intermedlogstream.flush()
                     if kwargs['outlog']:
-                        outlogstream.write("# " + intermedtime + " " + line + "\n")
+                        outlogstream.write("# " + line + "\n")
                         outlogstream.flush()
             elif len(line_split) == 4:
                 #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
@@ -1801,6 +1822,19 @@ handler.join()
 #stderr_reader.join()
 #if kwargs['statslocal'] or kwargs['statsdb']:
 #    stats_reader.join()
+
+while True:
+    try:
+        flock(sys.stdout, LOCK_EX | LOCK_NB)
+        break
+    except IOError as e:
+        if e.errno != EAGAIN:
+            raise
+        else:
+            sleep(0.1)
+print(datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ") + " " + jobstepname + " END")
+sys.stdout.flush()
+flock(sys.stdout, LOCK_UN)
 
 process.stdin.close()
 process.stdout.close()

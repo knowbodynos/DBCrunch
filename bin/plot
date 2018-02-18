@@ -50,5 +50,3 @@ modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
 python ${ProgDir}/tools/create_tool.py "plot.py" "${job_limit}" "${time_limit}" "${controllerpath}/logs" "${controllerpath}/plot" "${modname}" "${controllername}" "${controllerpath}" "plot_INTERMED.pdf" "plot_OUT.pdf"
-
-echo "Finished generating job graphs for ${modname}_${controllername}."

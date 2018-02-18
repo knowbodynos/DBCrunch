@@ -22,8 +22,8 @@ monitorjobs() {
             echo "${outsperc}% Finished: ${outs} of ${reads}"
         fi
         echo "Status: $(cat ${controllerpath}/status 2>/dev/null)"
-        #controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.log 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')
-        controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.log 2>/dev/null | cut -d'T' -f2)
+        #controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.info 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')
+        controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.info 2>/dev/null | cut -d'T' -f2)
         if [[ "${controllertime}" == "" ]]
         then
             echo "Duration: $(date -u -d "${controllertime}" +"%H:%M:%S")"

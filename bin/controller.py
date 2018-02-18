@@ -1339,16 +1339,16 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
                 releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         #fcntl.flock(licensestream, fcntl.LOCK_EX)
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-controllerconfigdoc["options"]["blocking"] and loop until lock is acquired.
-        while (timeleft(starttime, controllerbuffertimelimit) > 0):
-            releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
-            #try:
-            #    fcntl.flock(licensestream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            #    break
-            #except IOError as e:
-            #    if e.errno != errno.EAGAIN:
-            #        raise
-            #    else:
-            #        time.sleep(0.1)
+        #while (timeleft(starttime, controllerbuffertimelimit) > 0):
+        #    releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+        #    #try:
+        #    #    fcntl.flock(licensestream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        #    #    break
+        #    #except IOError as e:
+        #    #    if e.errno != errno.EAGAIN:
+        #    #        raise
+        #    #    else:
+        #    #        time.sleep(0.1)
         if not (timeleft(starttime, controllerbuffertimelimit) > 0):
             #print "hi"
             #sys.stdout.flush()

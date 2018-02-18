@@ -117,7 +117,7 @@ def get_writejobfile(controllerconfigdoc, jobname):
     jobstring += "#SBATCH -D \"" + controllerconfigdoc["workdir"] + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Job output file\n"
-    jobstring += "#SBATCH -o \"" + jobname + ".log\"\n"
+    jobstring += "#SBATCH -o \"" + jobname + ".info\"\n"
     jobstring += "#################\n"
     jobstring += "#Job error file\n"
     jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"

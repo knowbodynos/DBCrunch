@@ -52,18 +52,24 @@ def timestamp2unit(timestamp, unit = "seconds"):
     else:
         return 0
 
-def seconds2timestamp(seconds):
+def seconds2timestamp(timelevel, seconds):
     timestamp = ""
-    days = str(seconds / (60 * 60 * 24))
+    days = str(seconds / (60 * 60 * 24)).zfill(2)
     remainder = seconds % (60 * 60 * 24)
     hours = str(remainder / (60 * 60)).zfill(2)
     remainder = remainder % (60 * 60)
     minutes = str(remainder / 60).zfill(2)
     remainder = remainder % 60
     seconds = str(remainder).zfill(2)
-    if days != "0":
-        timestamp += days + "-"
-    timestamp += hours + ":" + minutes# + ":" + seconds
+    #if days != "0":
+    #    timestamp += days + "-"
+    #timestamp += hours + ":" + minutes# + ":" + seconds
+    if timelevel == 2:
+        timestamp += days + ":" + hours
+    elif timelevel == 1:
+        timestamp += hours + ":" + minutes
+    else:
+        timestamp += minutes + ":" + seconds
     return timestamp
 
 parser = ArgumentParser()
@@ -74,6 +80,7 @@ parser.add_argument('in_path', help = '')
 parser.add_argument('out_path', help = '')
 parser.add_argument('modname', help = '')
 parser.add_argument('controllername', help = '')
+parser.add_argument('controllerpath', help = '')
 parser.add_argument('intermed_file_name', help = '')
 parser.add_argument('out_file_name', help = '')
 
@@ -84,7 +91,7 @@ if args['job_limit'] != None:
 if args['time_limit'] != None:
     args['time_limit'] = timestamp2unit(args['time_limit'])
 
-with open(args['controllername'] + "/crunch_" + args['modname'] + "_" + args['controllername'] + "_controller.log", "r") as controller_stream:
+with open(args['controllerpath'] + "/crunch_" + args['modname'] + "_" + args['controllername'] + "_controller.info", "r") as controller_stream:
     controller_line_split = controller_stream.readline().rstrip("\n").split()
     epoch = datetime.datetime.strptime(" ".join(controller_line_split[:4]), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
 
@@ -97,33 +104,36 @@ all_steps = []
 min_time = None
 max_time = 0
 
-for log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
-    log_filename = log_file_path.split("/")[-1]
-    log_job = int(log_filename.split("_job_")[1].split("_")[0])
-    log_step = int(log_filename.split("_step_")[1].split(".")[0])
-    log_state = '.'.join(log_filename.split(".")[1:])
-    if log_job not in all_jobs:
-        all_jobs += [log_job]
-    all_steps += [(log_job, log_step)]
-    if args['job_limit'] == None or log_job <= args['job_limit']:
-        with open(log_file_path,"r") as log_stream:
-            for log_line in log_stream:
-                log_line_split = log_line.rstrip("\n").split()
-                if len(log_line_split) < 6:
-                    break
-                log_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
-                log_time = int((log_timestamp - epoch).total_seconds())
-                log_runtime = int(eval(log_line_split[1].rstrip('s')))
-                log_id = log_line_split[2]
-                if min_time == None or log_time - log_runtime < min_time:
-                    min_time = log_time - log_runtime
-                if log_time > max_time:
-                    max_time = log_time
-                if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
-                    if log_id in data.keys():
-                        data[log_id].update({'JOB': log_job, 'STEP': log_step, 'START_INTERMED_TIME': log_time - log_runtime, 'END_INTERMED_TIME': log_time})
-                    else:
-                        data[log_id] = {'JOB': log_job, 'STEP': log_step, 'START_INTERMED_TIME': log_time - log_runtime, 'END_INTERMED_TIME': log_time}
+print("Analyzing job activity statistics...")
+sys.stdout.flush()
+
+#for log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
+#    log_filename = log_file_path.split("/")[-1]
+#    log_job = int(log_filename.split("_job_")[1].split("_")[0])
+#    log_step = int(log_filename.split("_step_")[1].split(".")[0])
+#    log_state = '.'.join(log_filename.split(".")[1:])
+#    if log_job not in all_jobs:
+#        all_jobs += [log_job]
+#    all_steps += [(log_job, log_step)]
+#    if args['job_limit'] == None or log_job <= args['job_limit']:
+#        with open(log_file_path,"r") as log_stream:
+#            for log_line in log_stream:
+#                log_line_split = log_line.rstrip("\n").split()
+#                if len(log_line_split) < 6:
+#                    break
+#                log_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+#                log_time = int((log_timestamp - epoch).total_seconds())
+#                log_runtime = int(eval(log_line_split[1].rstrip('s')))
+#                log_id = log_line_split[2]
+#                if min_time == None or log_time - log_runtime < min_time:
+#                    min_time = log_time - log_runtime
+#                if log_time > max_time:
+#                    max_time = log_time
+#                if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
+#                    if log_id in data.keys():
+#                        data[log_id].update({'JOB': log_job, 'STEP': log_step, 'START_INTERMED_TIME': log_time - log_runtime, 'END_INTERMED_TIME': log_time})
+#                    else:
+#                        data[log_id] = {'JOB': log_job, 'STEP': log_step, 'START_INTERMED_TIME': log_time - log_runtime, 'END_INTERMED_TIME': log_time}
 
 for log_file_path in iglob(args['in_path'] + "/*.log"):
     log_filename = log_file_path.split("/")[-1]
@@ -137,22 +147,24 @@ for log_file_path in iglob(args['in_path'] + "/*.log"):
         with open(log_file_path,"r") as log_stream:
             for log_line in log_stream:
                 log_line_split = log_line.rstrip("\n").split()
-                if len(log_line_split) < 6:
+                if len(log_line_split) < 5:
                     break
-                log_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
-                log_time = int((log_timestamp - epoch).total_seconds())
-                log_writetime = int(eval(log_line_split[1].rstrip('s')))
-                #log_runtime = int(eval(log_line_split[2].rstrip('s')))
-                log_id = log_line_split[3]
-                if min_time == None or log_time - log_runtime < min_time:
-                    min_time = log_time - log_runtime
-                if log_time > max_time:
-                    max_time = log_time
-                if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
+                log_out_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+                log_out_time = int((log_out_timestamp - epoch).total_seconds())
+                log_out_runtime = int(eval(log_line_split[1].rstrip('s')))
+                log_intermed_timestamp = datetime.datetime.strptime(log_line_split[2], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+                log_intermed_time = int((log_out_timestamp - epoch).total_seconds())
+                log_intermed_runtime = int(eval(log_line_split[3].rstrip('s')))
+                log_id = log_line_split[4]
+                if min_time == None or log_intermed_time - log_intermed_runtime < min_time:
+                    min_time = log_intermed_time - log_intermed_runtime
+                if log_out_time > max_time:
+                    max_time = log_out_time
+                if args['time_limit'] == None or min_time == None or log_out_time <= min_time + args['time_limit']:
                     if log_id in data.keys():
-                        data[log_id].update({'START_OUT_TIME': log_time - log_writetime, 'END_OUT_TIME': log_time})
+                        data[log_id].update({'JOB': log_job, 'STEP': log_step, 'START_INTERMED_TIME': log_intermed_time - log_intermed_runtime, 'END_INTERMED_TIME': log_intermed_time, 'START_OUT_TIME': log_out_time - log_out_runtime, 'END_OUT_TIME': log_out_time})
                     else:
-                        data[log_id] = {'START_OUT_TIME': log_time - log_writetime, 'END_OUT_TIME': log_time}
+                        data[log_id] = {'JOB': log_job, 'STEP': log_step, 'START_INTERMED_TIME': log_intermed_time - log_intermed_runtime, 'END_INTERMED_TIME': log_intermed_time, 'START_OUT_TIME': log_out_time - log_out_runtime, 'END_OUT_TIME': log_out_time}
 
 nsteps = []
 nsteps_tot = 0
@@ -162,7 +174,14 @@ for job in sorted(all_jobs):
             nsteps_tot += 1
     nsteps += [nsteps_tot]
 
-time_labels = [seconds2timestamp(x) for x in range(max_time - min_time + 1)]
+if max_time - min_time + 1 > (60 * 60):
+    timelevel = 2
+elif max_time - min_time + 1 < (60 * 60) and max_time - min_time + 1 > 60:
+    timelevel = 1
+else:
+    timelevel = 0
+
+time_labels = [seconds2timestamp(timelevel, x) for x in range(max_time - min_time + 1)]
 step_labels = sorted(all_steps)
 
 intermed_img = np.ones((len(all_steps), max_time - min_time + 1, 3))
@@ -174,24 +193,32 @@ for d in sorted([x for x in data.values() if 'END_OUT_TIME' in x.keys()], key = 
 
     intermed_img[s][d['END_INTERMED_TIME'] - min_time] = [0, 0, 0]
 
+print("Plotting intermediate job activity statistics...")
+sys.stdout.flush()
+
 intermed_dpi = 100
 intermed_xmargin = 0
 intermed_ymargin = 100
 intermed_xscale = 20
 intermed_yscale = 20
 intermed_xpixels, intermed_ypixels = intermed_xscale * (max_time - min_time + 1), intermed_yscale * len(step_labels)
-intermed_figsize = ((intermed_xpixels + intermed_xmargin)/intermed_dpi, (intermed_ypixels + intermed_ymargin)/intermed_dpi)
+intermed_figsize = ((intermed_xpixels + intermed_xmargin) / intermed_dpi, (intermed_ypixels + intermed_ymargin) / intermed_dpi)
 
 intermed_fig = plt.figure(figsize = intermed_figsize, dpi = intermed_dpi)
 intermed_ax = plt.gca()
 intermed_ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
-plt.title('Job Latency (INTERMED)')
-plt.xlabel('Time (s)')
-plt.ylabel('(Job, Step)')
-intermed_ax.set_xticks(np.arange(0, intermed_xpixels, intermed_xscale * 60 * 60))
+intermed_ax.set_title('Job Latency (INTERMED)')
+if timelevel == 2:
+    intermed_ax.set_xlabel('Time (DD:HH)')
+elif timelevel == 1:
+    intermed_ax.set_xlabel('Time (HH:MM)')
+else:
+    intermed_ax.set_xlabel('Time (MM:SS)')
+intermed_ax.set_ylabel('(Job, Step)')
+intermed_ax.set_xticks(np.arange(0, intermed_xpixels, intermed_xscale * (60 ** timelevel)))
 intermed_ax.set_xticklabels(time_labels)
-intermed_ax.xaxis.set_minor_locator(MultipleLocator(intermed_xscale * 60))
-intermed_ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(int(x/intermed_xscale))))
+intermed_ax.xaxis.set_minor_locator(MultipleLocator(intermed_xscale * (60 ** timelevel) / 2))
+intermed_ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(timelevel, int(x / intermed_xscale))))
 intermed_ax.set_yticks(np.arange(intermed_yscale * 0.5, intermed_ypixels + intermed_yscale * 0.5, intermed_yscale))
 intermed_ax.set_yticklabels(step_labels)
 plt.imshow(intermed_img, interpolation = 'nearest', extent = [0, intermed_xpixels, 0, intermed_ypixels])
@@ -215,24 +242,32 @@ for d in sorted([x for x in data.values() if 'END_OUT_TIME' in x.keys()], key = 
 
     out_img[s][d['END_OUT_TIME'] - min_time] = [0, 0, 0]
 
+print("Plotting final job activity statistics...")
+sys.stdout.flush()
+
 out_dpi = 100
 out_xmargin = 0
 out_ymargin = 100
 out_xscale = 20
 out_yscale = 20
 out_xpixels, out_ypixels = out_xscale * (max_time - min_time + 1), out_yscale * len(step_labels)
-out_figsize = ((out_xpixels + out_xmargin)/out_dpi, (out_ypixels + out_ymargin)/out_dpi)
+out_figsize = ((out_xpixels + out_xmargin) / out_dpi, (out_ypixels + out_ymargin) / out_dpi)
 
 out_fig = plt.figure(figsize = out_figsize, dpi = out_dpi)
 out_ax = plt.gca()
 out_ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
-plt.title('Job Latency (OUT)')
-plt.xlabel('Time (s)')
-plt.ylabel('(Job, Step)')
-out_ax.set_xticks(np.arange(0, out_xpixels, out_xscale * 60 * 60))
+out_ax.set_title('Job Latency (OUT)')
+if timelevel == 2:
+    out_ax.set_xlabel('Time (DD:HH)')
+elif timelevel == 1:
+    out_ax.set_xlabel('Time (HH:MM)')
+else:
+    out_ax.set_xlabel('Time (MM:SS)')
+out_ax.set_ylabel('(Job, Step)')
+out_ax.set_xticks(np.arange(0, out_xpixels, out_xscale * (60 ** timelevel)))
 out_ax.set_xticklabels(time_labels)
-out_ax.xaxis.set_minor_locator(MultipleLocator(out_xscale * 60))
-out_ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(int(x/out_xscale))))
+out_ax.xaxis.set_minor_locator(MultipleLocator(out_xscale * (60 ** timelevel) / 2))
+out_ax.xaxis.set_minor_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(timelevel, int(x / out_xscale))))
 out_ax.set_yticks(np.arange(out_yscale * 0.5, out_ypixels + out_yscale * 0.5, out_yscale))
 out_ax.set_yticklabels(step_labels)
 plt.imshow(out_img, interpolation = 'nearest', extent = [0, out_xpixels, 0, out_ypixels])
@@ -241,3 +276,6 @@ for y in nsteps:
 
 with PdfPages(args['out_path'] + "/" + args['out_file_name']) as pdf:
     pdf.savefig(out_fig)
+
+print("Finished generating job activity for " + args["modname"] + "_" + args["controllername"] + ".")
+sys.stdout.flush()

@@ -11,7 +11,7 @@ controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 #mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
 #toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
-rm ${controllerpath}/*.job ${controllerpath}/*.log ${controllerpath}/*.err 2>/dev/null
+rm ${controllerpath}/*.job ${controllerpath}/*.info ${controllerpath}/*.err 2>/dev/null
 rm ${controllerpath}/querystate* 2>/dev/null
 rm ${controllerpath}/reloadstate* 2>/dev/null
 rm ${controllerpath}/batchcounter 2>/dev/null

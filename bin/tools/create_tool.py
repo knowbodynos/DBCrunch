@@ -29,7 +29,7 @@ def writetooljobfile(tool, toolname, job_limit, time_limit, in_path, out_path, m
     jobstring += "#SBATCH -D \"" + controllerpath + "/" + toolname + "\"\n"
     jobstring += "#################\n"
     jobstring += "#Job output file\n"
-    jobstring += "#SBATCH -o \"" + jobname + ".log\"\n"
+    jobstring += "#SBATCH -o \"" + jobname + ".info\"\n"
     jobstring += "#################\n"
     jobstring += "#Job error file\n"
     jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"
@@ -88,6 +88,6 @@ partitions = crunchconfigdoc["resources"].keys()
 
 if crunchconfigdoc["workload-manager"] == "slurm":
     from crunch_slurm import *
-    partition = get_freenodes(partitions)[0][0]
+    partition = get_freenodes(partitions)[0]["partition"]
     writetooljobfile(tool, toolname, job_limit, time_limit, in_path, out_path, modname, controllername, controllerpath, out_file_names, partition)
     get_submitjob(controllerpath + "/" + toolname, "crunch_" + modname + "_" + controllername + "_" + toolname)

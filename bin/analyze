@@ -49,8 +49,4 @@ do
     shift
 done
 
-echo "${job_limit}"
-
 python ${ProgDir}/tools/create_tool.py "analyze.py" "${job_limit}" "${time_limit}" "${controllerpath}/logs" "${controllerpath}/analyze" "${modname}" "${controllername}" "${controllerpath}" "analysis.pdf"
-
-echo "Finished generating resource usage graphs for ${modname}_${controllername}."
