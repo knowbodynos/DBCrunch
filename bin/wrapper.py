@@ -192,6 +192,7 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
         self._cleanup = cleanup
         self._cleanup_counter = 0
         self._timelimit = time_limit
+        self._prevtimestamp = datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self._starttime = start_time
         self._stepid = stepid
         self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
@@ -419,7 +420,8 @@ class AsynchronousThreadStatsStreamReaderWriter(Thread):
             if self._stats[k] >= self._maxstats[k]:
                 self._maxstats[k] = self._stats[k]
         if next_iter:
-            self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats, "timestamp": timestamp})
+            self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats, "prevtimestamp": self._prevtimestamp, "timestamp": timestamp})
+            self._prevtimestamp = timestamp
             for k in self._stats.keys():
                 self._totstats[k] = 0
                 self._maxstats[k] = 0
@@ -1021,13 +1023,14 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                     outext = newcollection + ".set"
                     #runtime = "%.2f" % handler.stat("ElapsedTime")
                     runtime = "%.2f" % stats["stats"]["elapsedtime"]
+                    previntermedtime = stats["prevtimestamp"]
                     intermedtime = stats["timestamp"]
                     if kwargs['intermedlog'] or kwargs['outlog']:
                         if kwargs['intermedlog']:
-                            intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                            intermedlogstream.write(previntermedtime + " " + intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                             intermedlogstream.flush()
                         if kwargs['outlog']:
-                            outloglist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                            outloglist[-1] += previntermedtime + " " + intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                     statsmark = {}
                     if kwargs['statslocal'] or kwargs['statsdb']:
                         statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1382,13 +1385,14 @@ while not stdout_queue.empty():
                 outext = newcollection + ".set"
                 #runtime = "%.2f" % handler.stat("ElapsedTime")
                 runtime = "%.2f" % stats["stats"]["elapsedtime"]
+                previntermedtime = stats["prevtimestamp"]
                 intermedtime = stats["timestamp"]
                 if kwargs['intermedlog'] or kwargs['outlog']:
                     if kwargs['intermedlog']:
-                        intermedlogstream.write(intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                        intermedlogstream.write(previntermedtime + " " + intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                         intermedlogstream.flush()
                     if kwargs['outlog']:
-                        outloglist[-1] += intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                        outloglist[-1] += previntermedtime + " " + intermedtime + " " + runtime + "s " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 statsmark = {}
                 if kwargs['statslocal'] or kwargs['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})

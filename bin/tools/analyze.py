@@ -27,6 +27,7 @@ with warnings.catch_warnings():
     import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MultipleLocator, FuncFormatter
+from matplotlib.gridspec import GridSpec
 plt.ioff()
 
 def timestamp2unit(timestamp, unit = "seconds"):
@@ -73,7 +74,7 @@ def seconds2timestamp(timelevel, seconds):
     return timestamp
 
 def create_y_ticker(yscale, yexp):
-    return FuncFormatter(lambda y, pos: '%.1f' % (float(y)/(yscale * (10 ** yexp))))
+    return FuncFormatter(lambda y, pos: '%.1f' % (float(y) / (yscale * (10 ** yexp))))
 
 parser = ArgumentParser()
 
@@ -158,7 +159,7 @@ with open(args['controllerpath'] + "/crunch_" + args['modname'] + "_" + args['co
             controller_info_time = int((controller_info_timestamp - epoch).total_seconds())
             controller_info_job = int(controller_info_line_split[5].split("_job_")[1].split("_")[0])
             controller_info_steps_range = [int(x) for x in controller_info_line_split[5].split("_steps_")[1].split("-")]
-            controller_info_steps = [(controller_info_job, x) for x in range(controller_info_steps_range[0], controller_info_steps_range[1] + 1)]
+            controller_info_steps = [(controller_info_job, x) for x in range(1, controller_info_steps_range[1] - controller_info_steps_range[0] + 2)]
             if controller_info_job not in job_submit_start_end.keys():
                 job_submit_start_end[controller_info_job] = [controller_info_time, None, None]
             for x in controller_info_steps:
@@ -175,23 +176,19 @@ for info_file_path in iglob(args['in_path'] + "/*.info"):
             info_time = int((info_timestamp - epoch).total_seconds())
             info_job = int(info_line_split[1].split("_job_")[1].split("_")[0])
             info_step = (info_job, int(info_line_split[1].split("_step_")[1]))
-            if log_job not in job_submit_start_end.keys():
-                job_submit_start_end[log_job] = [None, None, None]
-            if log_step not in step_submit_start_end.keys():
-                step_submit_start_end[log_step] = [None, None, None]
+            if info_job not in job_submit_start_end.keys():
+                job_submit_start_end[info_job] = [None, None, None]
+            if info_step not in step_submit_start_end.keys():
+                step_submit_start_end[info_step] = [None, None, None]
             if info_line_split[2] == "START":
                 if info_linecount == 0:
-                    if info_job in job_submit_start_end.keys():
-                        job_submit_start_end[info_job][1] = info_time
-                if info_step not in step_submit_start_end.keys():
-                    step_submit_start_end[info_step][1] = info_time
+                    job_submit_start_end[info_job][1] = info_time
+                step_submit_start_end[info_step][1] = info_time
             elif info_line_split[2] == "END":
-                if info_step not in step_submit_start_end.keys():
-                    step_submit_start_end[info_step][2] = info_time
+                step_submit_start_end[info_step][2] = info_time
             info_linecount += 1
         if info_line_split[2] == "END":
-            if info_job in job_submit_start_end.keys():
-                job_submit_start_end[info_job][2] = info_time
+            job_submit_start_end[info_job][2] = info_time
 
 for log_file_path in iglob(args['in_path'] + "/*.log"):
     log_filename = log_file_path.split("/")[-1]
@@ -206,32 +203,36 @@ for log_file_path in iglob(args['in_path'] + "/*.log"):
         with open(log_file_path, "r") as log_stream:
             for log_line in log_stream:
                 log_line_split = log_line.rstrip("\n").split()
-                if len(log_line_split) < 5:
+                if len(log_line_split) < 6:
                     break
                 log_out_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
                 log_out_time = int((log_out_timestamp - epoch).total_seconds())
                 log_out_runtime = int(eval(log_line_split[1].rstrip('s')))
-                log_intermed_timestamp = datetime.datetime.strptime(log_line_split[2], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
-                log_intermed_time = int((log_out_timestamp - epoch).total_seconds())
-                log_intermed_runtime = int(eval(log_line_split[3].rstrip('s')))
-                log_id = log_line_split[4]
-                if job_submit_start_end[log_job][0] == None or log_intermed_time - log_intermed_runtime < job_submit_start_end[log_job][0]:
-                    job_submit_start_end[log_job][0] = log_intermed_time - log_intermed_runtime
-                if job_submit_start_end[log_job][1] == None or log_intermed_time - log_intermed_runtime < job_submit_start_end[log_job][1]:
-                    job_submit_start_end[log_job][1] = log_intermed_time - log_intermed_runtime
-                if log_out_time > job_submit_start_end[log_job][2]:
+                log_intermed_prevtimestamp = datetime.datetime.strptime(log_line_split[2], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+                log_intermed_prevtime = int((log_intermed_prevtimestamp - epoch).total_seconds())
+                log_intermed_timestamp = datetime.datetime.strptime(log_line_split[3], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo = utc)
+                log_intermed_time = int((log_intermed_timestamp - epoch).total_seconds())
+                log_intermed_runtime = int(eval(log_line_split[4].rstrip('s')))
+                log_id = log_line_split[5]
+
+                if job_submit_start_end[log_job][0] == None or log_intermed_prevtime - log_intermed_runtime < job_submit_start_end[log_job][0]:
+                    job_submit_start_end[log_job][0] = log_intermed_prevtime - log_intermed_runtime
+                if job_submit_start_end[log_job][1] == None or log_intermed_prevtime - log_intermed_runtime < job_submit_start_end[log_job][1]:
+                    job_submit_start_end[log_job][1] = log_intermed_prevtime - log_intermed_runtime
+                if job_submit_start_end[log_job][2] == None or log_out_time > job_submit_start_end[log_job][2]:
                     job_submit_start_end[log_job][2] = log_out_time
-                if step_submit_start_end[log_step][0] == None or log_intermed_time - log_intermed_runtime < step_submit_start_end[log_step][0]:
-                    step_submit_start_end[log_step][0] = log_intermed_time - log_intermed_runtime
-                if step_submit_start_end[log_step][1] == None or log_intermed_time - log_intermed_runtime < step_submit_start_end[log_step][1]:
-                    step_submit_start_end[log_step][1] = log_intermed_time - log_intermed_runtime
-                if log_out_time > step_submit_start_end[log_step][2]:
+
+                if step_submit_start_end[log_step][0] == None or log_intermed_prevtime - log_intermed_runtime < step_submit_start_end[log_step][0]:
+                    step_submit_start_end[log_step][0] = log_intermed_prevtime - log_intermed_runtime
+                if step_submit_start_end[log_step][1] == None or log_intermed_prevtime - log_intermed_runtime < step_submit_start_end[log_step][1]:
+                    step_submit_start_end[log_step][1] = log_intermed_prevtime - log_intermed_runtime
+                if step_submit_start_end[log_step][2] == None or log_out_time > step_submit_start_end[log_step][2]:
                     step_submit_start_end[log_step][2] = log_out_time
                 #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
                 if intermed.shape[0] <= log_intermed_time:
                     intermed.resize(log_intermed_time + 1)
                     intermed_done.resize(log_intermed_time + 1)
-                intermed[log_intermed_time - log_intermed_runtime:log_intermed_time + 1] += np.ones(log_intermed_runtime + 1, dtype = int)
+                intermed[log_intermed_prevtime - log_intermed_runtime:log_intermed_time + 1] += np.ones(log_intermed_time - log_intermed_prevtime + log_intermed_runtime + 1, dtype = int)
                 intermed_done[log_intermed_time] += 1
                 if out.shape[0] <= log_out_time:
                     out.resize(log_out_time + 1)
@@ -261,6 +262,16 @@ intermed_done = np.delete(intermed_done, range(min_time))
 out = np.delete(out, range(min_time))
 out_done = np.delete(out_done, range(min_time))
 
+intermed_cum = np.zeros(total.shape[0], dtype = int)
+intermed_count = 0
+out_cum = np.zeros(total.shape[0], dtype = int)
+out_count = 0
+for i in range(total.shape[0]):
+    intermed_count += intermed_done[i]
+    intermed_cum[i] = intermed_count
+    out_count += out_done[i]
+    out_cum[i] = out_count
+
 jobs_pend = np.zeros(total.shape[0], dtype = int)
 jobs_run = np.zeros(total.shape[0], dtype = int)
 steps_pend = np.zeros(total.shape[0], dtype = int)
@@ -273,6 +284,8 @@ times = np.arange(total.shape[0], dtype = int)
 #sys.stdout.flush()
 
 for j in job_submit_start_end.values():
+    if j[0] == None or j[0] > max_time:
+        j[0] = max_time
     if j[1] == None or j[1] > max_time:
         j[1] = max_time
     if j[2] == None or j[2] > max_time:
@@ -283,6 +296,8 @@ for j in job_submit_start_end.values():
         jobs_run[j[1] - min_time:j[2] - min_time] += np.ones(j[2] - j[1], dtype = int)
 
 for s in step_submit_start_end.values():
+    if s[0] == None or s[0] > max_time:
+        s[0] = max_time
     if s[1] == None or s[1] > max_time:
         s[1] = max_time
     if s[2] == None or s[2] > max_time:
@@ -291,6 +306,58 @@ for s in step_submit_start_end.values():
         steps_pend[s[0] - min_time:s[1] - min_time] += np.ones(s[1] - s[0], dtype = int)
     if s[1] <= s[2]:
         steps_run[s[1] - min_time:s[2] - min_time] += np.ones(s[2] - s[1], dtype = int)
+
+breaks = []
+for i in range(steps_run.shape[0]):
+    if steps_run[i] == 0:
+        if i == 0 or steps_run[i - 1] > 0:
+            breaks += [[i, i]]
+        elif steps_run[i - 1] == 0:
+            breaks[-1][1] = i
+
+i = 0
+while i < len(breaks):
+    if breaks[i][1] - breaks[i][0] + 1 <= 0.1 * steps_run.shape[0]:
+        del breaks[i]
+        i -= 1
+    i += 1
+
+chunks = [[0]]
+for b in breaks:
+    chunks[-1] += [b[0]]
+    chunks += [[b[1]]]
+chunks[-1] += [steps_run.shape[0]]
+
+times_zip = np.empty(0, dtype = int)
+jobs_pend_zip = np.empty(0, dtype = int)
+jobs_run_zip = np.empty(0, dtype = int)
+steps_pend_zip = np.empty(0, dtype = int)
+steps_run_zip = np.empty(0, dtype = int)
+intermed_zip = np.empty(0, dtype = int)
+out_zip = np.empty(0, dtype = int)
+zip_lines = []
+for c in chunks:
+    times_zip = np.concatenate((times_zip, times[c[0]:c[1]]), axis = 0)
+    jobs_pend_zip = np.concatenate((jobs_pend_zip, jobs_pend[c[0]:c[1]]), axis = 0)
+    jobs_run_zip = np.concatenate((jobs_run_zip, jobs_run[c[0]:c[1]]), axis = 0)
+    steps_pend_zip = np.concatenate((steps_pend_zip, steps_pend[c[0]:c[1]]), axis = 0)
+    steps_run_zip = np.concatenate((steps_run_zip, steps_run[c[0]:c[1]]), axis = 0)
+    intermed_zip = np.concatenate((intermed_zip, intermed_cum[c[0]:c[1]]), axis = 0)
+    out_zip = np.concatenate((out_zip, out_cum[c[0]:c[1]]), axis = 0)
+    if len(zip_lines) > 0:
+        zip_lines += [zip_lines[-1] + c[1] - c[0] - 1]
+    else:
+        zip_lines += [c[1] - c[0] - 1]
+del zip_lines[-1]
+
+times_norm = np.arange(times_zip.shape[0], dtype = int)
+times = times_zip
+jobs_pend = jobs_pend_zip
+jobs_run = jobs_run_zip
+steps_pend = steps_pend_zip
+steps_run = steps_run_zip
+intermed_cum = intermed_zip
+out_cum = out_zip
 
 #plot_labels = ["# Jobs", "# Steps", "Processing", "Processed", "Writing", "Written"]
 #plot_lists = [jobs, total, run, intermed, wait, out]
@@ -301,7 +368,7 @@ for s in step_submit_start_end.values():
 
 if times[-1] > (60 * 60):
     timelevel = 2
-elif times[-1] < (60 * 60) and times[-1] > 60:
+elif times[-1] <= (60 * 60) and times[-1] > 60:
     timelevel = 1
 else:
     timelevel = 0
@@ -315,21 +382,25 @@ yscale = 5
 print("Plotting job activity statistics...")
 sys.stdout.flush()
 
-width, height = 30., 8.
+width, height = 30., 25.
 linewidth = width / times[-1]
 
-ntime = 3
+ntime = 4
 nhist = 2
+
+gs = GridSpec(ntime + nhist, 1)
 
 plt.suptitle('Resource Usage Statistics for ' + args['modname'] + "_" + args['controllername'])
 fig = plt.figure(figsize = (width, height))#, dpi = dpi)
 
+# Setup time series
+
 axtime = []
 for i in range(ntime):
     if i == 0:
-        ax = fig.add_subplot(ntime + nhist, 1, i + 1)
+        ax = fig.add_subplot(gs[i])
     else:
-        ax = fig.add_subplot(ntime + nhist, 1, i + 1, sharex = axtime[0])
+        ax = fig.add_subplot(gs[i], sharex = axtime[0])
     ax.grid(color = 'k', linestyle = '-', linewidth = 0.01)
     if i == ntime - 1:
         if timelevel == 2:
@@ -338,69 +409,20 @@ for i in range(ntime):
             ax.set_xlabel('Time (HH:MM)')
         else:
             ax.set_xlabel('Time (MM:SS)')
-        ax.xaxis.set_major_locator(MultipleLocator(xscale * (60 ** timelevel)))
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(timelevel, int(x / xscale))))
-        ax.xaxis.set_minor_locator(MultipleLocator(xscale * (60 ** timelevel) / 2))
-        ax.set_xlim(0, xscale * max(times))
+        ax.set_xticks([xscale * j for j in range(times.shape[0]) if times[j] % (60 ** timelevel) == 0], minor = False)
+        ax.set_xticklabels([seconds2timestamp(timelevel, t) for t in times if t % (60 ** timelevel) == 0], minor = False)
+        ax.set_xticks([xscale * j for j in range(times.shape[0]) if times[j] % ((60 ** timelevel) / 2) == 0], minor = True)
+        #ax.xaxis.set_major_locator(MultipleLocator(xscale * (60 ** timelevel)))
+        #ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: seconds2timestamp(timelevel, int(x / xscale))))
+        #ax.xaxis.set_minor_locator(MultipleLocator(xscale * (60 ** timelevel) / 2))
+        ax.set_xlim(0, xscale * times.shape[0])#max(times))
     else:
         plt.setp(ax.get_xticklabels(), visible = False)
+    for x in zip_lines:
+        ax.axvline(x = xscale * x, color = 'k', linestyle = 'dashed', linewidth = 5)
     axtime += [ax]
 
-# 1) Jobs
-
-plot_labels = ["Pending", "Running"]
-plot_lists = [jobs_pend, jobs_run]
-colors = ['red', 'green']
-
-ymax = int(max(np.concatenate((jobs_pend, jobs_run), axis=0)))
-yexp = len(str(ymax)) - 1
-if yexp != 0:
-    axtime[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[0].transAxes)
-axtime[0].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axtime[0].set_ylabel("# Jobs")
-axtime[0].set_ylim(0, yscale * ymax)
-for i in range(len(plot_lists)):
-    axtime[0].plot([xscale * x for x in times], [yscale * y for y in plot_lists[i]], color = colors[i], alpha = 0.75, label = plot_labels[i])#, markersize = linewidth)
-
-axtime[0].legend(bbox_to_anchor = (0.1, 1.3, 0.9, .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
-
-# 2) Steps
-
-plot_labels = ["Pending", "Running"]
-plot_lists = [steps_pend, steps_run]
-colors = ['red', 'green']
-
-ymax = int(max(np.concatenate(tuple(plot_lists), axis=0)))
-yexp = len(str(ymax)) - 1
-if yexp != 0:
-    axtime[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[1].transAxes)
-axtime[1].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axtime[1].set_ylabel("# Steps")
-axtime[1].set_ylim(0, yscale * ymax)
-for i in range(len(plot_lists)):
-    axtime[1].plot([xscale * x for x in times], [yscale * y for y in plot_lists[i]], color = colors[i], alpha = 0.75, label = plot_labels[i])#, markersize = linewidth)
-
-axtime[1].legend(bbox_to_anchor = (0.1, 1.3, 0.9, .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
-
-# 3) Processing
-
-plot_labels = ["Processing", "Writing"]#, "Active"]
-plot_lists = [intermed, out]#, total]
-colors = ['red', 'green']#, 'purple']
-
-ymax = int(max(total))
-yexp = len(str(ymax)) - 1
-if yexp != 0:
-    axtime[2].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[2].transAxes)
-axtime[2].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axtime[2].set_ylabel("# Docs")
-axtime[2].set_ylim(0, yscale * ymax)
-for i in range(len(plot_lists)):
-    axtime[2].plot([xscale * x for x in times], [yscale * y for y in plot_lists[i]], color = colors[i], markersize = linewidth, label = plot_labels[i])
-
-axtime[2].legend(bbox_to_anchor = (0.1, 1.3, 0.9, .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
-
-# 4) Steps Processed/Written
+# Setup histograms
 
 axhist = []
 for i in range(nhist):
@@ -409,26 +431,141 @@ for i in range(nhist):
     #ax.xlabel('Time (DD:HH)')
     axhist += [ax]
 
-plot_labels = ["Processed", "Written"]
-plot_lists = [intermed_done, out_done]
-colors = ['orange', 'green']
+# 1) Jobs
 
+plot_labels = ["Pending", "Running"]
+plot_lists = [jobs_pend, jobs_run]
+colors = ['red', 'green']
+
+ymax = int(max(np.concatenate((jobs_pend, jobs_run), axis = 0)))
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axtime[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[0].transAxes)
+axtime[0].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[0].set_ylabel("# Jobs")
+axtime[0].set_ylim(0, 1.1 * yscale * ymax)
 for i in range(len(plot_lists)):
-    #axhist[i].fill_between([xscale * x for x in times], 0, [yscale * y for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
-    #axhist[i].hist(plot_lists[i], int(len(plot_lists[i])/5), facecolor = colors[i], alpha = 0.75)
-    #bins = [x for x in plot_lists[i] if x > 0]
-    bins = [controllerconfigdoc["options"]["nbatch"] * (j + 1) for j in range(int(max(plot_lists[i]) / controllerconfigdoc["options"]["nbatch"]) + 1)]
-    counts, bins, patches = axhist[i].hist([x for x in plot_lists[i] if x > 0], bins = bins, rwidth = 1, facecolor = colors[i], alpha = 0.75)
-    axhist[i].set_xticks(bins)
-    axhist[i].set_xlim(bins[0], bins[-1] + bins[1] - bins[0])
-    ymax = int(max(counts))
-    yexp = len(str(ymax)) - 1
-    if yexp != 0:
-        axhist[i].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[i].transAxes)
-    axhist[i].set_xlabel("# Docs " + plot_labels[i])
-    axhist[i].yaxis.set_major_formatter(create_y_ticker(1, yexp))
-    axhist[i].set_ylabel("Frequency")
-    axhist[i].set_ylim(0, 1 * ymax)
+    axtime[0].plot([xscale * x for x in times_norm], [yscale * y for y in plot_lists[i]], color = colors[i], alpha = 0.75, label = plot_labels[i])#, markersize = linewidth)
+
+axtime[0].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+# 2) Steps
+
+plot_labels = ["Pending", "Running"]
+plot_lists = [steps_pend, steps_run]
+colors = ['red', 'green']
+
+ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0)))
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axtime[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[1].transAxes)
+axtime[1].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[1].set_ylabel("# Steps")
+axtime[1].set_ylim(0, 1.1 * yscale * ymax)
+for i in range(len(plot_lists)):
+    axtime[1].plot([xscale * x for x in times_norm], [yscale * y for y in plot_lists[i]], color = colors[i], alpha = 0.75, label = plot_labels[i])#, markersize = linewidth)
+
+axtime[1].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+# 3) Processing
+
+plot_labels = ["Processing"]#, "Writing"]#, "Active"]
+plot_lists = [intermed_cum]#, out]#, total]
+colors = ['red']#, 'green']#, 'purple']
+
+ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0)))
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axtime[2].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[2].transAxes)
+axtime[2].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[2].set_ylabel("# Docs Processed")
+axtime[2].set_ylim(0, 1.1 * yscale * ymax)
+for i in range(len(plot_lists)):
+    axtime[2].plot([xscale * x for x in times_norm], [yscale * y for y in plot_lists[i]], color = colors[i], markersize = linewidth, label = plot_labels[i])
+
+#axtime[2].legend(bbox_to_anchor = (0.8, 1.0, 0.2, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+# 4) Writing
+
+plot_labels = ["Writing"]#, "Active"]
+plot_lists = [out_cum]#, total]
+colors = ['green']#, 'purple']
+
+ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0)))
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axtime[3].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[3].transAxes)
+axtime[3].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[3].set_ylabel("# Docs Written")
+axtime[3].set_ylim(0, 1.1 * yscale * ymax)
+for i in range(len(plot_lists)):
+    axtime[3].plot([xscale * x for x in times_norm], [yscale * y for y in plot_lists[i]], color = colors[i], markersize = linewidth, label = plot_labels[i])
+
+#axtime[2].legend(bbox_to_anchor = (0.8, 1.0, 0.2, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+## 3) Processing (weighted)
+#
+#intermed_weighted = np.array([float(intermed[i]) / float(steps_run[i]) if steps_run[i] > 0 else 0 for i in range(intermed.shape[0])], dtype = float)
+#out_weighted = np.array([float(out[i]) / float(steps_run[i]) if steps_run[i] > 0 else 0 for i in range(out.shape[0])], dtype = float)
+#
+#plot_labels = ["Processing", "Writing"]#, "Active"]
+#plot_lists = [intermed_weighted, out_weighted]#, total]
+#colors = ['red', 'green']#, 'purple']
+#
+#ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0)))
+#yexp = len(str(ymax)) - 1
+#if yexp != 0:
+#    axtime[3].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[3].transAxes)
+#axtime[3].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+#axtime[3].set_ylabel("# Docs")
+#axtime[3].set_ylim(0, yscale * ymax)
+#for i in range(len(plot_lists)):
+#    axtime[3].plot([xscale * x for x in times], [yscale * y for y in plot_lists[i]], color = colors[i], markersize = linewidth, label = plot_labels[i])
+#
+#axtime[3].legend(bbox_to_anchor = (0.1, 1.3, 0.9, .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+# 5) Steps Processed
+
+plot_label = "Processed"
+plot_list = intermed_done
+color = 'red'
+
+bins = [int(max(plot_list) / 28) * (j + 1) for j in range(28)]
+counts, bins, patches = axhist[0].hist([x for x in plot_list if x > 0], bins = bins, rwidth = 1, facecolor = color, alpha = 0.75)
+axhist[0].set_xticks(bins)
+axhist[0].set_xlim(bins[0], bins[-1] + bins[1] - bins[0])
+ymax = int(max(counts))
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axhist[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[0].transAxes)
+axhist[0].set_xlabel("# Docs " + plot_label)
+axhist[0].yaxis.set_major_formatter(create_y_ticker(1, yexp))
+axhist[0].set_ylabel("Frequency")
+axhist[0].set_ylim(0, 1 * ymax)
+
+# 6) Steps Written
+
+plot_label = "Written"
+plot_list = out_done
+color = 'green'
+
+#for i in range(len(plot_lists)):
+#axhist[i].fill_between([xscale * x for x in times], 0, [yscale * y for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
+#axhist[i].hist(plot_lists[i], int(len(plot_lists[i])/5), facecolor = colors[i], alpha = 0.75)
+#bins = [x for x in plot_lists[i] if x > 0]
+
+bins = [controllerconfigdoc["options"]["nbatch"] * (j + 1) for j in range(int(max(plot_list) / controllerconfigdoc["options"]["nbatch"]) + 1)]
+counts, bins, patches = axhist[1].hist([x for x in plot_list if x > 0], bins = bins, rwidth = 1, facecolor = color, alpha = 0.75)
+axhist[1].set_xticks(bins)
+axhist[1].set_xlim(bins[0], bins[-1] + bins[1] - bins[0])
+ymax = int(max(counts))
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axhist[i].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[1].transAxes)
+axhist[1].set_xlabel("# Docs " + plot_label)
+axhist[1].yaxis.set_major_formatter(create_y_ticker(1, yexp))
+axhist[1].set_ylabel("Frequency")
+axhist[1].set_ylim(0, 1 * ymax)
 
 #plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=2, mode="expand", borderaxespad=0.)
 #plt.legend(bbox_to_anchor = (0., -0.4, 1., .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
