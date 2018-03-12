@@ -21,6 +21,8 @@ monitorjobs() {
             outsperc=$(echo "scale=2;(100*${outs})/${reads}" | bc)
             echo "${outsperc}% Finished: ${outs} of ${reads}"
         fi
+        #echo "Locks: $(cat ${controllerpath}/locks 2>/dev/null)"
+        echo "Locks: $(ls ${controllerpath}/locks/*.lock 2>/dev/null | wc -l)"
         echo "Status: $(cat ${controllerpath}/status 2>/dev/null)"
         #controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.info 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')
         controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.info 2>/dev/null | cut -d'T' -f2)

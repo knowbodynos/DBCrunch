@@ -16,6 +16,8 @@ rm ${controllerpath}/querystate* 2>/dev/null
 rm ${controllerpath}/reloadstate* 2>/dev/null
 rm ${controllerpath}/batchcounter 2>/dev/null
 rm ${controllerpath}/status 2>/dev/null
+rm ${controllerpath}/locks 2>/dev/null
+rm ${controllerpath}/refill 2>/dev/null
 for dir in $(find ${controllerpath} -mindepth 1 -type d)
 do
 	rm -r ${dir} 2>/dev/null

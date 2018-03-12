@@ -38,5 +38,5 @@ with open(controllerpath + "/status", "w") as statusstream:
 
 if crunchconfigdoc["workload-manager"] == "slurm":
     from crunch_slurm import *
-    get_writejobfile(controllerconfigdoc, jobname)
+    get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname)
     #get_submitjob(controllerpath, jobname)
