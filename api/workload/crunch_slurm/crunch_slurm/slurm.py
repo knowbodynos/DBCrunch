@@ -58,7 +58,7 @@ def get_prevcontrollerjobsrunningq(username, dependencies):
     return njobsrunning > 0
 
 def get_ncontrollerstepsrunning(username, modname, controllername):
-    script = "sacct -n -u " + username + " -o 'Jobname%50' | grep -E 'crunch_" + modname + "_" + controllername + "_job_.*_step_' | wc -l"
+    script = "sacct -n -u " + username + " -s 'R' -o 'Jobname%50' | grep -E 'crunch_" + modname + "_" + controllername + "_job_.*_step_' | wc -l"
     stdout, stderr = retry(script)
     return eval(stdout)
 

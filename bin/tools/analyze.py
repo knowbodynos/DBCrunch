@@ -560,7 +560,7 @@ axtime[2].fill_between(times_scale, plot_lists[1], np.where(plot_lists[1] > plot
 fit = np.polyfit(times_scale, plot_lists[1], deg = 1)
 fit_pos_x = times_scale[len(times_scale) / 2]
 fit_pos_y = (fit[0] * fit_pos_x + fit[1]) - (0.1 * plot_lists[1][-1])
-axtime[2].plot(times_scale, fit[0] * times_scale + fit[1], color = 'orange', alpha = 1, linewidth = 5, label = 'Linear Fit')
+axtime[2].plot(times_scale, fit[0] * times_scale + fit[1], color = 'black', alpha = 1, linewidth = 5, label = 'Linear Fit')
 axtime[2].text(fit_pos_x, fit_pos_y, "y = " + str("%.2f" % fit[0]) + " * x + " + str("%.2f" % fit[1]), horizontalalignment = 'left', verticalalignment = 'bottom')
 
 axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
