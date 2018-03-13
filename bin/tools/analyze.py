@@ -504,7 +504,11 @@ plot_labels = ["Pending", "Running"]
 plot_lists = [yscale * plot_list for plot_list in [jobs_pend, jobs_run]]
 colors = ['red', 'green']
 
-ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0))) / yscale
+concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
+if concat_lists.shape[0] > 0:
+    ymax = int(max(concat_lists)) / yscale
+else:
+    ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axtime[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[0].transAxes)
@@ -525,7 +529,11 @@ plot_labels = ["Pending", "Running"]
 plot_lists = [yscale * plot_list for plot_list in [steps_pend, steps_run]]
 colors = ['red', 'green']
 
-ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0))) / yscale
+concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
+if concat_lists.shape[0] > 0:
+    ymax = int(max(concat_lists)) / yscale
+else:
+    ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axtime[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[1].transAxes)
@@ -546,7 +554,11 @@ plot_labels = ["Processing", "Writing"]#, "Active"]
 plot_lists = [yscale * plot_list for plot_list in [intermed_cum, out_cum]]#, total]]
 colors = ['red', 'green']#, 'purple']
 
-ymax = int(max(np.concatenate(tuple(plot_lists), axis = 0))) / yscale
+concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
+if concat_lists.shape[0] > 0:
+    ymax = int(max(concat_lists)) / yscale
+else:
+    ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axtime[2].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[2].transAxes)
@@ -562,7 +574,7 @@ axtime[2].fill_between(times_scale, plot_lists[1], np.where(plot_lists[1] > plot
 fit = np.polyfit(times_scale, plot_lists[1], deg = 1)
 fit_pos_x = times_scale[len(times_scale) / 2]
 fit_pos_y = (fit[0] * fit_pos_x + fit[1]) - (0.1 * plot_lists[1][-1])
-axtime[2].plot(times_scale, fit[0] * times_scale + fit[1], color = 'black', alpha = 1, linewidth = 5, label = 'Linear Fit')
+axtime[2].plot(times_scale, fit[0] * times_scale + fit[1], color = 'black', alpha = 1, linewidth = 2, label = 'Linear Fit')
 axtime[2].text(fit_pos_x, fit_pos_y, "y = " + str("%.2f" % fit[0]) + " * x + " + str("%.2f" % fit[1]), horizontalalignment = 'left', verticalalignment = 'bottom')
 
 axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
@@ -609,7 +621,10 @@ axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', 
 # 5) Steps Processed
 
 plot_label = "Processed"
-plot_list = np.array([x for x in intermed_done if x > 0], dtype = int)
+nonzero_list = [x for x in intermed_done if x > 0]
+if len(nonzero_list) == 0:
+    nonzero_list = [0]
+plot_list = np.array(nonzero_list, dtype = int)
 color = 'red'
 
 #bins = [int(max(plot_list) / 28) * (j + 1) for j in range(28)]
@@ -621,13 +636,16 @@ binwidth = max(binwidth, 1)
 #print(binwidth)
 #sys.stdout.flush()
 bins = np.arange(min(plot_list), max(plot_list) + 1, binwidth)
-counts, bins, patches = axhist[0].hist(plot_list, bins = bins, rwidth = 1, facecolor = color, alpha = 0.5)
+counts, bins, patches = axhist[0].hist(plot_list, bins = bins, rwidth = 1, facecolor = color, alpha = 0.5, label = 'Histogram')
 axhist[0].set_xticks(bins)
 axhist[0].set_xlim(bins[0], bins[-1])# + bins[1] - bins[0])
-ymax = int(max(counts))
+if len(counts) > 0:
+    ymax = int(max(counts))
+else:
+    ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
-    axhist[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[0].transAxes, label = 'Histogram')
+    axhist[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[0].transAxes)
 axhist[0].set_xlabel("# of Docs " + plot_label)
 axhist[0].yaxis.set_major_formatter(create_y_ticker(1, yexp))
 axhist[0].set_ylabel("Frequency")
@@ -635,17 +653,29 @@ axhist[0].set_ylim(0, 1 * ymax)
 
 mu, sigma = norm.fit(plot_list)
 fit = mlab.normpdf(bins, mu, sigma)
-fit_pos_x = max(bins, key = lambda x: counts[x])
-fit_pos_y = counts[fit_pos_x] + (0.1 * plot_list[-1])
-axhist[0] = plt.plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
-axhist[0].text(fit_pos_x, fit_pos_y, r'$\mu=' + str("%.2f" % mu) + r',\ \sigma=' + str("%.2f" % sigma) + '$')
+if len(bins) > 1:
+    fit = fit * (len(plot_list) * (bins[1] - bins[0]))
+#print("bins: " + str(bins.tolist()))
+#print("counts: " + str(counts.tolist()))
+#sys.stdout.flush()
+fit_pos_x = mu
+if len(fit) > 0:
+    fit_pos_y = max(fit)
+else:
+    fit_pos_y = 0
+fit_pos_y +=  (0.1 * ymax)
+axhist[0].plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
+axhist[0].text(fit_pos_x, fit_pos_y, r'$\mu=%.2f,\ \sigma=%.2f$' % (mu, sigma))
 
 axhist[0].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 # 6) Steps Written
 
 plot_label = "Written"
-plot_list = np.array([x for x in out_done if x > 0], dtype = int)
+nonzero_list = [x for x in out_done if x > 0]
+if len(nonzero_list) == 0:
+    nonzero_list = [0]
+plot_list = np.array(nonzero_list, dtype = int)
 color = 'green'
 #for i in range(len(plot_lists)):
 #axhist[i].fill_between([xscale * x for x in times], 0, [yscale * y for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
@@ -660,10 +690,13 @@ binwidth = max(binwidth, 1)
 #print(binwidth)
 #sys.stdout.flush()
 bins = np.arange(min(plot_list), max(plot_list) + 1, binwidth)
-counts, bins, patches = axhist[1].hist(plot_list, bins = bins, rwidth = 1, facecolor = color, alpha = 0.5)
+counts, bins, patches = axhist[1].hist(plot_list, bins = bins, rwidth = 1, facecolor = color, alpha = 0.5, label = 'Histogram')
 axhist[1].set_xticks(bins)
 axhist[1].set_xlim(bins[0], bins[-1])# + bins[1] - bins[0])
-ymax = int(max(counts))
+if len(counts) > 0:
+    ymax = int(max(counts))
+else:
+    ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axhist[i].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[1].transAxes)
@@ -674,10 +707,19 @@ axhist[1].set_ylim(0, 1 * ymax)
 
 mu, sigma = norm.fit(plot_list)
 fit = mlab.normpdf(bins, mu, sigma)
-fit_pos_x = max(bins, key = lambda x: counts[x])
-fit_pos_y = counts[fit_pos_x] + (0.1 * plot_list[-1])
-axhist[1] = plt.plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
-axhist[1].text(fit_pos_x, fit_pos_y, r'$\mu=' + str("%.2f" % mu) + r',\ \sigma=' + str("%.2f" % sigma) + '$')
+if len(bins) > 1:
+    fit = fit * (len(plot_list) * (bins[1] - bins[0]))
+#print("bins: " + str(bins.tolist()))
+#print("counts: " + str(counts.tolist()))
+#sys.stdout.flush()
+fit_pos_x = mu
+if len(fit) > 0:
+    fit_pos_y = max(fit)
+else:
+    fit_pos_y = 0
+fit_pos_y +=  (0.1 * ymax)
+axhist[1].plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
+axhist[1].text(fit_pos_x, fit_pos_y, r'$\mu=%.2f,\ \sigma=%.2f$' % (mu, sigma))
 
 axhist[1].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
