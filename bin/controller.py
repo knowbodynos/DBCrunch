@@ -1423,7 +1423,7 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
         licensesleft = clusterlicensesleft(nlicensesplit, ntasks)
         freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
         releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
-        while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and len(freenodes) > 0):
+        while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and len(freenodes) > 0 and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
             time.sleep(controllerconfigdoc["controller"]["sleeptime"])
             if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
                 refillsteps = []
@@ -1472,25 +1472,24 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
         jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
         freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
         releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
-        if (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(refillsteps) > 0 or len(freenodes) > 0) and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
-            while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and (len(refillsteps) > 0 or len(freenodes) > 0) and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
-                time.sleep(controllerconfigdoc["controller"]["sleeptime"])
-                if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
-                    refillsteps = []
-                    for refillfile in glob.iglob(controllerpath + "/docs/*.refill"):
-                        with open(refillfile, "r") as refillstream:
-                            refilllinesplit = [int(x) if x.isdigit() else x for x in refillstream.readline().rstrip("\n").split()]
-                            refillsteps += [dict(zip(refillkeys, refilllinesplit))]
-                    #with open(controllerpath + "/refill", "r") as refillstream:
-                    #    for refillline in refillstream:
-                    #        refilllinesplit = [int(x) if x.isdigit() else x for x in refillline.rstrip("\n").split()]
-                    #        refillsteps += [dict(zip(refillkeys, refilllinesplit))]
-                    if len(refillsteps) > controllerconfigdoc["options"]["nrefill"]:
-                        return refillsteps
+        while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and len(freenodes) > 0 and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
+            time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+            if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
+                refillsteps = []
+                for refillfile in glob.iglob(controllerpath + "/docs/*.refill"):
+                    with open(refillfile, "r") as refillstream:
+                        refilllinesplit = [int(x) if x.isdigit() else x for x in refillstream.readline().rstrip("\n").split()]
+                        refillsteps += [dict(zip(refillkeys, refilllinesplit))]
+                #with open(controllerpath + "/refill", "r") as refillstream:
+                #    for refillline in refillstream:
+                #        refilllinesplit = [int(x) if x.isdigit() else x for x in refillline.rstrip("\n").split()]
+                #        refillsteps += [dict(zip(refillkeys, refilllinesplit))]
+                if len(refillsteps) > controllerconfigdoc["options"]["nrefill"]:
+                    return refillsteps
 
-                jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
-                freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
-                releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+            jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
+            freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
+            releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         if not (timeleft(starttime, controllerbuffertimelimit) > 0):
             return None
 

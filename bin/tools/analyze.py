@@ -21,6 +21,8 @@ from argparse import ArgumentParser
 from pytz import utc
 from glob import iglob
 import numpy as np
+from scipy.stats import norm
+import matplotlib.mlab as mlab
 matplotlib.use('Agg')
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -625,11 +627,20 @@ axhist[0].set_xlim(bins[0], bins[-1])# + bins[1] - bins[0])
 ymax = int(max(counts))
 yexp = len(str(ymax)) - 1
 if yexp != 0:
-    axhist[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[0].transAxes)
+    axhist[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[0].transAxes, label = 'Histogram')
 axhist[0].set_xlabel("# of Docs " + plot_label)
 axhist[0].yaxis.set_major_formatter(create_y_ticker(1, yexp))
 axhist[0].set_ylabel("Frequency")
 axhist[0].set_ylim(0, 1 * ymax)
+
+mu, sigma = norm.fit(plot_list)
+fit = mlab.normpdf(bins, mu, sigma)
+fit_pos_x = max(bins, key = lambda x: counts[x])
+fit_pos_y = counts[fit_pos_x] + (0.1 * plot_list[-1])
+axhist[0] = plt.plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
+axhist[0].text(fit_pos_x, fit_pos_y, r'$\mu=' + str("%.2f" % mu) + r',\ \sigma=' + str("%.2f" % sigma) + '$')
+
+axhist[0].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 # 6) Steps Written
 
@@ -660,6 +671,15 @@ axhist[1].set_xlabel("# of Docs " + plot_label)
 axhist[1].yaxis.set_major_formatter(create_y_ticker(1, yexp))
 axhist[1].set_ylabel("Frequency")
 axhist[1].set_ylim(0, 1 * ymax)
+
+mu, sigma = norm.fit(plot_list)
+fit = mlab.normpdf(bins, mu, sigma)
+fit_pos_x = max(bins, key = lambda x: counts[x])
+fit_pos_y = counts[fit_pos_x] + (0.1 * plot_list[-1])
+axhist[1] = plt.plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
+axhist[1].text(fit_pos_x, fit_pos_y, r'$\mu=' + str("%.2f" % mu) + r',\ \sigma=' + str("%.2f" % sigma) + '$')
+
+axhist[1].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 #plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=2, mode="expand", borderaxespad=0.)
 #plt.legend(bbox_to_anchor = (0., -0.4, 1., .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
