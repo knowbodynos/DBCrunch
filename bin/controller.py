@@ -1298,7 +1298,7 @@ def writejobfile(controllerconfigdoc, reloadjob, minthreads, jobname, jobstepnam
     jobstring += "#SBATCH -D \"" + controllerpath + "/logs\"\n"
     jobstring += "#################\n"
     jobstring += "# Job output file\n"
-    jobstring += "#SBATCH -o \"" + jobname + ".debug\"\n"
+    jobstring += "#SBATCH -o \"" + jobname + ".info\"\n"
     jobstring += "#################\n"
     jobstring += "# Job error file\n"
     jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"
@@ -1702,8 +1702,9 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
             statusstream.flush()
 
         for i in range(len(docbatchparts)):
-            with open(controllerpath + "/docs/" + jobstepnames[i] + ".docs", "w") as docstream, open(controllerpath + "/docs/" + jobstepnames[i] + ".docs2", "a") as docstream2:
-                docstream2.write("START\n")
+            with open(controllerpath + "/docs/" + jobstepnames[i] + ".docs", "w") as docstream:
+                #, open(controllerpath + "/docs/" + jobstepnames[i] + ".docs2", "a") as docstream2:
+                #docstream2.write("START\n")
                 for n in range(len(docbatchparts[i])):
                     #if n > 0:
                     #    docstream.write("\n")
@@ -1711,9 +1712,9 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
                         docstream.write(docbatchparts[i][n])
                     else:
                         docstream.write(json.dumps(docbatchparts[i][n], separators = (',',':')) + "\n")
-                        docstream2.write(json.dumps(docbatchparts[i][n], separators = (',',':')) + "\n")
+                        #docstream2.write(json.dumps(docbatchparts[i][n], separators = (',',':')) + "\n")
                     docstream.flush()
-                    docstream2.flush()
+                    #docstream2.flush()
     else:
         #print(freenodesmem)
         #sys.stdout.flush()
@@ -1770,8 +1771,13 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
             statusstream.flush()
 
         for i in range(len(docbatchparts)):
-            with open(controllerpath + "/docs/" + jobstepnames[i] + ".refill", "w") as docstream, open(controllerpath + "/docs/" + jobstepnames[i] + ".docs2", "a") as docstream2:
-                docstream2.write("START\n")
+            if len(docbatchparts[i]) == 0:
+                os.remove(controllerpath + "/docs/" + jobstepnames[i] + ".refill")
+                open(controllerpath + "/docs/" + jobstepnames[i] + ".done", "w").close()
+
+            with open(controllerpath + "/docs/" + jobstepnames[i] + ".refill", "w") as docstream:
+                #, open(controllerpath + "/docs/" + jobstepnames[i] + ".docs2", "a") as docstream2:
+                #docstream2.write("START\n")
                 for n in range(len(docbatchparts[i])):
                     #if n > 0:
                     #    docstream.write("\n")
@@ -1779,9 +1785,9 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
                         docstream.write(docbatchparts[i][n])
                     else:
                         docstream.write(json.dumps(docbatchparts[i][n], separators = (',',':')) + "\n")
-                        docstream2.write(json.dumps(docbatchparts[i][n], separators = (',',':')) + "\n")
+                        #docstream2.write(json.dumps(docbatchparts[i][n], separators = (',',':')) + "\n")
                     docstream.flush()
-                    docstream2.flush()
+                    #docstream2.flush()
 
         refillpath = controllerpath + "/docs/"
         for x in jobstepnames:
@@ -2046,6 +2052,11 @@ try:
                                        counterupdate = lambda x: docounterupdate(x, counterstatefile, counterheader),
                                        resetstatefile = False,
                                        limit = querylimit)
+            elif controllerconfigdoc["options"]["nrefill"] != None:
+                for refillfile in os.listdir(controllerpath + "/docs"):
+                    if refillfile.endswith(".refill"):
+                        os.remove(controllerpath + "/docs/" + refillfile)
+                        open(controllerpath + "/docs/" + refillfile.replace(".refill", ".done"), "w").close()
         else:
             #requeueskippedqueryjobs(controllerconfigdoc, controllerpath, querystatefilename, counters, counterstatefile, counterheader, dbindexes)
             if (querylimit == None) or (counters[1] <= querylimit):
@@ -2064,6 +2075,11 @@ try:
                                                  limit = querylimit,
                                                  limittries = 10,
                                                  toplevel = True)
+            elif controllerconfigdoc["options"]["nrefill"] != None:
+                for refillfile in os.listdir(controllerpath + "/docs"):
+                    if refillfile.endswith(".refill"):
+                        os.remove(controllerpath + "/docs/" + refillfile)
+                        open(controllerpath + "/docs/" + refillfile.replace(".refill", ".done"), "w").close()
         #print "bye"
         #firstrun = False
         releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])

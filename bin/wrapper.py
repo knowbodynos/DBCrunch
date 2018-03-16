@@ -24,6 +24,7 @@ from glob import iglob
 from pprint import pprint
 from time import time, sleep
 from random import randint
+from signal import signal, SIGPIPE, SIG_DFL
 from subprocess import Popen, PIPE
 from threading import Thread, active_count
 from fcntl import fcntl, F_GETFL, F_SETFL
@@ -46,8 +47,22 @@ def PrintException():
     print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
     print "More info: ", traceback.format_exc()
 
+def default_sigpipe():
+    signal(SIGPIPE, SIG_DFL)
+
 def get_timestamp():
     return datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+
+def dir_size(start_path = '.'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            try:
+                total_size += os.stat(fp).st_blocks * 512
+            except OSError:
+                pass
+    return total_size
 
 def nonblocking_readlines(f):
     """Generator which yields lines from F (a file object, used only for
@@ -193,20 +208,19 @@ class AsyncIOStatsStream(Thread):
         if stats == None or stats_queue == None:
             self._stats = stats
         else:
-            self._stats = dict((s, 0) for s in stats)
+            self._stats = dict((s.lower(), 0) for s in stats)
             self._proc_smaps = open("/proc/" + str(pid) + "/smaps", "r")
             self._proc_stat = open("/proc/" + str(pid) + "/stat", "r")
             self._proc_uptime = open("/proc/uptime", "r")
-            self._in_uptime = 0
+            self._in_elapsedtime = 0
             self._in_parent_cputime = 0
             self._in_child_cputime = 0
-            self._prev_total_cputime = 0
-            self._maxstats = dict((s, 0) for s in stats)
-            self._totstats = dict((s, 0) for s in stats)
+            #self._prev_total_cputime = 0
+            self._maxstats = dict((s.lower(), 0) for s in stats)
+            self._totstats = dict((s.lower(), 0) for s in stats)
             self._nstats = 0
-            self._lower_keys = [k.lower() for k in self._stats.keys()]
-            self._time_keys = ["elapsedtime", "totalcputime", "parentcputime", "childcputime", "parentcpuusage", "childcpuusage", "totalcpuusage"]
-            self._hz = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+            self._time_keys = ["elapsedtime", "totalcputime", "parentcputime", "childcputime"]
+            self._hz = float(os.sysconf(os.sysconf_names['SC_CLK_TCK']))
             self._statsqueue = stats_queue
 
         self.daemon = True
@@ -290,39 +304,48 @@ class AsyncIOStatsStream(Thread):
         self._cleanup = controllerconfigdoc['options']['cleanup']
 
     def cleanup(self):
-        #with open(self._stdinfilename + "2", "a") as docstream2:
-        #    docstream2.write("CLEAN\n")
-        #    docstream2.flush()
-        while True:
-            try:
-                flock(self._stdinfile, LOCK_EX | LOCK_NB)
-                break
-            except IOError as e:
-                if e.errno != EAGAIN:
-                    raise
-                else:
-                    sleep(0.1)
-        with tempfile.NamedTemporaryFile(dir = "/".join(self._stdinfile.name.split("/")[:-1]), delete = False) as tempstream:
-            in_line = self._stdinfile.readline()
-            while in_line != "":
-                tempstream.write(in_line)
-                tempstream.flush()
+        if (self._cleanup != None and self._cleanup_counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time() - self._starttime >= self._timelimit):
+            #with open(self._stdinfilename + "2", "a") as docstream2:
+            #    docstream2.write("CLEAN\n")
+            #    docstream2.flush()
+            while True:
+                try:
+                    flock(self._stdinfile, LOCK_EX | LOCK_NB)
+                    break
+                except IOError as e:
+                    if e.errno != EAGAIN:
+                        raise
+                    else:
+                        sleep(0.1)
+            with tempfile.NamedTemporaryFile(dir = "/".join(self._stdinfile.name.split("/")[:-1]), delete = False) as tempstream:
                 in_line = self._stdinfile.readline()
-            name = self._stdinfile.name
-            self._stdinfile.close()
-            os.rename(tempstream.name, name)
-            self._stdinfile = open(name, "a+")
+                while in_line != "":
+                    tempstream.write(in_line)
+                    tempstream.flush()
+                    in_line = self._stdinfile.readline()
+                name = self._stdinfile.name
+                self._stdinfile.close()
+                os.rename(tempstream.name, name)
+                self._stdinfile = open(name, "a+")
             self._stdinfile.seek(0)
             flock(self._stdinfile, LOCK_UN)
+            self._cleanup_counter = 0
 
     def write_stdin(self):
         #self.print_here(str((self._stdinfile.name, self._stdinfile.closed, self._stdinfile)))
         #    self._stdinfile = open(self._stdinfile.name, "r")
-        if self._refillreported and os.path.exists(self._stdinfilename):
-            self._stdinfile = open(self._stdinfilename, "a+")
-            self._stdinfile.seek(0)
-            self._refillreported = False
-            self._cleanup_counter = 0
+        if self._refillreported:
+            if os.path.exists(self._stdinfilename):
+                self._stdinfile = open(self._stdinfilename, "a+")
+                self._stdinfile.seek(0)
+                self._refillreported = False
+                self._cleanup_counter = 0
+            elif os.path.exists(self._stdinfilename.replace(".docs", ".done")):
+                self._stdinfile = open(self._stdinfilename.replace(".docs", ".done"), "a+")
+                self._stdinfile.seek(0)
+                self._refillreported = False
+                self._cleanup_counter = 0
+
             #self._refillreported = False
         if self._stdinfile != None and not self._stdinfile.closed:
             #if self._refillreported:
@@ -331,7 +354,8 @@ class AsyncIOStatsStream(Thread):
             #if self._refillreported:
             #    self.print_here(get_timestamp() + " FIRST " + in_line)
             if in_line == "":
-                if self._nrefill != None and get_controllerrunningq(self._username, self._modname, self._controllername):
+                stdindone = os.path.exists(self._stdinfilename.replace(".docs", ".done"))
+                if self._nrefill != None and (not stdindone) and get_controllerrunningq(self._username, self._modname, self._controllername):
                     if not self._refillreported:
                         #with open(self._stdinfilename + "2", "a") as docstream2:
                         #    docstream2.write("END\n")
@@ -391,6 +415,8 @@ class AsyncIOStatsStream(Thread):
                     self._instream.flush()
                     self._instream.close()
                     name = self._stdinfile.name
+                    if stdindone:
+                        name = name.replace(".docs", ".done")
                     self._stdinfile.close()
                     os.remove(name)
             else:
@@ -403,123 +429,125 @@ class AsyncIOStatsStream(Thread):
                 self._intermedqueue.put(in_line)
                 self._instream.write(in_line + self._delimiter)
                 self._instream.flush()
-                if (self._cleanup != None and self._cleanup_counter >= self._cleanup) or (self._timelimit != None and self._starttime != None and time() - self._starttime >= self._timelimit):
-                    self.cleanup()
-                    self._cleanup_counter = 0
-                else:
-                    self._cleanup_counter += 1
+                self._cleanup_counter += 1
 
-    def set_stats(self):
-        try:
-            self._proc_stat.seek(0)
-            stat_line = self._proc_stat.read()
-            self._proc_uptime.seek(0)
-            uptime_line = self._proc_uptime.read()
-        except IOError:
-            pass
-        else:
-            if any([k in self._lower_keys for k in self._time_keys]):
-                stat_line_split = stat_line.split()
-                utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
-                
-                starttime = float(stat_line_split[21]) / self._hz
-                if self._in_uptime == 0:
-                    self._in_uptime = starttime
-                uptime = float(uptime_line.split()[0])
-                elapsedtime = uptime - starttime
+    #def set_stats(self):
+    #    try:
+    #        self._proc_stat.seek(0)
+    #        stat_line = self._proc_stat.read()
+    #        self._proc_uptime.seek(0)
+    #        uptime_line = self._proc_uptime.read()
+    #    except IOError:
+    #        pass
+    #    else:
+    #        if any([k in self._stats.keys() for k in self._time_keys]):
+    #            stat_line_split = stat_line.split()
+    #            utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
+    #            
+    #            starttime = float(stat_line_split[21]) / self._hz
+    #            if self._in_elapsedtime == 0:
+    #                self._in_elapsedtime = starttime
+    #            uptime = float(uptime_line.split()[0])
+    #            elapsedtime = uptime - starttime
+    #
+    #            parent_cputime = utime + stime
+    #            child_cputime = cutime + cstime
+    #
+    #            self._in_elapsedtime = uptime
+    #            self._in_parent_cputime = parent_cputime
+    #            self._in_child_cputime = child_cputime
 
-                parent_cputime = utime + stime
-                child_cputime = cutime + cstime
+    def get_stats(self, in_timestamp, out_timestamp = None):
+        if self._stats != None:
+            if out_timestamp != None:
+                prev_elapsedtime = self._in_elapsedtime
+                prev_parent_cputime = self._in_parent_cputime
+                prev_child_cputime = self._in_child_cputime
 
-                self._in_uptime = uptime
-                self._in_parent_cputime = parent_cputime
-                self._in_child_cputime = child_cputime
-
-    def get_stats(self, in_timestamp, out_timestamp):
-        try:
-            self._proc_stat.seek(0)
-            stat_line = self._proc_stat.read()
-            self._proc_uptime.seek(0)
-            uptime_line = self._proc_uptime.read()
-            self._proc_smaps.seek(0)
-            smaps_lines = self._proc_smaps.readlines()
-        except IOError:
-            pass
-        else:
-            for k in self._stats.keys():
-                self._stats[k] = 0
-            if any([k in self._lower_keys for k in self._time_keys]):
-                stat_line_split = stat_line.split()
-                utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
-                
-                starttime = float(stat_line_split[21]) / self._hz
-                if self._in_uptime == 0:
-                    self._in_uptime = starttime
-                uptime = float(uptime_line.split()[0])
-                elapsedtime = uptime - starttime
-                iter_elapsedtime = uptime - self._in_uptime
-
-                parent_cputime = utime + stime
-                iter_parent_cputime = parent_cputime - self._in_parent_cputime
-
-                child_cputime = cutime + cstime
-                iter_child_cputime = child_cputime - self._in_child_cputime
-
-                total_cputime = parent_cputime + child_cputime
-                iter_total_cputime = iter_parent_cputime + iter_child_cputime
-
-                self._in_uptime = uptime
-                self._in_parent_cputime = parent_cputime
-                self._in_child_cputime = child_cputime
-                
+            try:
+                self._proc_stat.seek(0)
+                stat_line = self._proc_stat.read()
+                self._proc_uptime.seek(0)
+                uptime_line = self._proc_uptime.read()
+                self._proc_smaps.seek(0)
+                smaps_lines = self._proc_smaps.readlines()
+            except IOError:
+                pass
+            else:
                 for k in self._stats.keys():
-                    if k.lower() == "elapsedtime":
-                        self._stats[k] = iter_elapsedtime
-                    if k.lower() == "totalcputime":
-                        self._stats[k] = iter_total_cputime
-                    if k.lower() == "parentcputime":
-                        self._stats[k] = iter_parent_cputime
-                    if k.lower() == "childcputime":
-                        self._stats[k] = iter_child_cputime
-                    if k.lower() == "parentcpuusage":
-                        parent_cpuusage = 100 * parent_cputime / elapsedtime if elapsedtime > 0 else 0
-                        self._stats[k] = parent_cpuusage
-                    if k.lower() == "childcpuusage":
-                        child_cpuusage = 100 * child_cputime / elapsedtime if elapsedtime > 0 else 0
-                        self._stats[k] = child_cpuusage
-                    if k.lower() == "totalcpuusage":
-                        total_cpuusage = 100 * total_cputime / elapsedtime if elapsedtime > 0 else 0
-                        self._stats[k] = total_cpuusage
-            for smaps_line in smaps_lines:
-                smaps_line_split = smaps_line.split()
-                if len(smaps_line_split) == 3:
-                    stat_name, stat_size, stat_unit = smaps_line_split
-                    stat_name = stat_name.rstrip(':')
-                    if stat_name.lower() in self._lower_keys:
-                        stat_size = int(stat_size)
-                        if stat_unit.lower() == 'b':
-                            multiplier = 1
-                        elif stat_unit.lower() in ['k', 'kb']:
-                            multiplier = 1024
-                        elif stat_unit.lower() in ['m', 'mb']:
-                            multiplier = 1000 * 1024
-                        elif stat_unit.lower() in ['g', 'gb']:
-                            multiplier = 1000 * 1000 * 1024
-                        else:
-                            raise Exception(stat_name + " in " + self._proc_smaps.name + " has unrecognized unit: " + stat_unit)
-                        self._stats[stat_name.lower()] += multiplier * stat_size
-            self._nstats += 1
-            avgstats={}
-            for k in self._stats.keys():
-                self._totstats[k] += self._stats[k]
-                avgstats.update({k: self._totstats[k] / self._nstats if self._nstats > 0 else 0})
-                if self._stats[k] >= self._maxstats[k]:
-                    self._maxstats[k] = self._stats[k]
-            self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats, "in_timestamp": in_timestamp, "out_timestamp": out_timestamp})
-            for k in self._stats.keys():
-                self._totstats[k] = 0
-                self._maxstats[k] = 0
-        #sleep(self._statsdelay)
+                    if not k in self._time_keys:
+                        self._stats[k.lower()] = 0
+                if any([k in self._time_keys + ["parentcpuusage", "childcputime", "totalcpuusage"] for k in self._stats.keys()]):
+                    stat_line_split = stat_line.split()
+                    utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
+                    
+                    starttime = float(stat_line_split[21]) / self._hz
+                    uptime = float(uptime_line.split()[0])
+
+                    self._in_elapsedtime = uptime - starttime
+                    self._in_parent_cputime = utime + stime
+                    self._in_child_cputime = cutime + cstime
+                    total_cputime = self._in_parent_cputime + self._in_child_cputime
+
+                    if out_timestamp != None:
+                        iter_elapsedtime = self._in_elapsedtime - prev_elapsedtime
+                        iter_parent_cputime = self._in_parent_cputime - prev_parent_cputime
+                        iter_child_cputime = self._in_child_cputime - prev_child_cputime
+                        iter_total_cputime = iter_parent_cputime + iter_child_cputime
+                    
+                        for k in self._stats.keys():
+                            if k.lower() == "elapsedtime":
+                                self._stats[k] = iter_elapsedtime
+                            if k.lower() == "totalcputime":
+                                self._stats[k] = iter_total_cputime
+                            if k.lower() == "parentcputime":
+                                self._stats[k] = iter_parent_cputime
+                            if k.lower() == "childcputime":
+                                self._stats[k] = iter_child_cputime
+                            if k.lower() == "parentcpuusage":
+                                iter_parent_cpuusage = 100 * iter_parent_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
+                                self._stats[k] = iter_parent_cpuusage
+                            if k.lower() == "childcpuusage":
+                                iter_child_cpuusage = 100 * iter_child_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
+                                self._stats[k] = iter_child_cpuusage
+                            if k.lower() == "totalcpuusage":
+                                iter_total_cpuusage = 100 * iter_total_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
+                                self._stats[k] = iter_total_cpuusage
+
+                for smaps_line in smaps_lines:
+                    smaps_line_split = smaps_line.split()
+                    if len(smaps_line_split) == 3:
+                        stat_name, stat_size, stat_unit = smaps_line_split
+                        stat_name = stat_name.rstrip(':')
+                        if stat_name.lower() in self._stats.keys() and not stat_name.lower() in self._time_keys:
+                            stat_size = int(stat_size)
+                            if stat_unit.lower() == 'b':
+                                multiplier = 1
+                            elif stat_unit.lower() in ['k', 'kb']:
+                                multiplier = 1024
+                            elif stat_unit.lower() in ['m', 'mb']:
+                                multiplier = 1000 * 1024
+                            elif stat_unit.lower() in ['g', 'gb']:
+                                multiplier = 1000 * 1000 * 1024
+                            else:
+                                raise Exception(stat_name + " in " + self._proc_smaps.name + " has unrecognized unit: " + stat_unit)
+                            self._stats[stat_name.lower()] += multiplier * stat_size
+                self._nstats += 1
+                avgstats = {}
+                for k in self._stats.keys():
+                    self._totstats[k] += self._stats[k]
+                    avgstats.update({k: self._totstats[k] / self._nstats if self._nstats > 0 else 0})
+                    if self._stats[k] > self._maxstats[k]:
+                        self._maxstats[k] = self._stats[k]
+
+            if out_timestamp != None:
+                self._statsqueue.put({"stats": self._stats, "max": self._maxstats, "total": self._totstats, "avg": avgstats, "in_timestamp": in_timestamp, "out_timestamp": out_timestamp})
+                self._nstats = 0
+                for k in self._stats.keys():
+                    if not k in self._time_keys:
+                        self._totstats[k] = 0
+                        self._maxstats[k] = 0
+            #sleep(self._statsdelay)
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
@@ -527,10 +555,15 @@ class AsyncIOStatsStream(Thread):
         self.update_config()
         self.write_stdin()
         in_timestamp = get_timestamp()
+        self.get_stats(in_timestamp)
+        self.cleanup()
         while self.is_inprog():
             if self._refillreported:
                 self.update_config()
                 self.write_stdin()
+                in_timestamp = get_timestamp()
+                self.get_stats(in_timestamp)
+                self.cleanup()
             #print("NThreads: " + str(active_count()))
             #sys.stdout.flush()
             #self.update_config()
@@ -551,13 +584,12 @@ class AsyncIOStatsStream(Thread):
                         errfilestream.flush()
                     sys.stderr.write(self._jobstepname + ": " + err_line + "\n")
                     sys.stderr.flush()
+                self.get_stats(in_timestamp)
                 try:
                     err_line = self._errgen.next()
                 except StopIteration:
                     break
                 #self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
-                if self._stats != None:
-                    self.set_stats()
                         
             try:
                 out_line = self._outgen.next()
@@ -577,15 +609,15 @@ class AsyncIOStatsStream(Thread):
                 #sys.stdout.flush()
                 if out_line == "":
                     out_timestamp = get_timestamp()
-                    if self._stats != None:
-                        self.get_stats(in_timestamp, out_timestamp)
+                    self.get_stats(in_timestamp, out_timestamp = out_timestamp)
                     #self._cleanup_counter += 1
                     self.update_config()
                     self.write_stdin()
                     in_timestamp = get_timestamp()
+                    self.get_stats(in_timestamp)
+                    self.cleanup()
                 else:
-                    if self._stats != None:
-                        self.set_stats()
+                    self.get_stats(in_timestamp)
                 self._outqueue.put(out_line.rstrip("\n"))
                 try:
                     out_line = self._outgen.next()
@@ -595,8 +627,7 @@ class AsyncIOStatsStream(Thread):
                 #self.write_stdin()
                 #self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
             #self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
-            if self._stats != None:
-                self.set_stats()
+            self.get_stats(in_timestamp)
 
         if errflag:
             with open(self._controllerpath + "/logs/" + self._jobstepname + ".err", "a") as errfilestream:
@@ -756,7 +787,7 @@ class AsyncBulkWriteStream(Thread):
                     start_writetimestamp = (in_writetimestamp + datetime.timedelta(seconds = (outlogiolinecount - 1) * avgwritetime)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
                     end_writetimestamp = (in_writetimestamp + datetime.timedelta(seconds = outlogiolinecount * avgwritetime)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
                     with open(self._controllerpath + "/logs/" + self._jobstepname + ".log", "a") as outlogstream:
-                        outlogstream.write(end_writetimestamp + " " + start_writetimestamp + " " + outlogioline + "\n")
+                        outlogstream.write(end_writetimestamp + " " + start_writetimestamp + " " + str(dir_size(self._controllerpath)) + " " + outlogioline + "\n")
                         outlogstream.flush()
                     outlogiolinecount += 1
                     self._countlogout += 1
@@ -769,7 +800,7 @@ class AsyncBulkWriteStream(Thread):
             for outext, outio in write_dict['io'].items():
                 with open(self._controllerpath + "/bkps/" + self._jobstepname + "." + outext, "a") as outiostream:
                     outiosplit = outio.rstrip("\n").split("\n")
-                    for outioline in outlogiosplit:
+                    for outioline in outiosplit:
                         if outioline != "":
                             outiostream.write(outioline + "\n")
                             outiostream.flush()
@@ -906,7 +937,7 @@ class AsynchronousThreadStatsReader(Thread):
         while self.is_inprog():
             #for stat_name in self._stats.keys():
             #    self._stats[stat_name] = 0
-            if any([k in self._lower_keys for k in self._time_keys]):
+            if any([k in self._stats.keys() for k in self._time_keys]):
                 self._proc_stat.seek(0)
                 stat_line = self._proc_stat.read() if self.is_inprog() else ""
                 #print(stat_line)
@@ -947,7 +978,7 @@ class AsynchronousThreadStatsReader(Thread):
                 if len(smaps_line_split) == 3:
                     stat_name, stat_size, stat_unit = smaps_line_split
                     stat_name = stat_name.rstrip(':')
-                    if stat_name.lower() in self._lower_keys:
+                    if stat_name.lower() in self._stats.keys():
                         stat_size = int(stat_size)
                         if stat_unit.lower() == 'b':
                             multiplier = 1
@@ -1285,7 +1316,7 @@ if any([controllerconfigdoc['options'][x] for x in ['outdb', 'statsdb']]):
                                      stepid = kwargs['stepid'])
     dbhandler.start()
 
-process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, bufsize = 1)
+process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, bufsize = 1, preexec_fn = default_sigpipe)
 #print("a")
 #sys.stdout.flush()
 
@@ -1312,10 +1343,16 @@ if controllerconfigdoc['options']['statslocal'] or controllerconfigdoc['options'
 #    stats_reader.start()
 
 stats_list = [x.lower() for x in kwargs['stats_list']]
+if not any([x.lower() == "totalcputime" for x in kwargs['stats_list']]):
+    stats_list += ["totalcputime"]
+if not any([x.lower() == "rss" for x in kwargs['stats_list']]):
+    stats_list += ["rss"]
+if not any([x.lower() == "size" for x in kwargs['stats_list']]):
+    stats_list += ["size"]
 if not any([x.lower() == "elapsedtime" for x in kwargs['stats_list']]):
     stats_list += ["elapsedtime"]
-if not any([x.lower() == "timestamp" for x in kwargs['stats_list']]):
-    stats_list += ["timestamp"]
+#if not any([x.lower() == "timestamp" for x in kwargs['stats_list']]):
+#    stats_list += ["timestamp"]
 
 handler = AsyncIOStatsStream(kwargs['modname'], kwargs['controllername'], controllerpath, jobstepname, process.pid, process.stdin, process.stdout, process.stderr, stdin_args, stdin_queue, intermed_queue, stdout_queue,
                              nrefill = controllerconfigdoc['options']['nrefill'],
@@ -1364,6 +1401,8 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
         #    teststream.flush()
         if line not in ignoredstrings:
             line_split = line.split()
+            if len(line_split) > 0:
+                line_action = line_split[0]
             if line == "":
                 with open(controllerpath + "/" + kwargs["modname"] + "_" + kwargs["controllername"] + ".config", "r") as controllerconfigstream:
                     controllerconfigdoc = yaml.load(controllerconfigstream)
@@ -1398,10 +1437,10 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 if controllerconfigdoc['options']['intermedlog'] or controllerconfigdoc['options']['outlog']:
                     if controllerconfigdoc['options']['intermedlog']:
                         with open(controllerpath + "/logs/" + jobstepname + ".log.intermed", "a") as intermedlogstream:
-                            intermedlogstream.write(out_intermedtime + " " + in_intermedtime + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                            intermedlogstream.write(out_intermedtime + " " + in_intermedtime + " " + str(dir_size(controllerpath)) + " " + ("%.2f" % cputime) + " " + str(maxrss) + " " + str(maxvmsize) + " " + str(bsonsize) + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                             intermedlogstream.flush()
                     if controllerconfigdoc['options']['outlog']:
-                        batch_dict['log'] += out_intermedtime + " " + in_intermedtime + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                        batch_dict['log'] += out_intermedtime + " " + in_intermedtime + " " + str(dir_size(controllerpath)) + " " + ("%.2f" % cputime) + " " + str(maxrss) + " " + str(maxvmsize) + " " + str(bsonsize) + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
                 statsmark = {}
                 if controllerconfigdoc['options']['statslocal'] or controllerconfigdoc['options']['statsdb']:
                     statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1411,8 +1450,9 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                 #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": get_timestamp() + " UTC"})
                 # Done testing
                 if len(statsmark) > 0:
-                    mergeddoc = merge_two_dicts(newindexdoc, statsmark)
-                    lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    #mergeddoc = merge_two_dicts(newindexdoc, statsmark)
+                    #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(statsmark, separators = (',',':'))
                     if controllerconfigdoc['options']['intermedlocal']:
                         with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
                             intermediostream.write(lineout + "\n")
@@ -1467,14 +1507,15 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
             elif len(line_split) == 4:
                 #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
                 #linemarker = linehead[0]
-                if line_split[1] == "unset":
+                if line_action == "unset":
                     newcollection = line_split[1]
                     newindexdoc = json.loads(line_split[2])
                     #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(line_split[3])
-                    mergeddoc = merge_two_dicts(newindexdoc, doc)
-                    lineout = json.dumps(mergeddoc, separators = (',',':'))
-                    outext = newcollection + "." + line_split[1]
+                    #mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(doc, separators = (',',':'))
+                    outext = newcollection + "." + line_action
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         bsonsize -= get_bsonsize(doc)
                     if controllerconfigdoc['options']['intermedlocal']:
@@ -1495,14 +1536,15 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
                         if controllerconfigdoc['db']['type'] == "mongodb":
                             batch_dict['requests'][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
-                elif line_split[1] == "set":
+                elif line_action == "set":
                     newcollection = line_split[1]
                     newindexdoc = json.loads(line_split[2])
                     #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(line_split[3])
-                    mergeddoc = merge_two_dicts(newindexdoc, doc)
-                    lineout = json.dumps(mergeddoc, separators = (',',':'))
-                    outext = newcollection + "." + line_split[1]
+                    #mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(doc, separators = (',',':'))
+                    outext = newcollection + "." + line_action
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         bsonsize += get_bsonsize(doc)
                     if controllerconfigdoc['options']['intermedlocal']:
@@ -1523,14 +1565,15 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set": doc})
                         if controllerconfigdoc['db']['type'] == "mongodb":
                             batch_dict['requests'][newcollection] += [UpdateOne(newindexdoc, {"$set": doc}, upsert = True)]
-                elif line_split[1] == "addToSet":
+                elif line_action == "addToSet":
                     newcollection = line_split[1]
                     newindexdoc = json.loads(line_split[2])
                     #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(line_split[3])
-                    mergeddoc = merge_two_dicts(newindexdoc, doc)
-                    lineout = json.dumps(mergeddoc, separators = (',',':'))
-                    outext = newcollection + "." + line_split[1]
+                    #mergeddoc = merge_two_dicts(newindexdoc, doc)
+                    #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                    lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(doc, separators = (',',':'))
+                    outext = newcollection + "." + line_action
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         bsonsize += get_bsonsize(doc)
                     if controllerconfigdoc['options']['intermedlocal']:
@@ -1551,14 +1594,14 @@ while process.poll() == None and handler.is_inprog() and not handler.eof():
                         #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
                         if controllerconfigdoc['db']['type'] == "mongodb":
                             batch_dict['requests'][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
-                elif line_split[1] == "insert":
+                elif line_action == "insert":
                     newcollection = line_split[1]
                     newindexdoc = json.loads(line_split[2])
                     #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                     doc = json.loads(line_split[3])
                     mergeddoc = merge_two_dicts(newindexdoc, doc)
                     lineout = json.dumps(mergeddoc, separators = (',',':'))
-                    outext = newcollection + "." + line_split[1]
+                    outext = newcollection + "." + line_action
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         bsonsize += get_bsonsize(doc)
                     if controllerconfigdoc['options']['intermedlocal']:
@@ -1739,6 +1782,8 @@ while not stdout_queue.empty():
     #    teststream.flush()
     if line not in ignoredstrings:
         line_split = line.split()
+        if len(line_split) > 0:
+            line_action = line_split[0]
         if line == "":
             with open(controllerpath + "/" + kwargs["modname"] + "_" + kwargs["controllername"] + ".config", "r") as controllerconfigstream:
                 controllerconfigdoc = yaml.load(controllerconfigstream)
@@ -1773,10 +1818,10 @@ while not stdout_queue.empty():
             if controllerconfigdoc['options']['intermedlog'] or controllerconfigdoc['options']['outlog']:
                 if controllerconfigdoc['options']['intermedlog']:
                     with open(controllerpath + "/logs/" + jobstepname + ".log.intermed", "a") as intermedlogstream:
-                        intermedlogstream.write(out_intermedtime + " " + in_intermedtime + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
+                        intermedlogstream.write(out_intermedtime + " " + in_intermedtime + " " + str(dir_size(controllerpath)) + " " + ("%.2f" % cputime) + " " + str(maxrss) + " " + str(maxvmsize) + " " + str(bsonsize) + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n")
                         intermedlogstream.flush()
                 if controllerconfigdoc['options']['outlog']:
-                    batch_dict['log'] += out_intermedtime + " " + in_intermedtime + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
+                    batch_dict['log'] += out_intermedtime + " " + in_intermedtime + " " + str(dir_size(controllerpath)) + " " + ("%.2f" % cputime) + " " + str(maxrss) + " " + str(maxvmsize) + " " + str(bsonsize) + " " + json.dumps(newindexdoc, separators = (',', ':')) + "\n"
             statsmark = {}
             if controllerconfigdoc['options']['statslocal'] or controllerconfigdoc['options']['statsdb']:
                 statsmark.update({modname + "STATS": {"CPUTIME": cputime, "MAXRSS": maxrss, "MAXVMSIZE": maxvmsize, "BSONSIZE": bsonsize}})
@@ -1786,8 +1831,9 @@ while not stdout_queue.empty():
             #statsmark.update({"HOST": os.environ['HOSTNAME'], "STEP": "job_" + kwargs['input_file'].split("_job_")[1], "NBATCH": nbatch, "TIME": get_timestamp() + " UTC"})
             # Done testing
             if len(statsmark) > 0:
-                mergeddoc = merge_two_dicts(newindexdoc, statsmark)
-                lineout = json.dumps(mergeddoc, separators = (',',':'))
+                #mergeddoc = merge_two_dicts(newindexdoc, statsmark)
+                #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(statsmark, separators = (',',':'))
                 if controllerconfigdoc['options']['intermedlocal']:
                     with open(controllerpath + "/bkps/" + jobstepname + "." + outext + ".intermed", "a") as intermediostream:
                         intermediostream.write(lineout + "\n")
@@ -1842,14 +1888,15 @@ while not stdout_queue.empty():
         elif len(line_split) == 4:
             #linehead = re.sub("^([-+&@#].*?>|None).*", r"\1", line)
             #linemarker = linehead[0]
-            if line_split[1] == "unset":
+            if line_action == "unset":
                 newcollection = line_split[1]
                 newindexdoc = json.loads(line_split[2])
                 #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(line_split[3])
-                mergeddoc = merge_two_dicts(newindexdoc, doc)
-                lineout = json.dumps(mergeddoc, separators = (',',':'))
-                outext = newcollection + "." + line_split[1]
+                #mergeddoc = merge_two_dicts(newindexdoc, doc)
+                #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(doc, separators = (',',':'))
+                outext = newcollection + "." + line_action
                 if controllerconfigdoc['db']['type'] == "mongodb":
                     bsonsize -= get_bsonsize(doc)
                 if controllerconfigdoc['options']['intermedlocal']:
@@ -1870,14 +1917,15 @@ while not stdout_queue.empty():
                     #bulkdict[newcollection].find(newindexdoc).update({"$unset": doc})
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         batch_dict['requests'][newcollection] += [UpdateOne(newindexdoc, {"$unset": doc})]
-            elif line_split[1] == "set":
+            elif line_action == "set":
                 newcollection = line_split[1]
                 newindexdoc = json.loads(line_split[2])
                 #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(line_split[3])
-                mergeddoc = merge_two_dicts(newindexdoc, doc)
-                lineout = json.dumps(mergeddoc, separators = (',',':'))
-                outext = newcollection + "." + line_split[1]
+                #mergeddoc = merge_two_dicts(newindexdoc, doc)
+                #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(doc, separators = (',',':'))
+                outext = newcollection + "." + line_action
                 if controllerconfigdoc['db']['type'] == "mongodb":
                     bsonsize += get_bsonsize(doc)
                 if controllerconfigdoc['options']['intermedlocal']:
@@ -1898,14 +1946,15 @@ while not stdout_queue.empty():
                     #bulkdict[newcollection].find(newindexdoc).upsert().update({"$set": doc})
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         batch_dict['requests'][newcollection] += [UpdateOne(newindexdoc, {"$set": doc}, upsert = True)]
-            elif line_split[1] == "addToSet":
+            elif line_action == "addToSet":
                 newcollection = line_split[1]
                 newindexdoc = json.loads(line_split[2])
                 #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(line_split[3])
-                mergeddoc = merge_two_dicts(newindexdoc, doc)
-                lineout = json.dumps(mergeddoc, separators = (',',':'))
-                outext = newcollection + "." + line_split[1]
+                #mergeddoc = merge_two_dicts(newindexdoc, doc)
+                #lineout = json.dumps(mergeddoc, separators = (',',':'))
+                lineout = json.dumps(newindexdoc, separators = (',',':')) + " " + json.dumps(doc, separators = (',',':'))
+                outext = newcollection + "." + line_action
                 if controllerconfigdoc['db']['type'] == "mongodb":
                     bsonsize += get_bsonsize(doc)
                 if controllerconfigdoc['options']['intermedlocal']:
@@ -1926,14 +1975,14 @@ while not stdout_queue.empty():
                     #bulkdict[newcollection].find(newindexdoc).upsert().update({"$addToSet": doc})
                     if controllerconfigdoc['db']['type'] == "mongodb":
                         batch_dict['requests'][newcollection] += [UpdateOne(newindexdoc, {"$addToSet": doc}, upsert = True)]
-            elif line_split[1] == "insert":
+            elif line_action == "insert":
                 newcollection = line_split[1]
                 newindexdoc = json.loads(line_split[2])
                 #linedoc = re.sub("^[-+&@#].*?>", "", line).rstrip("\n")
                 doc = json.loads(line_split[3])
                 mergeddoc = merge_two_dicts(newindexdoc, doc)
                 lineout = json.dumps(mergeddoc, separators = (',',':'))
-                outext = newcollection + "." + line_split[1]
+                outext = newcollection + "." + line_action
                 if controllerconfigdoc['db']['type'] == "mongodb":
                     bsonsize += get_bsonsize(doc)
                 if controllerconfigdoc['options']['intermedlocal']:

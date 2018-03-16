@@ -21,7 +21,7 @@ from argparse import ArgumentParser
 from pytz import utc
 from glob import iglob
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm#, poisson
 import matplotlib.mlab as mlab
 matplotlib.use('Agg')
 with warnings.catch_warnings():
@@ -139,6 +139,7 @@ intermed = np.zeros(0, dtype = int)
 intermed_done = np.zeros(0, dtype = int)
 out = np.zeros(0, dtype = int)
 out_done = np.zeros(0, dtype = int)
+dir_size = np.zeros(0, dtype = int)
 
 print("Analyzing job activity statistics...")
 sys.stdout.flush()
@@ -191,9 +192,10 @@ with open(args['controllerpath'] + "/crunch_" + args['modname'] + "_" + args['co
                     step_submit_start_end[x] = [controller_info_time, None, None]
         prev_controller_info_line = controller_info_line
 
-for info_file_path in iglob(args['in_path'] + "/*.debug"):
+for info_file_path in iglob(args['in_path'] + "/*.info"):
     with open(info_file_path, "r") as info_stream:
-        info_linecount = 0
+        info_start_linecount = 0
+        info_end_linecount = 0
         for info_line in info_stream:
             info_line_split = info_line.rstrip("\n").split()
             info_timestamp = datetime.datetime.strptime(info_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
@@ -205,13 +207,14 @@ for info_file_path in iglob(args['in_path'] + "/*.debug"):
             if info_step not in step_submit_start_end.keys():
                 step_submit_start_end[info_step] = [None, None, None]
             if info_line_split[2] == "START":
-                if info_linecount == 0:
+                if info_start_linecount == 0:
                     job_submit_start_end[info_job][1] = info_time
                 step_submit_start_end[info_step][1] = info_time
+                info_start_linecount += 1
             elif info_line_split[2] == "END":
                 step_submit_start_end[info_step][2] = info_time
-            info_linecount += 1
-        if info_line_split[2] == "END":
+                info_end_linecount += 1
+        if info_start_linecount == info_end_linecount:
             job_submit_start_end[info_job][2] = info_time
 
 log_ids = []
@@ -228,31 +231,33 @@ for log_file_path in iglob(args['in_path'] + "/*.log"):
         with open(log_file_path, "r") as log_stream:
             for log_line in log_stream:
                 log_line_split = log_line.rstrip("\n").split()
-                if len(log_line_split) < 5:
+                if len(log_line_split) < 11:
                     break
                 out_log_end_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 out_log_end_time = int((out_log_end_timestamp - epoch).total_seconds())
                 out_log_start_timestamp = datetime.datetime.strptime(log_line_split[1], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 out_log_start_time = int((out_log_start_timestamp - epoch).total_seconds())
-                intermed_log_end_timestamp = datetime.datetime.strptime(log_line_split[2], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
+                out_log_dir_size = int(log_line_split[2])
+                intermed_log_end_timestamp = datetime.datetime.strptime(log_line_split[3], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 intermed_log_end_time = int((intermed_log_end_timestamp - epoch).total_seconds())
-                intermed_log_start_timestamp = datetime.datetime.strptime(log_line_split[3], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
+                intermed_log_start_timestamp = datetime.datetime.strptime(log_line_split[4], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 intermed_log_start_time = int((intermed_log_start_timestamp - epoch).total_seconds())
-                log_id = log_line_split[4]
+                intermed_log_dir_size = int(log_line_split[5])
+                log_id = log_line_split[10]
                 log_ids += [log_id]
 
                 if job_submit_start_end[log_job][0] == None or intermed_log_start_time < job_submit_start_end[log_job][0]:
                     job_submit_start_end[log_job][0] = intermed_log_start_time
                 if job_submit_start_end[log_job][1] == None or intermed_log_start_time < job_submit_start_end[log_job][1]:
                     job_submit_start_end[log_job][1] = intermed_log_start_time
-                if job_submit_start_end[log_job][2] == None or out_log_end_time > job_submit_start_end[log_job][2]:
+                if job_submit_start_end[log_job][2] != None and out_log_end_time > job_submit_start_end[log_job][2]:
                     job_submit_start_end[log_job][2] = out_log_end_time
 
                 if step_submit_start_end[log_step][0] == None or intermed_log_start_time < step_submit_start_end[log_step][0]:
                     step_submit_start_end[log_step][0] = intermed_log_start_time
                 if step_submit_start_end[log_step][1] == None or intermed_log_start_time < step_submit_start_end[log_step][1]:
                     step_submit_start_end[log_step][1] = intermed_log_start_time
-                if step_submit_start_end[log_step][2] == None or out_log_end_time > step_submit_start_end[log_step][2]:
+                if step_submit_start_end[log_step][2] != None and out_log_end_time > step_submit_start_end[log_step][2]:
                     step_submit_start_end[log_step][2] = out_log_end_time
                 #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
                 if intermed.shape[0] <= intermed_log_end_time:
@@ -265,11 +270,14 @@ for log_file_path in iglob(args['in_path'] + "/*.log"):
                 if out.shape[0] <= out_log_end_time:
                     out.resize(out_log_end_time + 1)
                     out_done.resize(out_log_end_time + 1)
+                    dir_size.resize(out_log_end_time + 1)
                 #out[id_times[log_id] + 1:log_time + 1] += np.ones(log_time - id_times[log_id], dtype = int)
                 out[out_log_start_time:out_log_end_time + 1] += np.ones(out_log_end_time - out_log_start_time + 1, dtype = int)
                 out_done[out_log_end_time] += 1
                 #if log_time > max_time:
                 #    max_time = log_time
+                dir_size[intermed_log_end_time] = intermed_log_dir_size
+                dir_size[out_log_end_time] = out_log_dir_size
 
 for intermed_log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
     intermed_log_filename = intermed_log_file_path.split("/")[-1]
@@ -283,13 +291,14 @@ for intermed_log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
         with open(intermed_log_file_path, "r") as intermed_log_stream:
             for intermed_log_line in intermed_log_stream:
                 intermed_log_line_split = intermed_log_line.rstrip("\n").split()
-                if len(intermed_log_line_split) < 3 or intermed_log_line_split[2] in log_ids:
+                if len(intermed_log_line_split) < 8 or intermed_log_line_split[2] in log_ids:
                     break
                 intermed_log_end_timestamp = datetime.datetime.strptime(intermed_log_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 intermed_log_end_time = int((intermed_log_end_timestamp - epoch).total_seconds())
                 intermed_log_start_timestamp = datetime.datetime.strptime(intermed_log_line_split[1], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 intermed_log_start_time = int((intermed_log_start_timestamp - epoch).total_seconds())
-                intermed_log_id = intermed_log_line_split[2]
+                intermed_log_dir_size = int(intermed_log_line_split[2])
+                intermed_log_id = intermed_log_line_split[7]
 
                 if job_submit_start_end[intermed_log_job][0] == None or intermed_log_start_time < job_submit_start_end[intermed_log_job][0]:
                     job_submit_start_end[intermed_log_job][0] = intermed_log_start_time
@@ -304,10 +313,13 @@ for intermed_log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
                 if intermed.shape[0] <= intermed_log_end_time:
                     intermed.resize(intermed_log_end_time + 1)
                     intermed_done.resize(intermed_log_end_time + 1)
+                    dir_size.resize(intermed_log_end_time + 1)
                 #print((intermed_log_time, intermed_log_prevtime, intermed_log_runtime))
                 #sys.stdout.flush()
                 intermed[intermed_log_start_time:intermed_log_end_time + 1] += np.ones(intermed_log_end_time - intermed_log_start_time + 1, dtype = int)
                 intermed_done[intermed_log_end_time] += 1
+
+                dir_size[intermed_log_end_time] = intermed_log_dir_size
 
 #if max_time < min_time:
 #    max_time = min_time
@@ -319,6 +331,7 @@ intermed_done.resize(max_time)
 out.resize(max_time)
 out_done.resize(max_time)
 total = intermed + out
+dir_size.resize(max_time)
 
 #min_time = (total > 0).argmax()
 min_time = min([x for y in job_submit_start_end.values() for x in y if x != None] + [x for y in step_submit_start_end.values() for x in y if x != None])
@@ -327,6 +340,7 @@ intermed = np.delete(intermed, range(min_time))
 intermed_done = np.delete(intermed_done, range(min_time))
 out = np.delete(out, range(min_time))
 out_done = np.delete(out_done, range(min_time))
+dir_size = np.delete(dir_size, range(min_time))
 
 intermed_cum = np.zeros(total.shape[0], dtype = int)
 intermed_count = 0
@@ -373,6 +387,14 @@ for s in step_submit_start_end.values():
     if s[1] <= s[2]:
         steps_run[s[1] - min_time:s[2] - min_time] += np.ones(s[2] - s[1], dtype = int)
 
+#uncert = 2
+#intermed_done_range = np.zeros(intermed_done.shape[0] / uncert, dtype = int)
+#out_done_range = np.zeros(out_done.shape[0] / uncert, dtype = int)
+#for i in range(intermed_done_range.shape[0]):
+#    for j in range(uncert):
+#        intermed_done_range[i] += intermed_done[uncert * i + j]
+        #out_done_range[i] += out_done[uncert * i + j]
+
 breaks = []
 for i in range(steps_run.shape[0]):
     if steps_run[i] == 0:
@@ -416,7 +438,7 @@ for c in chunks:
         zip_lines += [c[1] - c[0] - 1]
 del zip_lines[-1]
 
-times_norm = np.arange(times_zip.shape[0], dtype = int)
+#times_norm = np.arange(times_zip.shape[0], dtype = int)
 times = times_zip
 jobs_pend = jobs_pend_zip
 jobs_run = jobs_run_zip
@@ -451,7 +473,7 @@ sys.stdout.flush()
 width, height = 30., 25.
 linewidth = width / times[-1]
 
-ntime = 3
+ntime = 4
 nhist = 2
 
 gs = GridSpec(ntime + nhist, 1)
@@ -497,87 +519,113 @@ for i in range(nhist):
     #ax.xlabel('Time (DD:HH)')
     axhist += [ax]
 
-# 1) Jobs
+# 1) Storage
 
-times_scale = xscale * times
-plot_labels = ["Pending", "Running"]
-plot_lists = [yscale * plot_list for plot_list in [jobs_pend, jobs_run]]
-colors = ['red', 'green']
+plot_times = np.array([times[i] for i in range(len(times)) if dir_size[i] > 0], dtype = int)
+plot_label = "Storage"
+plot_list = np.array([dir_size[i] for i in range(len(dir_size)) if dir_size[i] > 0], dtype = int)
+color = 'gray'
 
-concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
-if concat_lists.shape[0] > 0:
-    ymax = int(max(concat_lists)) / yscale
+if plot_list.shape[0] > 0:
+    ymax = int(max(plot_list))
 else:
     ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axtime[0].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[0].transAxes)
 axtime[0].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axtime[0].set_ylabel("# of Jobs")
+axtime[0].set_ylabel("Total Storage (bytes)")
 axtime[0].set_ylim(0, 1.1 * yscale * ymax)
 #for i in range(len(plot_lists)):
-#    axtime[0].fill_between(times_scale, plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
-axtime[0].fill_between(times_scale, plot_lists[0], np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
-axtime[0].fill_between(times_scale, plot_lists[1], np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
+#    axtime[0].fill_between(xscale * times, yscale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
+axtime[0].fill_between(xscale * plot_times, yscale * plot_list, color = color, alpha = 0.5, linewidth = 0.1, label = plot_label)
 
-axtime[0].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+# 2) Jobs
 
-# 2) Steps
-
-times_scale = xscale * times
 plot_labels = ["Pending", "Running"]
-plot_lists = [yscale * plot_list for plot_list in [steps_pend, steps_run]]
+plot_lists = [jobs_pend, jobs_run]
 colors = ['red', 'green']
 
 concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
 if concat_lists.shape[0] > 0:
-    ymax = int(max(concat_lists)) / yscale
+    ymax = int(max(concat_lists))
 else:
     ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axtime[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[1].transAxes)
 axtime[1].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axtime[1].set_ylabel("# of Steps")
+axtime[1].set_ylabel("# of Jobs")
 axtime[1].set_ylim(0, 1.1 * yscale * ymax)
 #for i in range(len(plot_lists)):
-#    axtime[1].fill_between(times_scale, plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
-axtime[1].fill_between(times_scale, plot_lists[0], np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
-axtime[1].fill_between(times_scale, plot_lists[1], np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
+#    axtime[1].fill_between(xscale * times, yscale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
+axtime[1].fill_between(xscale * times, yscale * plot_lists[0], yscale * np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
+axtime[1].fill_between(xscale * times, yscale * plot_lists[1], yscale * np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
 
 axtime[1].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
-# 3) Processing and Writing
+# 3) Steps
 
-times_scale = xscale * times
-plot_labels = ["Processing", "Writing"]#, "Active"]
-plot_lists = [yscale * plot_list for plot_list in [intermed_cum, out_cum]]#, total]]
-colors = ['red', 'green']#, 'purple']
+plot_labels = ["Pending", "Running"]
+plot_lists = [steps_pend, steps_run]
+colors = ['red', 'green']
 
 concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
 if concat_lists.shape[0] > 0:
-    ymax = int(max(concat_lists)) / yscale
+    ymax = int(max(concat_lists))
 else:
     ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
     axtime[2].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[2].transAxes)
 axtime[2].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
-axtime[2].set_ylabel("# of Docs")
+axtime[2].set_ylabel("# of Steps")
 axtime[2].set_ylim(0, 1.1 * yscale * ymax)
 #for i in range(len(plot_lists)):
-#    axtime[2].fill_between(times_scale, plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
-axtime[2].fill_between(times_scale, plot_lists[0], np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
-axtime[2].fill_between(times_scale, plot_lists[1], np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
+#    axtime[2].fill_between(xscale * times, yscale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
+axtime[2].fill_between(xscale * times, yscale * plot_lists[0], yscale * np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
+axtime[2].fill_between(xscale * times, yscale * plot_lists[1], yscale * np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
+
+axtime[2].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+# 4) Processing and Writing
+
+plot_labels = ["Processing", "Writing"]#, "Active"]
+plot_lists = [intermed_cum, out_cum]#, total]]
+colors = ['green', 'blue']#, 'purple']
+
+concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
+if concat_lists.shape[0] > 0:
+    ymax = int(max(concat_lists))
+else:
+    ymax = 0
+yexp = len(str(ymax)) - 1
+if yexp != 0:
+    axtime[3].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axtime[3].transAxes)
+axtime[3].yaxis.set_major_formatter(create_y_ticker(yscale, yexp))
+axtime[3].set_ylabel("# of Docs")
+axtime[3].set_ylim(0, 1.1 * yscale * ymax)
+#for i in range(len(plot_lists)):
+#    axtime[3].fill_between(xscale * times, yscale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
+axtime[3].fill_between(xscale * times, yscale * plot_lists[0], yscale * np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
+axtime[3].fill_between(xscale * times, yscale * plot_lists[1], yscale * np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
 
 
-fit = np.polyfit(times_scale, plot_lists[1], deg = 1)
-fit_pos_x = times_scale[len(times_scale) / 2]
-fit_pos_y = (fit[0] * fit_pos_x + fit[1]) - (0.1 * plot_lists[1][-1])
-axtime[2].plot(times_scale, fit[0] * times_scale + fit[1], color = 'black', alpha = 1, linewidth = 2, label = 'Linear Fit')
-axtime[2].text(fit_pos_x, fit_pos_y, "y = " + str("%.2f" % fit[0]) + " * x + " + str("%.2f" % fit[1]), horizontalalignment = 'left', verticalalignment = 'bottom')
+#fit = np.polyfit(times, plot_lists[1], deg = 1)
+#fit_pos_x = times[len(times) / 2]
+#fit_pos_y = (fit[0] * fit_pos_x + fit[1]) - (0.1 * plot_lists[1][-1])
+#axtime[2].plot(xscale * times, yscale * (fit[0] * times + fit[1]), color = 'black', linestyle = '--', alpha = 1, linewidth = 2, label = 'Linear Fit')
+#slope = str("%.2f" % fit[0]) + "x"
+#if fit[1] > 0:
+#    yintercept = " + " + str("%.2f" % fit[1])
+#elif fit[1] < 0:
+#    yintercept = " - " + str("%.2f" % fit[1])
+#else:
+#    yintercept = ""
+#axtime[2].text(xscale * fit_pos_x, yscale * fit_pos_y, "y = " + slope + yintercept, horizontalalignment = 'left', verticalalignment = 'bottom')
 
-axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
+#axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
+axtime[3].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 # 4) Writing
 
@@ -622,14 +670,22 @@ axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', 
 
 plot_label = "Processed"
 nonzero_list = [x for x in intermed_done if x > 0]
+#nonzero_list = [float(intermed_done[i]) / intermed[i] for i in range(intermed_done.shape[0]) if intermed_done[i] > 0 and intermed[i] > 0]
+#nonzero_list = []
+#uncert = 2
+#for i in range(intermed_done.shape[0]):
+#    numerator = float(sum(intermed_done[max(0, i - uncert):i + uncert + 1]))
+#    denominator = float(sum(intermed[max(0, i - uncert):i + uncert + 1]))
+#    if numerator > 0:# and denominator > 0:
+#        nonzero_list += [numerator / 2]# / denominator]
 if len(nonzero_list) == 0:
     nonzero_list = [0]
 plot_list = np.array(nonzero_list, dtype = int)
-color = 'red'
+color = 'green'
 
 #bins = [int(max(plot_list) / 28) * (j + 1) for j in range(28)]
 #binwidth = Freedman_Diaconis_binwidth(plot_list)
-binwidth = (max(plot_list) - min(plot_list)) / width
+binwidth = (max(plot_list) - min(plot_list)) / int(width)
 #print(binwidth)
 #sys.stdout.flush()
 binwidth = max(binwidth, 1)
@@ -651,32 +707,37 @@ axhist[0].yaxis.set_major_formatter(create_y_ticker(1, yexp))
 axhist[0].set_ylabel("Frequency")
 axhist[0].set_ylim(0, 1 * ymax)
 
-mu, sigma = norm.fit(plot_list)
-fit = mlab.normpdf(bins, mu, sigma)
-if len(bins) > 1:
-    fit = fit * (len(plot_list) * (bins[1] - bins[0]))
-#print("bins: " + str(bins.tolist()))
-#print("counts: " + str(counts.tolist()))
-#sys.stdout.flush()
-fit_pos_x = mu
-if len(fit) > 0:
-    fit_pos_y = max(fit)
-else:
-    fit_pos_y = 0
-fit_pos_y +=  (0.1 * ymax)
-axhist[0].plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
-axhist[0].text(fit_pos_x, fit_pos_y, r'$\mu=%.2f,\ \sigma=%.2f$' % (mu, sigma))
+#mu, sigma = norm.fit(plot_list)
+#fit = mlab.normpdf(bins, mu, sigma)
+#if len(bins) > 1:
+#    fit = fit * (len(plot_list) * (bins[1] - bins[0]))
+#fit_pos_x = mu
+#if len(fit) > 0:
+#    fit_pos_y = max(fit)
+#else:
+#    fit_pos_y = 0
+#fit_pos_y +=  (0.1 * ymax)
+#axhist[0].plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
+#axhist[0].text(fit_pos_x, fit_pos_y, r'$\mu=%.2f,\ \sigma=%.2f$' % (mu, sigma))
 
-axhist[0].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+#axhist[0].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 # 6) Steps Written
 
 plot_label = "Written"
 nonzero_list = [x for x in out_done if x > 0]
+#nonzero_list = [float(out_done[i]) / out[i] for i in range(out_done.shape[0]) if out_done[i] > 0 and out[i] > 0]
+#nonzero_list = []
+#uncert = 2
+#for i in range(out_done.shape[0]):
+#    numerator = float(sum(out_done[max(0, i - uncert):i + uncert + 1]))
+#    denominator = float(sum(out[max(0, i - uncert):i + uncert + 1]))
+#    if numerator > 0:# and denominator > 0:
+#        nonzero_list += [numerator / 2]# / denominator]
 if len(nonzero_list) == 0:
     nonzero_list = [0]
 plot_list = np.array(nonzero_list, dtype = int)
-color = 'green'
+color = 'blue'
 #for i in range(len(plot_lists)):
 #axhist[i].fill_between([xscale * x for x in times], 0, [yscale * y for y in plot_lists[i]], color = colors[i], linewidth = linewidth)
 #axhist[i].hist(plot_lists[i], int(len(plot_lists[i])/5), facecolor = colors[i], alpha = 0.75)
@@ -685,7 +746,7 @@ color = 'green'
 #bins = [controllerconfigdoc["options"]["nbatch"] * (j + 1) for j in range(int(max(plot_list) / controllerconfigdoc["options"]["nbatch"]) + 1)]
 #bins = [int(max(plot_list) / 28) * (j + 1) for j in range(28)]
 #binwidth = Freedman_Diaconis_binwidth(plot_list)
-binwidth = (max(plot_list) - min(plot_list)) / width
+binwidth = (max(plot_list) - min(plot_list)) / int(width)
 binwidth = max(binwidth, 1)
 #print(binwidth)
 #sys.stdout.flush()
@@ -699,29 +760,29 @@ else:
     ymax = 0
 yexp = len(str(ymax)) - 1
 if yexp != 0:
-    axhist[i].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[1].transAxes)
+    axhist[1].text(0, 1, u"\u00D7" + " 10^" + str(yexp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = axhist[1].transAxes)
 axhist[1].set_xlabel("# of Docs " + plot_label)
 axhist[1].yaxis.set_major_formatter(create_y_ticker(1, yexp))
 axhist[1].set_ylabel("Frequency")
 axhist[1].set_ylim(0, 1 * ymax)
 
-mu, sigma = norm.fit(plot_list)
-fit = mlab.normpdf(bins, mu, sigma)
-if len(bins) > 1:
-    fit = fit * (len(plot_list) * (bins[1] - bins[0]))
+#mu, sigma = norm.fit(plot_list)
+#fit = mlab.normpdf(bins, mu, sigma)
+#if len(bins) > 1:
+#    fit = fit * (len(plot_list) * (bins[1] - bins[0]))
 #print("bins: " + str(bins.tolist()))
 #print("counts: " + str(counts.tolist()))
 #sys.stdout.flush()
-fit_pos_x = mu
-if len(fit) > 0:
-    fit_pos_y = max(fit)
-else:
-    fit_pos_y = 0
-fit_pos_y +=  (0.1 * ymax)
-axhist[1].plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
-axhist[1].text(fit_pos_x, fit_pos_y, r'$\mu=%.2f,\ \sigma=%.2f$' % (mu, sigma))
+#fit_pos_x = mu
+#if len(fit) > 0:
+#    fit_pos_y = max(fit)
+#else:
+#    fit_pos_y = 0
+#fit_pos_y +=  (0.1 * ymax)
+#axhist[1].plot(bins, fit, color = 'black', linestyle = '--', linewidth = 2, label = 'Normal Fit')
+#axhist[1].text(fit_pos_x, fit_pos_y, r'$\mu=%.2f,\ \sigma=%.2f$' % (mu, sigma))
 
-axhist[1].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+#axhist[1].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 #plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=2, mode="expand", borderaxespad=0.)
 #plt.legend(bbox_to_anchor = (0., -0.4, 1., .102), loc = 'upper left', ncol = 2, mode = "expand", borderaxespad = 0.)
