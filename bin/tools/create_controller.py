@@ -21,6 +21,12 @@ import sys, os, yaml
 rootpath = os.environ['CRUNCH_ROOT']
 
 controllerpath = sys.argv[1]
+nodeshift = sys.argv[2:]
+
+if len(nodeshift) == 0:
+	nodeshift = 0
+else:
+	nodeshift = int(nodeshift[0])
 
 modname, controllername = controllerpath.split("/")[-2:]
 
@@ -38,5 +44,5 @@ with open(controllerpath + "/status", "w") as statusstream:
 
 if crunchconfigdoc["workload-manager"] == "slurm":
     from crunch_slurm import *
-    get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname)
+    get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, nodeshift = nodeshift)
     #get_submitjob(controllerpath, jobname)

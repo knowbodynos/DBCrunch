@@ -215,7 +215,9 @@ class AsyncIOStatsStream(Thread):
             self._in_elapsedtime = 0
             self._in_parent_cputime = 0
             self._in_child_cputime = 0
-            #self._prev_total_cputime = 0
+            self._in_prev_elapsedtime = 0
+            self._in_prev_parent_cputime = 0
+            self._in_prev_child_cputime = 0
             self._maxstats = dict((s.lower(), 0) for s in stats)
             self._totstats = dict((s.lower(), 0) for s in stats)
             self._nstats = 0
@@ -457,13 +459,8 @@ class AsyncIOStatsStream(Thread):
     #            self._in_parent_cputime = parent_cputime
     #            self._in_child_cputime = child_cputime
 
-    def get_stats(self, in_timestamp, out_timestamp = None):
+    def get_stats(self, in_timestamp = None, out_timestamp = None):
         if self._stats != None:
-            if out_timestamp != None:
-                prev_elapsedtime = self._in_elapsedtime
-                prev_parent_cputime = self._in_parent_cputime
-                prev_child_cputime = self._in_child_cputime
-
             try:
                 self._proc_stat.seek(0)
                 stat_line = self._proc_stat.read()
@@ -477,42 +474,47 @@ class AsyncIOStatsStream(Thread):
                 for k in self._stats.keys():
                     if not k in self._time_keys:
                         self._stats[k.lower()] = 0
-                if any([k in self._time_keys + ["parentcpuusage", "childcputime", "totalcpuusage"] for k in self._stats.keys()]):
+                if in_timestamp != None and any([k in self._time_keys + ["parentcpuusage", "childcputime", "totalcpuusage"] for k in self._stats.keys()]):
                     stat_line_split = stat_line.split()
                     utime, stime, cutime, cstime = [(float(f) / self._hz) for f in stat_line_split[13:17]]
                     
                     starttime = float(stat_line_split[21]) / self._hz
                     uptime = float(uptime_line.split()[0])
 
-                    self._in_elapsedtime = uptime - starttime
-                    self._in_parent_cputime = utime + stime
-                    self._in_child_cputime = cutime + cstime
-                    total_cputime = self._in_parent_cputime + self._in_child_cputime
+                    elapsedtime = uptime - starttime
+                    parent_cputime = utime + stime
+                    child_cputime = cutime + cstime
+                    total_cputime = parent_cputime + child_cputime
 
-                    if out_timestamp != None:
-                        iter_elapsedtime = self._in_elapsedtime - prev_elapsedtime
-                        iter_parent_cputime = self._in_parent_cputime - prev_parent_cputime
-                        iter_child_cputime = self._in_child_cputime - prev_child_cputime
-                        iter_total_cputime = iter_parent_cputime + iter_child_cputime
-                    
-                        for k in self._stats.keys():
-                            if k.lower() == "elapsedtime":
-                                self._stats[k] = iter_elapsedtime
-                            if k.lower() == "totalcputime":
-                                self._stats[k] = iter_total_cputime
-                            if k.lower() == "parentcputime":
-                                self._stats[k] = iter_parent_cputime
-                            if k.lower() == "childcputime":
-                                self._stats[k] = iter_child_cputime
-                            if k.lower() == "parentcpuusage":
-                                iter_parent_cpuusage = 100 * iter_parent_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
-                                self._stats[k] = iter_parent_cpuusage
-                            if k.lower() == "childcpuusage":
-                                iter_child_cpuusage = 100 * iter_child_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
-                                self._stats[k] = iter_child_cpuusage
-                            if k.lower() == "totalcpuusage":
-                                iter_total_cpuusage = 100 * iter_total_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
-                                self._stats[k] = iter_total_cpuusage
+                    if out_timestamp == None:
+                        self._in_elapsedtime = elapsedtime
+                        self._in_parent_cputime = parent_cputime
+                        self._in_child_cputime = child_cputime
+
+                    iter_elapsedtime = elapsedtime - self._in_elapsedtime
+                    iter_parent_cputime = parent_cputime - self._in_parent_cputime
+                    iter_child_cputime = child_cputime - self._in_child_cputime
+                    iter_total_cputime = iter_parent_cputime + iter_child_cputime
+
+                    if "parentcpuusage" in self._stats.keys():
+                        iter_parent_cpuusage = 100 * iter_parent_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
+                        self._stats[k] = iter_parent_cpuusage
+                    if "childcpuusage" in self._stats.keys():
+                        iter_child_cpuusage = 100 * iter_child_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
+                        self._stats[k] = iter_child_cpuusage
+                    if "totalcpuusage" in self._stats.keys():
+                        iter_total_cpuusage = 100 * iter_total_cputime / iter_elapsedtime if iter_elapsedtime > 0 else 0
+                        self._stats[k] = iter_total_cpuusage
+
+                    if out_timestamp != None:                    
+                        if "elapsedtime" in self._stats.keys():
+                            self._stats[k] = iter_elapsedtime
+                        if "totalcputime" in self._stats.keys():
+                            self._stats[k] = iter_total_cputime
+                        if "parentcputime" in self._stats.keys():
+                            self._stats[k] = iter_parent_cputime
+                        if "childcputime" in self._stats.keys():
+                            self._stats[k] = iter_child_cputime
 
                 for smaps_line in smaps_lines:
                     smaps_line_split = smaps_line.split()
@@ -555,14 +557,14 @@ class AsyncIOStatsStream(Thread):
         self.update_config()
         self.write_stdin()
         in_timestamp = get_timestamp()
-        self.get_stats(in_timestamp)
+        self.get_stats(in_timestamp = in_timestamp)
         self.cleanup()
         while self.is_inprog():
             if self._refillreported:
                 self.update_config()
                 self.write_stdin()
                 in_timestamp = get_timestamp()
-                self.get_stats(in_timestamp)
+                self.get_stats(in_timestamp = in_timestamp)
                 self.cleanup()
             #print("NThreads: " + str(active_count()))
             #sys.stdout.flush()
@@ -584,7 +586,7 @@ class AsyncIOStatsStream(Thread):
                         errfilestream.flush()
                     sys.stderr.write(self._jobstepname + ": " + err_line + "\n")
                     sys.stderr.flush()
-                self.get_stats(in_timestamp)
+                self.get_stats()
                 try:
                     err_line = self._errgen.next()
                 except StopIteration:
@@ -609,12 +611,12 @@ class AsyncIOStatsStream(Thread):
                 #sys.stdout.flush()
                 if out_line == "":
                     out_timestamp = get_timestamp()
-                    self.get_stats(in_timestamp, out_timestamp = out_timestamp)
+                    self.get_stats(in_timestamp = in_timestamp, out_timestamp = out_timestamp)
                     #self._cleanup_counter += 1
                     self.update_config()
                     self.write_stdin()
                     in_timestamp = get_timestamp()
-                    self.get_stats(in_timestamp)
+                    self.get_stats(in_timestamp = in_timestamp)
                     self.cleanup()
                 else:
                     self.get_stats(in_timestamp)
@@ -627,7 +629,7 @@ class AsyncIOStatsStream(Thread):
                 #self.write_stdin()
                 #self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
             #self._nlocks = len(os.listdir(self._controllerpath + "/locks"))
-            self.get_stats(in_timestamp)
+            self.get_stats()
 
         if errflag:
             with open(self._controllerpath + "/logs/" + self._jobstepname + ".err", "a") as errfilestream:

@@ -181,8 +181,11 @@ def get_canceljob(jobid):
     script = "scancel " + jobid
     retry(script)
 
-def get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname):
-    node = get_freenodes(controllerconfigdoc["partitions"])[-1]
+def get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, nodeshift = 0):
+    freenodes = get_freenodes(controllerconfigdoc["partitions"])
+    maxind = len(freenodes) - 1
+    maxshift = min(maxind, nodeshift)
+    node = freenodes[maxind - maxshift]
     ncpus = int(ceil(float(crunchconfigdoc["min-controller-threads"]) / node["threadspercpu"]))
 
     jobstring = "#!/bin/bash\n"
@@ -210,21 +213,86 @@ def get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname):
     jobstring += "# Partition(s) to use for job\n"
     jobstring += "#SBATCH --partition=\"" + node["partition"] + "\"\n"
     jobstring += "#################\n"
-    jobstring += "# Number of nodes to distribute n tasks across\n"
-    jobstring += "#SBATCH -N 1\n"
-    jobstring += "#################\n"
+    #jobstring += "# Number of nodes to distribute n tasks across\n"
+    #jobstring += "#SBATCH -N 1\n"
+    #jobstring += "#################\n"
     jobstring += "# Number of tasks allocated for job\n"
     jobstring += "#SBATCH -n 1\n"
     jobstring += "#################\n"
     jobstring += "# Number of CPUs allocated for each task\n"
     jobstring += "#SBATCH -c " + str(ncpus) + "\n"
     jobstring += "#################\n"
+    jobstring += "# List of nodes to distribute n tasks across\n"
+    jobstring += "#SBATCH -w \"" + str(node["hostname"]) + "\"\n"
+    jobstring += "#################\n"
     jobstring += "# Requeue job on node failure\n"
     jobstring += "#SBATCH --requeue\n"
     jobstring += "#################\n"
     jobstring += "\n"
-    jobstring += "python ${CRUNCH_ROOT}/bin/controller.py ${SLURM_JOBID} " + controllerconfigdoc["workdir"] + "\n"
+    jobstring += "python ${CRUNCH_ROOT}/bin/controller.py ${SLURM_JOBID} " + controllerconfigdoc["workdir"]
 
     with open(controllerconfigdoc["workdir"] + "/" + jobname + ".job", "w") as jobstream:
+        jobstream.write(jobstring)
+        jobstream.flush()
+
+def get_writetooljobfile(crunchconfigdoc, controllerconfigdoc, jobname, toolname, kwargs):
+    freenodes = get_freenodes(controllerconfigdoc["partitions"])
+    maxind = len(freenodes) - 1
+    maxshift = min(maxind, kwargs['nodeshift'])
+    node = freenodes[maxind - maxshift]
+    #ncpus = int(ceil(float(crunchconfigdoc["min-controller-threads"]) / node["threadspercpu"]))
+
+    jobstring = "#!/bin/bash\n"
+    jobstring += "\n"
+    jobstring += "# Created " + str(dt.utcnow().strftime("%Y %m %d %H:%M:%S UTC")) + "\n"
+    jobstring += "\n"
+    jobstring += "# Job name\n"
+    jobstring += "#SBATCH -J \"" + jobname + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Working directory\n"
+    jobstring += "#SBATCH -D \"" + controllerconfigdoc["workdir"] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Job output file\n"
+    jobstring += "#SBATCH -o \"" + jobname + ".info\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Job error file\n"
+    jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Job file write mode\n"
+    jobstring += "#SBATCH --open-mode=\"" + controllerconfigdoc["writemode"] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Job max time\n"
+    jobstring += "#SBATCH --time=\"" + controllerconfigdoc["timelimit"] + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Partition(s) to use for job\n"
+    jobstring += "#SBATCH --partition=\"" + node["partition"] + "\"\n"
+    jobstring += "#################\n"
+    #jobstring += "# Number of nodes to distribute n tasks across\n"
+    #jobstring += "#SBATCH -N 1\n"
+    #jobstring += "#################\n"
+    jobstring += "# Number of tasks allocated for job\n"
+    jobstring += "#SBATCH -n 1\n"
+    jobstring += "#################\n"
+    jobstring += "# Number of CPUs allocated for each task\n"
+    jobstring += "#SBATCH -c 1\n"
+    jobstring += "#################\n"
+    jobstring += "# List of nodes to distribute n tasks across\n"
+    jobstring += "#SBATCH -w \"" + str(node["hostname"]) + "\"\n"
+    jobstring += "#################\n"
+    jobstring += "# Requeue job on node failure\n"
+    jobstring += "#SBATCH --requeue\n"
+    jobstring += "#################\n"
+    jobstring += "\n"
+    jobstring += "python ${CRUNCH_ROOT}/bin/tools/" + kwargs['tool'] + " "
+    if kwargs['job_limit'] != None:
+        jobstring += "--job-limit " + kwargs['job_limit'] + " "
+    if kwargs['time_limit'] != None:
+        jobstring += "--time-limit " + time_limit + " "
+    jobstring += kwargs['in_path'] + " " + kwargs['out_path'] + " " + controllerconfigdoc["modname"] + " " + controllerconfigdoc["controllername"] + " " + kwargs['controllerpath'] + " " + " ".join(kwargs['out_file_names'])
+
+    if not os.path.isdir(kwargs['controllerpath'] + "/" + toolname):
+        os.mkdir(kwargs['controllerpath'] + "/" + toolname)
+
+    with open(kwargs['controllerpath'] + "/" + toolname + "/" + jobname + ".job", "w") as jobstream:
         jobstream.write(jobstring)
         jobstream.flush()

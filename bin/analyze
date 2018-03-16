@@ -49,4 +49,10 @@ do
     shift
 done
 
-python ${ProgDir}/tools/create_tool.py "analyze.py" "${job_limit}" "${time_limit}" "${controllerpath}/logs" "${controllerpath}/analyze" "${modname}" "${controllername}" "${controllerpath}" "analysis.pdf"
+if [ "$#" -eq 1 ]
+then
+    nodeshift=$1
+    python ${ProgDir}/tools/create_tool.py "${controllerpath}" "analyze.py" "${controllerpath}/logs" "${controllerpath}/analyze" --job-limit "${job_limit}" --time-limit "${time_limit}" --out-files "analysis.pdf" --node-shift "${nodeshift}"
+else
+    python ${ProgDir}/tools/create_tool.py "${controllerpath}" "analyze.py" "${controllerpath}/logs" "${controllerpath}/analyze" --job-limit "${job_limit}" --time-limit "${time_limit}" --out-files "analysis.pdf"
+fi

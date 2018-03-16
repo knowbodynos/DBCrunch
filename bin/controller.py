@@ -1160,12 +1160,14 @@ def distributeovernodes(freenodes, partitionsmaxmemory, modulememorylimit, local
         #sys.stdout.flush()
         jobmem = (partitionsmaxmemory[x["partition"]] * x["ncpus"]) / x["ntotcpus"]
         #nsteps = min((x["ncpus"] * x["threadspercpu"]) / (minthreads + (minthreads % x["threadspercpu"])), localmaxstepcount)
-        nsteps = min(x["ncpus"] / int(ceil(float(minthreads) / x["threadspercpu"])), localmaxstepcount)
-        #print((x["ncpus"] * x["threadspercpu"], minthreads, localmaxstepcount))
-        if modulememorylimit != None and modulememorylimit <= jobmem:
-            nsteps = min(nsteps, jobmem / modulememorylimit)
-        x.update({"jobmem": jobmem, "nsteps": nsteps})
-        freenodesmem += [x]
+        mincpus = int(ceil(float(minthreads) / x["threadspercpu"]))
+        if x["ncpus"] >= mincpus:
+            nsteps = min(x["ncpus"] / mincpus, localmaxstepcount)
+            #print((x["ncpus"] * x["threadspercpu"], minthreads, localmaxstepcount))
+            if modulememorylimit != None and modulememorylimit <= jobmem:
+                nsteps = min(nsteps, jobmem / modulememorylimit)
+            x.update({"jobmem": jobmem, "nsteps": nsteps})
+            freenodesmem += [x]
     #print(freenodesmem)
     #if (modulememorylimit == None):# or (eval(controllerconfigdoc["module"]["memorylimit"]) == maxmemorypernode):
     #    nthreads = sum([min(x["availcpus"], localmaxstepcount) * x["threadspercpu"] for x in freenodesmem[:nnodes]])
@@ -1669,9 +1671,11 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
             releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
             #time.sleep(10)
             jobstate = get_job_state(jobid)
-            if jobstate[0] == "PENDING" and jobstate[1] == "None":
-                time.sleep(10)
+            sleeptime = 0
+            while sleeptime < 30 and jobstate[0] == "PENDING" and jobstate[1] == "None":
+                time.sleep(1)
                 jobstate = get_job_state(jobid)
+                sleeptime += 1
 
             if jobstate[0] == "RUNNING":
                 break

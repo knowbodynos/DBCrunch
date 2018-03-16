@@ -9,7 +9,13 @@ controllerpath=$2
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
-python ${ProgDir}/tools/create_controller.py ${controllerpath}
+if [ "$#" -eq 3 ]
+then
+	nodeshift=$3
+	python ${ProgDir}/tools/create_controller.py ${controllerpath} ${nodeshift}
+else
+	python ${ProgDir}/tools/create_controller.py ${controllerpath}
+fi
 
 #jobs=$(find ${controllerpath} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.job" -print 2>/dev/null)
 #for job in ${jobs}
