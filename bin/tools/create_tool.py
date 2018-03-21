@@ -80,15 +80,14 @@ if crunchconfigdoc["workload-manager"] == "slurm":
         if jobstate[0] == "RUNNING":
             break
         elif jobstate[0] == "PENDING":
-
-            if jobstate[1] == "Resources":
-                get_canceljob(jobid)
-            else:
-                get_canceljob(jobid)
-                nodenum += 1
-                if nodenum == len(freenodes):
-                    nodenum = 0
-                    sleep(10)
+            #if jobstate[1] == "Resources":
+            #    get_canceljob(jobid)
+            #else:
+            get_canceljob(jobid)
+            nodenum += 1
+            if nodenum == len(freenodes):
+                nodenum = 0
+                sleep(10)
 
 print(jobid)
 sys.stdout.flush()
