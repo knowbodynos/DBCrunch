@@ -15,15 +15,15 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-import time
-#Timer initialization
-starttime = time.time()
-
-import sys, os, glob, errno, re, linecache, fcntl, traceback, operator, functools, datetime, tempfile, json, yaml
+import sys, os, re, linecache, traceback, operator, functools, tempfile, json, yaml
 from math import ceil
+from glob import iglob
+from fcntl import flock, LOCK_EX, LOCK_NB, LOCK_UN
+from errno import EAGAIN, ENOENT
+from datetime import datetime
 from pytz import utc
-from signal import signal, SIGPIPE, SIG_DFL
+from time import time, sleep
+from signal import signal, alarm, SIGPIPE, SIG_DFL, SIGALRM
 from subprocess import Popen, PIPE
 from threading import Thread, active_count
 from contextlib import contextmanager
@@ -38,8 +38,8 @@ def PrintException():
     filename = f.f_code.co_filename
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
-    print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
-    print "More info: ", traceback.format_exc()
+    print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+    print("More info: ", traceback.format_exc())
 
 def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
@@ -54,12 +54,12 @@ class TimeoutException(Exception): pass
 def time_limit(seconds):
     def signal_handler(signum, frame):
         raise TimeoutException("Timed out!")
-    signal.signal(signal.SIGALRM, signal_handler)
-    signal.alarm(seconds)
+    signal(SIGALRM, signal_handler)
+    alarm(seconds)
     try:
         yield
     finally:
-        signal.alarm(0)
+        alarm(0)
 
 class AsyncTrackLocks(Thread):
     '''Class to implement asynchronously read output of
@@ -95,7 +95,7 @@ class AsyncTrackLocks(Thread):
                         nready += 1
                         if nlocks + nready >= self._nworkers:
                             break
-            time.sleep(0.1)
+            sleep(0.1)
 
     def signal(self):
         self._signal = True
@@ -180,11 +180,11 @@ def reloadcrawl(reloadpath, reloadpattern, reloadstatefilepath, reloadstatefilen
     reloaddocsstream.close()
     if (limit == None) or (counters[1] <= limit):
         if timeleft() > 0:
-            filescurs = glob.iglob(reloadpath + "/" + reloadpattern)
+            filescurs = iglob(reloadpath + "/" + reloadpattern)
         else:
             try:
                 with time_limit(int(timeleft())):
-                    filescurs = glob.iglob(reloadpath + "/" + reloadpattern)
+                    filescurs = iglob(reloadpath + "/" + reloadpattern)
             except TimeoutException(msg):
                 filescurs = iter(())
                 pass
@@ -345,7 +345,7 @@ def py2matdict(dic):
 '''
 
 def get_timestamp():
-    return datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+    return datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
 
 def timestamp2unit(timestamp, unit = "seconds"):
     if timestamp == "infinite":
@@ -464,12 +464,12 @@ def getpartitiontimelimit(partition, moduletimelimit, modulebuffertime):
 
 def timeleft(starttime, buffertimelimit):
     "Determine if runtime limit has been reached."
-    #print str(time.time()-starttime) + " " + str(timestamp2unit(buffertimelimit))
+    #print str(time()-starttime) + " " + str(timestamp2unit(buffertimelimit))
     #sys.stdout.flush()
     if buffertimelimit == "infinite":
         return 1
     else:
-        return timestamp2unit(buffertimelimit)-(time.time()-starttime)
+        return timestamp2unit(buffertimelimit)-(time()-starttime)
 
 #def timeleftq(controllerjobid, buffertimelimit):
 #    "Determine if runtime limit has been reached."
@@ -488,7 +488,7 @@ def availlicensecount(localbinpath, licensescript, sublicensescript):
     if licensescript != None and os.path.isfile(licensescript):
         navaillicenses = [eval(Popen(licensescript, shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])]
     else:
-        raise IOError(errno.ENOENT, 'No license script available.', licensescript)
+        raise IOError(ENOENT, 'No license script available.', licensescript)
     if sublicensescript != None and os.path.isfile(sublicensescript):
         navaillicenses += [eval(Popen(sublicensescript, shell = True, stdout = PIPE, preexec_fn = default_sigpipe).communicate()[0])]
     #print "licensecount"
@@ -561,25 +561,25 @@ def submitjob(jobid, jobname, jobinfo, nnodes, ncpus, niters, nbatch, resubmit =
     if resubmit:
         #jobid = submitcomm.split(' ')[-1]
         #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
-        print ""
-        print get_timestamp()
-        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncpus) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
+        print("")
+        print(get_timestamp())
+        print("Resubmitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncpus) + " CPU(s), and " + str(totmem) + "MB RAM allocated.")
         for jobstepnum in range(len(jobinfo)):
             #with open(jobspath + "/" + jobstepnames[i] + ".error", "a") as statstream:
             #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
             #    statstream.flush()
-            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum]["jobstepname"] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum]["partition"] + " with " + str(jobinfo[jobstepnum]["nstepcpus"]) + " CPU(s) and " + str(jobinfo[jobstepnum]["stepmem"]) + "MB RAM allocated."
-        print ""
-        print ""
+            print("....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum]["jobstepname"] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum]["partition"] + " with " + str(jobinfo[jobstepnum]["nstepcpus"]) + " CPU(s) and " + str(jobinfo[jobstepnum]["stepmem"]) + "MB RAM allocated.")
+        print("")
+        print("")
     else:
-        print get_timestamp()
-        print "Submitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncpus) + " CPU(s), and " + str(totmem) + "MB RAM allocated."
+        print(get_timestamp())
+        print("Submitted batch job " + jobid + " as " + jobname + " on partition(s) " + ','.join(partitions) + " with " + str(nnodes) + " nodes, " + str(ncpus) + " CPU(s), and " + str(totmem) + "MB RAM allocated.")
         for jobstepnum in range(len(jobinfo)):
             #with open(jobspath + "/" + jobstepnames[i] + ".error", "a") as statstream:
             #    statstream.write(jobstepnames[i] + ", -1:0, False\n")
             #    statstream.flush()
-            print "....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum]["jobstepname"] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum]["partition"] + " with " + str(jobinfo[jobstepnum]["nstepcpus"]) + " CPU(s) and " + str(jobinfo[jobstepnum]["stepmem"]) + "MB RAM allocated."
-        print ""
+            print("....With job step " + jobid + "." + str(jobstepnum) + " as " + jobinfo[jobstepnum]["jobstepname"] + " in batches of " + str(nbatch) + "/" + str(niters) + " iteration(s) on partition " + jobinfo[jobstepnum]["partition"] + " with " + str(jobinfo[jobstepnum]["nstepcpus"]) + " CPU(s) and " + str(jobinfo[jobstepnum]["stepmem"]) + "MB RAM allocated.")
+        print("")
     sys.stdout.flush()
 
 def submitcontrollerjob(controllerpath, jobname, controllernnodes, controllerncores, partition, maxmemorypernode, resubmit = False):
@@ -588,25 +588,25 @@ def submitcontrollerjob(controllerpath, jobname, controllernnodes, controllernco
     if resubmit:
         #jobid = submitcomm.split(' ')[-1]
         #maketop = Popen("scontrol top " + jobid, shell = True, stdout = PIPE, preexec_fn = default_sigpipe)
-        print ""
-        print get_timestamp()
-        print "Resubmitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
-        print ""
-        print ""
+        print("")
+        print(get_timestamp())
+        print("Resubmitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated.")
+        print("")
+        print("")
     else:
-        print get_timestamp()
-        print "Submitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated."
-        print ""
+        print(get_timestamp())
+        print("Submitted batch job " + jobid + " as " + jobname + " on partition " + partition + " with " + controllernnodes + " nodes, " + controllerncores + " CPU(s), and " + str(maxmemorypernode / 1000000) + "MB RAM allocated.")
+        print("")
     sys.stdout.flush()
 
 def addtojobstep(jobinfo):
     #Print information about controller job addition
     #print("NThreads: " + str(active_count()))
-    print get_timestamp()
-    print "Added documents to batch jobs in progress."
+    print(get_timestamp())
+    print("Added documents to batch jobs in progress.")
     for x in jobinfo:
-        print "....With job step " + x["stepid"] + " as " + x["jobstepname"] + " in batches of " + str(x["nbatch"]) + "/" + str(x["niters"]) + " iteration(s) on partition " + x["partition"] + " with " + str(x["nstepcpus"]) + " CPU(s) and " + str(x["stepmem"]) + "MB RAM allocated."
-    print ""
+        print("....With job step " + x["stepid"] + " as " + x["jobstepname"] + " in batches of " + str(x["nbatch"]) + "/" + str(x["niters"]) + " iteration(s) on partition " + x["partition"] + " with " + str(x["nstepcpus"]) + " CPU(s) and " + str(x["stepmem"]) + "MB RAM allocated.")
+    print("")
     sys.stdout.flush()
 
 #def skippedjobslist(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], workpath):
@@ -706,9 +706,9 @@ def requeueskippedqueryjobs(controllerconfigdoc, controllerpath, querystatefilen
                                             except:
                                                 pass
                                             if skippedjobnums.count(skippedjobnum) == 0:
-                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                                for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
                                                     os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
-                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
+                                                for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                                     if not ((".merge." in file) and (".out" in file)):
                                                         os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
                                             with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
@@ -764,9 +764,9 @@ def requeueskippedqueryjobs(controllerconfigdoc, controllerpath, querystatefilen
                                             except:
                                                 pass
                                             if skippedjobnums.count(skippedjobnum) == 0:
-                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                                for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
                                                     os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
-                                                for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
+                                                for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                                     if not ((".merge." in file) and (".out" in file)):
                                                         os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
                                             with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
@@ -786,12 +786,12 @@ def requeueskippedqueryjobs(controllerconfigdoc, controllerpath, querystatefilen
                                     tempstream1.flush()
                             os.rename(tempstream1.name, querystatefilestream.name)
                 except IOError:
-                    print "File path \"" + controllerpath + "/" + querystatetierfilename + "\" does not exist."
+                    print("File path \"" + controllerpath + "/" + querystatetierfilename + "\" does not exist.")
                     sys.stdout.flush()
             counters[1] -= skippeddoccount
             docounterupdate(counters, counterstatefile, counterheader)
     except IOError:
-        print "File path \"" + controllerpath + "/skipped\" does not exist."
+        print("File path \"" + controllerpath + "/skipped\" does not exist.")
         sys.stdout.flush()
 
 def requeueskippedreloadjobs(controllerconfigdoc, controllerpath, reloadstatefilename, reloadpath, counters, counterstatefile, counterheader, dbindexes):
@@ -846,7 +846,7 @@ def requeueskippedreloadjobs(controllerconfigdoc, controllerpath, reloadstatefil
                 #    tempstream.flush()
             #os.rename(tempstream.name, skippedstream.name)
             #if len(skippeddocs) > 0:
-            #    reloadfilescurs = glob.iglob(controllerpath + "/jobs/" + reloadpattern)
+            #    reloadfilescurs = iglob(controllerpath + "/jobs/" + reloadpattern)
             #    skippedjobfilescollect = []
             #    skippedjobposcollect = []
             #    for reloadfile in reloadfilescurs:
@@ -921,9 +921,9 @@ def requeueskippedreloadjobs(controllerconfigdoc, controllerpath, reloadstatefil
                                                 except:
                                                     pass
                                                 if skippedjobnums.count(skippedjobnum) == 0:
-                                                    for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                                    for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
                                                         os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
-                                                    for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
+                                                    for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                                         if not ((".merge." in file) and (".out" in file)):
                                                             os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
                                                 with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
@@ -944,7 +944,7 @@ def requeueskippedreloadjobs(controllerconfigdoc, controllerpath, reloadstatefil
                             tempstream1.flush()
                     os.rename(tempstream1.name, reloadstatefilestream.name)
             except IOError:
-                print "File path \"" + controllerpath + "/" + reloadstatefilename + "FILE" + "\" does not exist."
+                print("File path \"" + controllerpath + "/" + reloadstatefilename + "FILE" + "\" does not exist.")
                 sys.stdout.flush()
             try:
                 with open(controllerpath + "/" + reloadstatefilename + "DOC", "r") as reloadstatefilestream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream1:
@@ -979,9 +979,9 @@ def requeueskippedreloadjobs(controllerconfigdoc, controllerpath, reloadstatefil
                                     except:
                                         pass
                                     if skippedjobnums.count(skippedjobnum) == 0:
-                                        for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
+                                        for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + "_*"):
                                             os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
-                                        for file in glob.iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
+                                        for file in iglob(controllerpath + "/jobs/*_job_" + skippedjobnum + ".*"):
                                             if not ((".merge." in file) and (".out" in file)):
                                                 os.rename(file, file.replace("/jobs/", "/jobs/reloaded/"))
                                     with open(controllerpath + "/skipped", "r") as skippedstream, tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream2:
@@ -1002,12 +1002,12 @@ def requeueskippedreloadjobs(controllerconfigdoc, controllerpath, reloadstatefil
                             tempstream1.flush()
                     os.rename(tempstream1.name, reloadstatefilestream.name)
             except IOError:
-                print "File path \"" + controllerpath + "/" + reloadstatefilename + "DOC" + "\" does not exist."
+                print("File path \"" + controllerpath + "/" + reloadstatefilename + "DOC" + "\" does not exist.")
                 sys.stdout.flush()
             counters[1] -= skippeddoccount
             docounterupdate(counters, counterstatefile, counterheader)
     except IOError:
-        print "File path \"" + controllerpath + "/skipped\" does not exist."
+        print("File path \"" + controllerpath + "/skipped\" does not exist.")
         sys.stdout.flush()
 
 #def orderpartitions(partitions):
@@ -1404,11 +1404,11 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
         statusstream.write("Waiting for slots.")
         statusstream.flush()
     while not storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"]):
-        time.sleep(0.1)
+        sleep(0.1)
     if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
         refillkeys = ["jobstepname", "stepid", "partition", "nsteptasks", "nstepcpus", "stepmem"]
         refillsteps = []
-        for refillfile in glob.iglob(controllerpath + "/docs/*.refill"):
+        for refillfile in iglob(controllerpath + "/docs/*.refill"):
             with open(refillfile, "r") as refillstream:
                 refilllinesplit = [int(x) if x.isdigit() else x for x in refillstream.readline().rstrip("\n").split()]
                 refillsteps += [dict(zip(refillkeys, refilllinesplit))]
@@ -1426,10 +1426,10 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
         freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
         get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and len(freenodes) > 0 and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
-            time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+            sleep(controllerconfigdoc["controller"]["sleeptime"])
             if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
                 refillsteps = []
-                for refillfile in glob.iglob(controllerpath + "/docs/*.refill"):
+                for refillfile in iglob(controllerpath + "/docs/*.refill"):
                     with open(refillfile, "r") as refillstream:
                         refilllinesplit = [int(x) if x.isdigit() else x for x in refillstream.readline().rstrip("\n").split()]
                         refillsteps += [dict(zip(refillkeys, refilllinesplit))]
@@ -1445,18 +1445,18 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
             licensesleft = clusterlicensesleft(nlicensesplit, ntasks)
             freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
             get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
-        #fcntl.flock(licensestream, fcntl.LOCK_EX)
-        #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-controllerconfigdoc["options"]["blocking"] and loop until lock is acquired.
+        #flock(licensestream, LOCK_EX)
+        #LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-controllerconfigdoc["options"]["blocking"] and loop until lock is acquired.
         #while (timeleft(starttime, controllerbuffertimelimit) > 0):
         #    get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         #    #try:
-        #    #    fcntl.flock(licensestream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        #    #    flock(licensestream, LOCK_EX | LOCK_NB)
         #    #    break
         #    #except IOError as e:
-        #    #    if e.errno != errno.EAGAIN:
+        #    #    if e.errno != EAGAIN:
         #    #        raise
         #    #    else:
-        #    #        time.sleep(0.1)
+        #    #        sleep(0.1)
         if not (timeleft(starttime, controllerbuffertimelimit) > 0):
             #print "hi"
             #sys.stdout.flush()
@@ -1475,10 +1475,10 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
         freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
         get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and len(freenodes) > 0 and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
-            time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+            sleep(controllerconfigdoc["controller"]["sleeptime"])
             if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
                 refillsteps = []
-                for refillfile in glob.iglob(controllerpath + "/docs/*.refill"):
+                for refillfile in iglob(controllerpath + "/docs/*.refill"):
                     with open(refillfile, "r") as refillstream:
                         refilllinesplit = [int(x) if x.isdigit() else x for x in refillstream.readline().rstrip("\n").split()]
                         refillsteps += [dict(zip(refillkeys, refilllinesplit))]
@@ -1645,7 +1645,7 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
             #else:
             #    totcontrollerconfigdoc["db"]["ntasksfield"] = sum([x[controllerconfigdoc["db"]["ntasksfield"]] for x in docbatch])
             #while not clusterjobslotsleft(globalmaxjobcount, scriptext, minnsteps = inputdoc["nsteps"]):
-            #    time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+            #    sleep(controllerconfigdoc["controller"]["sleeptime"])
             #doc = json.loads(doc.rstrip('\n'))
             #if niters == 1:
             #    jobstepnames = [indexdoc2jobstepname(x, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], dbindexes) for x in docbatchparts]
@@ -1669,11 +1669,11 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
             #    nthreads = [1 for x in docbatchparts]
             jobid = get_submitjob(controllerpath + "/jobs", jobname)
             get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
-            #time.sleep(10)
+            #sleep(10)
             jobstate = get_job_state(jobid)
             sleeptime = 0
             while sleeptime < 30 and jobstate[0] == "PENDING" and jobstate[1] == "None":
-                time.sleep(1)
+                sleep(1)
                 jobstate = get_job_state(jobid)
                 sleeptime += 1
 
@@ -1684,14 +1684,14 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
                 #sys.stdout.flush()
                 #if jobstate[1] == "None":
                 #    break
-                if jobstate[1] == "Resources":
-                    get_canceljob(jobid)
-                else:
-                    get_canceljob(jobid)
-                    nodenum += 1
-                    if nodenum == len(freenodes):
-                        nodenum = 0
-                        time.sleep(10)
+                #if jobstate[1] == "Resources":
+                #    get_canceljob(jobid)
+                #else:
+                get_canceljob(jobid)
+                nodenum += 1
+                if nodenum == len(freenodes):
+                    nodenum = 0
+                    sleep(10)
 
     batchincr = 1
 
@@ -1755,20 +1755,20 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
         #with open(controllerpath + "/refill", "r") as refillstream:
         #    while True:
         #        try:
-        #            fcntl.flock(refillstream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        #            flock(refillstream, LOCK_EX | LOCK_NB)
         #            break
         #        except IOError as e:
-        #            if e.errno != errno.EAGAIN:
+        #            if e.errno != EAGAIN:
         #                raise
         #            else:
-        #                time.sleep(0.1)
+        #                sleep(0.1)
         #    with tempfile.NamedTemporaryFile(dir = controllerpath, delete = False) as tempstream:
         #        for refillline in refillstream:
         #            if refillline.split()[0] not in jobstepnames:
         #                tempstream.write(refillline)
         #                tempstream.flush()
         #        os.rename(tempstream.name, refillstream.name)
-        #    fcntl.flock(refillstream, fcntl.LOCK_UN)
+        #    flock(refillstream, LOCK_UN)
 
         with open(statusstatefile, "w") as statusstream:
             statusstream.write("Initializing job.")
@@ -1800,7 +1800,7 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
 
     #needslicense = (licensestream != None)
     #if needslicense:
-    #    fcntl.flock(licensestream, fcntl.LOCK_UN)
+    #    flock(licensestream, LOCK_UN)
         #pendlicensestream.seek(0, 0)
         #pendlicenseheader = pendlicensestream.readline()
         #npendlicensesplit = [eval(x) for x in pendlicensestream.readline().rstrip("\n").split(",")]
@@ -1838,6 +1838,9 @@ def docounterupdate(counters, counterstatefile, counterheader):
         counterstream.flush()
 
 try:
+    #Timer initialization
+    starttime = time()
+
     #print "main"
     #print "scontrol show config | grep 'MaxJobCount\|MaxStepCount' | sed 's/\s//g' | cut -d'=' -f2 | tr '\n' ', ' | head -c -1"
     #print ""
@@ -1878,15 +1881,15 @@ try:
 
     controllerstats = get_controllerstats(controllerjobid)
     while len(controllerstats) < 4:
-        time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+        sleep(controllerconfigdoc["controller"]["sleeptime"])
         controllerstats = get_controllerstats(controllerjobid)
     controllerpartition, controllertimelimit, controllernnodes, controllerncores = controllerstats
     controllerpartitiontimelimit, controllerbuffertimelimit = getpartitiontimelimit(controllerpartition, controllertimelimit, controllerconfigdoc["controller"]["buffertime"])
 
-    print get_timestamp()
-    print "Starting job crunch_" + controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_controller"
-    print ""
-    print ""
+    print(get_timestamp())
+    print("Starting job crunch_" + controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_controller")
+    print("")
+    print("")
     sys.stdout.flush()
 
     #controllerpath = get_controllerpath(controllerjobid)
@@ -1923,14 +1926,14 @@ try:
     
     #querystatefile = controllerpath + "/querystate"
 
-    #for f in glob.iglob(controllerpath + "/locks/*.lock"):
+    #for f in iglob(controllerpath + "/locks/*.lock"):
     #    os.remove(f)
 
     try:
         with open(dependenciesfile, "r") as dependenciesstream:
             dependencies = [x.rstrip('\n') for x in dependenciesstream.readlines()]
     except IOError:
-        print "File path \"" + dependenciesfile + "\" does not exist."
+        print("File path \"" + dependenciesfile + "\" does not exist.")
         sys.stdout.flush()
         raise
 
@@ -1987,7 +1990,7 @@ try:
 
     if controllerconfigdoc["options"]["blocking"]:
         while get_prevcontrollerjobsrunningq(username, dependencies) and (timeleft(starttime, controllerbuffertimelimit) > 0):
-            time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+            sleep(controllerconfigdoc["controller"]["sleeptime"])
 
     reloadjob = (controllerconfigdoc["db"]["query"][0] == "RELOAD")
     if reloadjob:
@@ -2011,7 +2014,7 @@ try:
     #dependencies = modlist[:modlist.index(controllerconfigdoc["controller"]["modname"])]
 
     #if firstlastrun and needslicense:
-    #   fcntl.flock(pendlicensestream, fcntl.LOCK_UN)
+    #   flock(pendlicensestream, LOCK_UN)
     #firstrun = True
 
     #if querylimit != None:
@@ -2095,7 +2098,7 @@ try:
     #    for x in skippedjobs:
     #        maxmemorypernode = getmaxmemorypernode(resourcesstatefile, controllerpartition)
     #        submitjob(workpath, x,controllerpartition, maxmemorypernode, maxmemorypernode, resubmit = True)
-    #    time.sleep(controllerconfigdoc["controller"]["sleeptime"])
+    #    sleep(controllerconfigdoc["controller"]["sleeptime"])
 
     lockhandler.signal()
     lockhandler.join()
@@ -2106,7 +2109,7 @@ try:
         assert isinstance(crunchconfigdoc["resources"][controllerpartition], int)
         maxmemorypernode = crunchconfigdoc["resources"][controllerpartition]
 
-        loadpathnames = glob.iglob(controllerpath + "/docs/*.docs")
+        loadpathnames = iglob(controllerpath + "/docs/*.docs")
         #with open(controllerpath + "/skipped", "a") as skippedstream:
         #    for loadpathname in loadpathnames:
         #        loadfilename = loadpathname.split("/")[-1]
@@ -2129,21 +2132,21 @@ try:
     else:
         #if pdffile != "":
         #    plotjobgraph(controllerconfigdoc["controller"]["modname"], controllerpath, controllerconfigdoc["controller"]["controllername"], workpath, pdffile)
-        #for f in glob.iglob(controllerpath + "/locks/*.lock"):
+        #for f in iglob(controllerpath + "/locks/*.lock"):
         #    os.remove(f)
         #os.rmdir(controllerpath + "/locks")
         with open(statusstatefile, "w") as statusstream:
             statusstream.write("Completing controller.")
             statusstream.flush()
-        print ""
-        print get_timestamp()
-        print "Completing job crunch_" + controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_controller\n"
+        print("")
+        print(get_timestamp())
+        print("Completing job crunch_" + controllerconfigdoc["controller"]["modname"] + "_" + controllerconfigdoc["controller"]["controllername"] + "_controller\n")
         sys.stdout.flush()
 
     #querystream.close()
     #seekstream.close()
     #if needslicense:
-        #fcntl.flock(pendlicensestream, fcntl.LOCK_UN)
+        #flock(pendlicensestream, LOCK_UN)
     #    licensestream.close()
     if controllerconfigdoc["db"]["type"] == "mongodb":
         dbclient.close()

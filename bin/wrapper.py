@@ -16,9 +16,10 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, json, yaml, traceback, tempfile, datetime, linecache
-from fcntl import flock, LOCK_EX, LOCK_NB, LOCK_UN
+import sys, os, json, yaml, linecache, traceback, tempfile
+from fcntl import fcntl, flock, LOCK_EX, LOCK_NB, LOCK_UN, F_GETFL, F_SETFL
 from errno import EAGAIN
+from datetime import datetime, timedelta
 from pytz import utc
 from glob import iglob
 from pprint import pprint
@@ -27,8 +28,6 @@ from random import randint
 from signal import signal, SIGPIPE, SIG_DFL
 from subprocess import Popen, PIPE
 from threading import Thread, active_count
-from fcntl import fcntl, F_GETFL, F_SETFL
-from os import O_NONBLOCK, read
 from locale import getpreferredencoding
 from argparse import ArgumentParser, REMAINDER
 try:
@@ -51,7 +50,7 @@ def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
 
 def get_timestamp():
-    return datetime.datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+    return datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
 
 def dir_size(start_path = '.'):
     total_size = 0
@@ -91,13 +90,13 @@ def nonblocking_readlines(f):
 
     fd = f.fileno()
     fl = fcntl(fd, F_GETFL)
-    fcntl(fd, F_SETFL, fl | O_NONBLOCK)
+    fcntl(fd, F_SETFL, fl | os.O_NONBLOCK)
     enc = getpreferredencoding(False)
 
     buf = bytearray()
     while True:
         try:
-            block = read(fd, 8192)
+            block = os.read(fd, 8192)
         except OSError:
             yield ""
             continue
@@ -763,7 +762,7 @@ class AsyncBulkWriteStream(Thread):
         self._countbatchesout += write_dict['count']
 
         if self._configopt['outlog']:
-            in_writetimestamp = datetime.datetime.utcnow().replace(tzinfo = utc)
+            in_writetimestamp = datetime.utcnow().replace(tzinfo = utc)
             in_writetime = time()
 
         if self._configdb['type'] == "mongodb":
@@ -786,8 +785,8 @@ class AsyncBulkWriteStream(Thread):
             outlogiolinecount = 1
             for outlogioline in outlogiosplit:
                 if outlogioline != "":
-                    start_writetimestamp = (in_writetimestamp + datetime.timedelta(seconds = (outlogiolinecount - 1) * avgwritetime)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
-                    end_writetimestamp = (in_writetimestamp + datetime.timedelta(seconds = outlogiolinecount * avgwritetime)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+                    start_writetimestamp = (in_writetimestamp + timedelta(seconds = (outlogiolinecount - 1) * avgwritetime)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+                    end_writetimestamp = (in_writetimestamp + timedelta(seconds = outlogiolinecount * avgwritetime)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
                     with open(self._controllerpath + "/logs/" + self._jobstepname + ".log", "a") as outlogstream:
                         outlogstream.write(end_writetimestamp + " " + start_writetimestamp + " " + str(dir_size(self._controllerpath)) + " " + outlogioline + "\n")
                         outlogstream.flush()
