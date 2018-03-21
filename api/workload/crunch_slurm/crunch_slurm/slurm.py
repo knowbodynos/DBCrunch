@@ -1,11 +1,16 @@
+import os
 from signal import signal, SIGPIPE, SIG_DFL
 from subprocess import Popen, PIPE
-from datetime import datetime as dt
+from pytz import utc
+from datetime import datetime
 from math import ceil
 from time import sleep
 
 def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
+
+def get_timestamp():
+    return datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
 
 def retry(script):
     MAX_TRIES = 6
@@ -74,7 +79,7 @@ def get_submitjob(jobpath, jobname):
     stdout, stderr = retry(script)
     return stdout.rstrip("\n").split()[-1]
 
-def releaseheldjobs(username, modname, controllername):
+def get_releaseheldjobs(username, modname, controllername):
     script = "for job in $(squeue -h -u " + username + " -o '%j %A %r' | grep 'crunch_" + modname + "_" + controllername + "_' | grep 'job requeued in held state' | sed 's/\s\s*/ /g' | cut -d' ' -f2); do scontrol release $job; done"
     retry(script)
 
@@ -181,16 +186,16 @@ def get_canceljob(jobid):
     script = "scancel " + jobid
     retry(script)
 
-def get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, nodeshift = 0):
-    freenodes = get_freenodes(controllerconfigdoc["partitions"])
-    maxind = len(freenodes) - 1
-    maxshift = min(maxind, nodeshift)
-    node = freenodes[maxind - maxshift]
+def get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, node):
+    #freenodes = get_freenodes(controllerconfigdoc["partitions"])
+    #maxind = len(freenodes) - 1
+    #maxshift = min(maxind, nodeshift)
+    #node = freenodes[maxind - maxshift]
     ncpus = int(ceil(float(crunchconfigdoc["min-controller-threads"]) / node["threadspercpu"]))
 
     jobstring = "#!/bin/bash\n"
     jobstring += "\n"
-    jobstring += "# Created " + str(dt.utcnow().strftime("%Y %m %d %H:%M:%S UTC")) + "\n"
+    jobstring += "# Created " + get_timestamp() + "\n"
     jobstring += "\n"
     jobstring += "# Job name\n"
     jobstring += "#SBATCH -J \"" + jobname + "\"\n"
@@ -235,22 +240,21 @@ def get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, no
         jobstream.write(jobstring)
         jobstream.flush()
 
-def get_writetooljobfile(crunchconfigdoc, controllerconfigdoc, jobname, toolname, kwargs):
-    freenodes = get_freenodes(controllerconfigdoc["partitions"])
-    maxind = len(freenodes) - 1
-    maxshift = min(maxind, kwargs['nodeshift'])
-    node = freenodes[maxind - maxshift]
-    #ncpus = int(ceil(float(crunchconfigdoc["min-controller-threads"]) / node["threadspercpu"]))
+def get_writetooljobfile(crunchconfigdoc, controllerconfigdoc, jobname, toolname, node, kwargs):
+    #freenodes = get_freenodes(controllerconfigdoc["partitions"])
+    #maxind = len(freenodes) - 1
+    #maxshift = min(maxind, kwargs['nodeshift'])
+    #node = freenodes[maxind - maxshift]
 
     jobstring = "#!/bin/bash\n"
     jobstring += "\n"
-    jobstring += "# Created " + str(dt.utcnow().strftime("%Y %m %d %H:%M:%S UTC")) + "\n"
+    jobstring += "# Created " + get_timestamp() + "\n"
     jobstring += "\n"
     jobstring += "# Job name\n"
     jobstring += "#SBATCH -J \"" + jobname + "\"\n"
     jobstring += "#################\n"
     jobstring += "# Working directory\n"
-    jobstring += "#SBATCH -D \"" + controllerconfigdoc["workdir"] + "\"\n"
+    jobstring += "#SBATCH -D \"" + kwargs['controllerpath'] + "/" + toolname + "\"\n"
     jobstring += "#################\n"
     jobstring += "# Job output file\n"
     jobstring += "#SBATCH -o \"" + jobname + ".info\"\n"
@@ -259,10 +263,10 @@ def get_writetooljobfile(crunchconfigdoc, controllerconfigdoc, jobname, toolname
     jobstring += "#SBATCH -e \"" + jobname + ".err\"\n"
     jobstring += "#################\n"
     jobstring += "# Job file write mode\n"
-    jobstring += "#SBATCH --open-mode=\"" + controllerconfigdoc["writemode"] + "\"\n"
+    jobstring += "#SBATCH --open-mode=\"truncate\"\n"
     jobstring += "#################\n"
     jobstring += "# Job max time\n"
-    jobstring += "#SBATCH --time=\"" + controllerconfigdoc["timelimit"] + "\"\n"
+    jobstring += "#SBATCH --time=\"1-00:00:00\"\n"
     jobstring += "#################\n"
     jobstring += "# Partition(s) to use for job\n"
     jobstring += "#SBATCH --partition=\"" + node["partition"] + "\"\n"
@@ -284,10 +288,10 @@ def get_writetooljobfile(crunchconfigdoc, controllerconfigdoc, jobname, toolname
     jobstring += "#################\n"
     jobstring += "\n"
     jobstring += "python ${CRUNCH_ROOT}/bin/tools/" + kwargs['tool'] + " "
-    if kwargs['job_limit'] != None:
+    if kwargs['job_limit'] != "":
         jobstring += "--job-limit " + kwargs['job_limit'] + " "
-    if kwargs['time_limit'] != None:
-        jobstring += "--time-limit " + time_limit + " "
+    if kwargs['time_limit'] != "":
+        jobstring += "--time-limit " + kwargs['time_limit'] + " "
     jobstring += kwargs['in_path'] + " " + kwargs['out_path'] + " " + controllerconfigdoc["modname"] + " " + controllerconfigdoc["controllername"] + " " + kwargs['controllerpath'] + " " + " ".join(kwargs['out_file_names'])
 
     if not os.path.isdir(kwargs['controllerpath'] + "/" + toolname):

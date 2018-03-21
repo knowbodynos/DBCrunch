@@ -17,16 +17,12 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys, os, yaml
+from time import sleep
 
 rootpath = os.environ['CRUNCH_ROOT']
+username = os.environ['USER']
 
 controllerpath = sys.argv[1]
-nodeshift = sys.argv[2:]
-
-if len(nodeshift) == 0:
-	nodeshift = 0
-else:
-	nodeshift = int(nodeshift[0])
 
 modname, controllername = controllerpath.split("/")[-2:]
 
@@ -44,5 +40,32 @@ with open(controllerpath + "/status", "w") as statusstream:
 
 if crunchconfigdoc["workload-manager"] == "slurm":
     from crunch_slurm import *
-    get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, nodeshift = nodeshift)
-    #get_submitjob(controllerpath, jobname)
+    nodenum = 0
+    while True:
+        freenodes = get_freenodes(controllerconfigdoc['partitions'])
+        node = freenodes[nodenum]
+        get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, node)
+        jobid = get_submitjob(controllerpath, jobname)
+        get_releaseheldjobs(username, controllerconfigdoc['modname'], controllerconfigdoc['controllername'])
+        jobstate = get_job_state(jobid)
+        sleeptime = 0
+        while sleeptime < 30 and jobstate[0] == "PENDING" and jobstate[1] == "None":
+            sleep(1)
+            jobstate = get_job_state(jobid)
+            sleeptime += 1
+
+        if jobstate[0] == "RUNNING":
+            break
+        elif jobstate[0] == "PENDING":
+
+            if jobstate[1] == "Resources":
+                get_canceljob(jobid)
+            else:
+                get_canceljob(jobid)
+                nodenum += 1
+                if nodenum == len(freenodes):
+                    nodenum = 0
+                    sleep(10)
+
+print(jobid)
+sys.stdout.flush()

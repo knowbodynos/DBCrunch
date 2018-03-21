@@ -102,14 +102,14 @@ def Freedman_Diaconis_binwidth(data, axis = None):
 
 parser = ArgumentParser()
 
-parser.add_argument('--job-limit', '-j', dest = 'job_limit', action = 'store', default = None, help = '')
-parser.add_argument('--time-limit', '-t', dest = 'time_limit', action = 'store', default = None, help = '')
 parser.add_argument('in_path', help = '')
 parser.add_argument('out_path', help = '')
 parser.add_argument('modname', help = '')
 parser.add_argument('controllername', help = '')
 parser.add_argument('controllerpath', help = '')
 parser.add_argument('out_file_name', help = '')
+parser.add_argument('--job-limit', '-j', dest = 'job_limit', action = 'store', default = None, help = '')
+parser.add_argument('--time-limit', '-t', dest = 'time_limit', action = 'store', default = None, help = '')
 
 args = vars(parser.parse_known_args()[0])
 
@@ -182,14 +182,15 @@ with open(args['controllerpath'] + "/crunch_" + args['modname'] + "_" + args['co
             controller_info_line_split = controller_info_line.rstrip("\n").split()
             controller_info_timestamp = datetime.datetime.strptime(prev_controller_info_line.rstrip("\n"), "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
             controller_info_time = int((controller_info_timestamp - epoch).total_seconds())
-            controller_info_job = int(controller_info_line_split[5].split("_job_")[1].split("_")[0])
-            controller_info_steps_range = [int(x) for x in controller_info_line_split[5].split("_steps_")[1].split("-")]
-            controller_info_steps = [(controller_info_job, x) for x in range(1, controller_info_steps_range[1] - controller_info_steps_range[0] + 2)]
-            if controller_info_job not in job_submit_start_end.keys():
-                job_submit_start_end[controller_info_job] = [controller_info_time, None, None]
-            for x in controller_info_steps:
-                if x not in step_submit_start_end.keys():
-                    step_submit_start_end[x] = [controller_info_time, None, None]
+            if args['time_limit'] == None or controller_info_time <= args['time_limit']:
+                controller_info_job = int(controller_info_line_split[5].split("_job_")[1].split("_")[0])
+                controller_info_steps_range = [int(x) for x in controller_info_line_split[5].split("_steps_")[1].split("-")]
+                controller_info_steps = [(controller_info_job, x) for x in range(1, controller_info_steps_range[1] - controller_info_steps_range[0] + 2)]
+                if controller_info_job not in job_submit_start_end.keys():
+                    job_submit_start_end[controller_info_job] = [controller_info_time, None, None]
+                for x in controller_info_steps:
+                    if x not in step_submit_start_end.keys():
+                        step_submit_start_end[x] = [controller_info_time, None, None]
         prev_controller_info_line = controller_info_line
 
 for info_file_path in iglob(args['in_path'] + "/*.info"):
@@ -200,22 +201,24 @@ for info_file_path in iglob(args['in_path'] + "/*.info"):
             info_line_split = info_line.rstrip("\n").split()
             info_timestamp = datetime.datetime.strptime(info_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
             info_time = int((info_timestamp - epoch).total_seconds())
-            info_job = int(info_line_split[1].split("_job_")[1].split("_")[0])
-            info_step = (info_job, int(info_line_split[1].split("_step_")[1]))
-            if info_job not in job_submit_start_end.keys():
-                job_submit_start_end[info_job] = [None, None, None]
-            if info_step not in step_submit_start_end.keys():
-                step_submit_start_end[info_step] = [None, None, None]
-            if info_line_split[2] == "START":
-                if info_start_linecount == 0:
-                    job_submit_start_end[info_job][1] = info_time
-                step_submit_start_end[info_step][1] = info_time
-                info_start_linecount += 1
-            elif info_line_split[2] == "END":
-                step_submit_start_end[info_step][2] = info_time
-                info_end_linecount += 1
-        if info_start_linecount == info_end_linecount:
-            job_submit_start_end[info_job][2] = info_time
+            if args['time_limit'] == None or info_time <= args['time_limit']:
+                info_job = int(info_line_split[1].split("_job_")[1].split("_")[0])
+                info_step = (info_job, int(info_line_split[1].split("_step_")[1]))
+                if info_job not in job_submit_start_end.keys():
+                    job_submit_start_end[info_job] = [None, None, None]
+                if info_step not in step_submit_start_end.keys():
+                    step_submit_start_end[info_step] = [None, None, None]
+                if info_line_split[2] == "START":
+                    if info_start_linecount == 0:
+                        job_submit_start_end[info_job][1] = info_time
+                    step_submit_start_end[info_step][1] = info_time
+                    info_start_linecount += 1
+                elif info_line_split[2] == "END":
+                    step_submit_start_end[info_step][2] = info_time
+                    info_end_linecount += 1
+        if args['time_limit'] == None or info_time <= args['time_limit']:
+            if info_start_linecount == info_end_linecount:
+                job_submit_start_end[info_job][2] = info_time
 
 log_ids = []
 for log_file_path in iglob(args['in_path'] + "/*.log"):
@@ -233,51 +236,55 @@ for log_file_path in iglob(args['in_path'] + "/*.log"):
                 log_line_split = log_line.rstrip("\n").split()
                 if len(log_line_split) < 11:
                     break
-                out_log_end_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
-                out_log_end_time = int((out_log_end_timestamp - epoch).total_seconds())
-                out_log_start_timestamp = datetime.datetime.strptime(log_line_split[1], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
-                out_log_start_time = int((out_log_start_timestamp - epoch).total_seconds())
-                out_log_dir_size = int(log_line_split[2])
                 intermed_log_end_timestamp = datetime.datetime.strptime(log_line_split[3], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 intermed_log_end_time = int((intermed_log_end_timestamp - epoch).total_seconds())
-                intermed_log_start_timestamp = datetime.datetime.strptime(log_line_split[4], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
-                intermed_log_start_time = int((intermed_log_start_timestamp - epoch).total_seconds())
-                intermed_log_dir_size = int(log_line_split[5])
-                log_id = log_line_split[10]
-                log_ids += [log_id]
+                if args['time_limit'] == None or intermed_log_end_time <= args['time_limit']:
+                    intermed_log_start_timestamp = datetime.datetime.strptime(log_line_split[4], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
+                    intermed_log_start_time = int((intermed_log_start_timestamp - epoch).total_seconds())
+                    intermed_log_dir_size = int(log_line_split[5])
+                    log_id = log_line_split[10]
+                    log_ids += [log_id]
 
-                if job_submit_start_end[log_job][0] == None or intermed_log_start_time < job_submit_start_end[log_job][0]:
-                    job_submit_start_end[log_job][0] = intermed_log_start_time
-                if job_submit_start_end[log_job][1] == None or intermed_log_start_time < job_submit_start_end[log_job][1]:
-                    job_submit_start_end[log_job][1] = intermed_log_start_time
-                if job_submit_start_end[log_job][2] != None and out_log_end_time > job_submit_start_end[log_job][2]:
-                    job_submit_start_end[log_job][2] = out_log_end_time
+                    if job_submit_start_end[log_job][0] == None or intermed_log_start_time < job_submit_start_end[log_job][0]:
+                        job_submit_start_end[log_job][0] = intermed_log_start_time
+                    if job_submit_start_end[log_job][1] == None or intermed_log_start_time < job_submit_start_end[log_job][1]:
+                        job_submit_start_end[log_job][1] = intermed_log_start_time
+                    if job_submit_start_end[log_job][2] != None and out_log_end_time > job_submit_start_end[log_job][2]:
+                        job_submit_start_end[log_job][2] = out_log_end_time
 
-                if step_submit_start_end[log_step][0] == None or intermed_log_start_time < step_submit_start_end[log_step][0]:
-                    step_submit_start_end[log_step][0] = intermed_log_start_time
-                if step_submit_start_end[log_step][1] == None or intermed_log_start_time < step_submit_start_end[log_step][1]:
-                    step_submit_start_end[log_step][1] = intermed_log_start_time
-                if step_submit_start_end[log_step][2] != None and out_log_end_time > step_submit_start_end[log_step][2]:
-                    step_submit_start_end[log_step][2] = out_log_end_time
-                #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
-                if intermed.shape[0] <= intermed_log_end_time:
-                    intermed.resize(intermed_log_end_time + 1)
-                    intermed_done.resize(intermed_log_end_time + 1)
-                #print((intermed_log_time, intermed_log_prevtime, intermed_log_runtime))
-                #sys.stdout.flush()
-                intermed[intermed_log_start_time:intermed_log_end_time + 1] += np.ones(intermed_log_end_time - intermed_log_start_time + 1, dtype = int)
-                intermed_done[intermed_log_end_time] += 1
-                if out.shape[0] <= out_log_end_time:
-                    out.resize(out_log_end_time + 1)
-                    out_done.resize(out_log_end_time + 1)
-                    dir_size.resize(out_log_end_time + 1)
-                #out[id_times[log_id] + 1:log_time + 1] += np.ones(log_time - id_times[log_id], dtype = int)
-                out[out_log_start_time:out_log_end_time + 1] += np.ones(out_log_end_time - out_log_start_time + 1, dtype = int)
-                out_done[out_log_end_time] += 1
-                #if log_time > max_time:
-                #    max_time = log_time
-                dir_size[intermed_log_end_time] = intermed_log_dir_size
-                dir_size[out_log_end_time] = out_log_dir_size
+                    if step_submit_start_end[log_step][0] == None or intermed_log_start_time < step_submit_start_end[log_step][0]:
+                        step_submit_start_end[log_step][0] = intermed_log_start_time
+                    if step_submit_start_end[log_step][1] == None or intermed_log_start_time < step_submit_start_end[log_step][1]:
+                        step_submit_start_end[log_step][1] = intermed_log_start_time
+                    if step_submit_start_end[log_step][2] != None and out_log_end_time > step_submit_start_end[log_step][2]:
+                        step_submit_start_end[log_step][2] = out_log_end_time
+                    #if args['time_limit'] == None or min_time == None or log_time <= min_time + args['time_limit']:
+                    if intermed.shape[0] <= intermed_log_end_time:
+                        intermed.resize(intermed_log_end_time + 1)
+                        intermed_done.resize(intermed_log_end_time + 1)
+                    #print((intermed_log_time, intermed_log_prevtime, intermed_log_runtime))
+                    #sys.stdout.flush()
+                    intermed[intermed_log_start_time:intermed_log_end_time + 1] += np.ones(intermed_log_end_time - intermed_log_start_time + 1, dtype = int)
+                    intermed_done[intermed_log_end_time] += 1
+
+                    out_log_end_timestamp = datetime.datetime.strptime(log_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
+                    out_log_end_time = int((out_log_end_timestamp - epoch).total_seconds())
+                    if args['time_limit'] == None or out_log_end_time <= args['time_limit']:
+                        out_log_start_timestamp = datetime.datetime.strptime(log_line_split[1], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
+                        out_log_start_time = int((out_log_start_timestamp - epoch).total_seconds())
+                        out_log_dir_size = int(log_line_split[2])
+
+                        if out.shape[0] <= out_log_end_time:
+                            out.resize(out_log_end_time + 1)
+                            out_done.resize(out_log_end_time + 1)
+                            dir_size.resize(out_log_end_time + 1)
+                        #out[id_times[log_id] + 1:log_time + 1] += np.ones(log_time - id_times[log_id], dtype = int)
+                        out[out_log_start_time:out_log_end_time + 1] += np.ones(out_log_end_time - out_log_start_time + 1, dtype = int)
+                        out_done[out_log_end_time] += 1
+                        #if log_time > max_time:
+                        #    max_time = log_time
+                        dir_size[intermed_log_end_time] = intermed_log_dir_size
+                        dir_size[out_log_end_time] = out_log_dir_size
 
 for intermed_log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
     intermed_log_filename = intermed_log_file_path.split("/")[-1]
@@ -295,31 +302,32 @@ for intermed_log_file_path in iglob(args['in_path'] + "/*.log.intermed"):
                     break
                 intermed_log_end_timestamp = datetime.datetime.strptime(intermed_log_line_split[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
                 intermed_log_end_time = int((intermed_log_end_timestamp - epoch).total_seconds())
-                intermed_log_start_timestamp = datetime.datetime.strptime(intermed_log_line_split[1], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
-                intermed_log_start_time = int((intermed_log_start_timestamp - epoch).total_seconds())
-                intermed_log_dir_size = int(intermed_log_line_split[2])
-                intermed_log_id = intermed_log_line_split[7]
+                if args['time_limit'] == None or intermed_log_end_time <= args['time_limit']:
+                    intermed_log_start_timestamp = datetime.datetime.strptime(intermed_log_line_split[1], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo = utc)
+                    intermed_log_start_time = int((intermed_log_start_timestamp - epoch).total_seconds())
+                    intermed_log_dir_size = int(intermed_log_line_split[2])
+                    intermed_log_id = intermed_log_line_split[7]
 
-                if job_submit_start_end[intermed_log_job][0] == None or intermed_log_start_time < job_submit_start_end[intermed_log_job][0]:
-                    job_submit_start_end[intermed_log_job][0] = intermed_log_start_time
-                if job_submit_start_end[intermed_log_job][1] == None or intermed_log_start_time < job_submit_start_end[intermed_log_job][1]:
-                    job_submit_start_end[intermed_log_job][1] = intermed_log_start_time
+                    if job_submit_start_end[intermed_log_job][0] == None or intermed_log_start_time < job_submit_start_end[intermed_log_job][0]:
+                        job_submit_start_end[intermed_log_job][0] = intermed_log_start_time
+                    if job_submit_start_end[intermed_log_job][1] == None or intermed_log_start_time < job_submit_start_end[intermed_log_job][1]:
+                        job_submit_start_end[intermed_log_job][1] = intermed_log_start_time
 
-                if step_submit_start_end[intermed_log_step][0] == None or intermed_log_start_time < step_submit_start_end[intermed_log_step][0]:
-                    step_submit_start_end[intermed_log_step][0] = intermed_log_start_time
-                if step_submit_start_end[intermed_log_step][1] == None or intermed_log_start_time < step_submit_start_end[intermed_log_step][1]:
-                    step_submit_start_end[intermed_log_step][1] = intermed_log_start_time
-                #if args['time_limit'] == None or min_time == None or intermed_log_time <= min_time + args['time_limit']:
-                if intermed.shape[0] <= intermed_log_end_time:
-                    intermed.resize(intermed_log_end_time + 1)
-                    intermed_done.resize(intermed_log_end_time + 1)
-                    dir_size.resize(intermed_log_end_time + 1)
-                #print((intermed_log_time, intermed_log_prevtime, intermed_log_runtime))
-                #sys.stdout.flush()
-                intermed[intermed_log_start_time:intermed_log_end_time + 1] += np.ones(intermed_log_end_time - intermed_log_start_time + 1, dtype = int)
-                intermed_done[intermed_log_end_time] += 1
+                    if step_submit_start_end[intermed_log_step][0] == None or intermed_log_start_time < step_submit_start_end[intermed_log_step][0]:
+                        step_submit_start_end[intermed_log_step][0] = intermed_log_start_time
+                    if step_submit_start_end[intermed_log_step][1] == None or intermed_log_start_time < step_submit_start_end[intermed_log_step][1]:
+                        step_submit_start_end[intermed_log_step][1] = intermed_log_start_time
+                    #if args['time_limit'] == None or min_time == None or intermed_log_time <= min_time + args['time_limit']:
+                    if intermed.shape[0] <= intermed_log_end_time:
+                        intermed.resize(intermed_log_end_time + 1)
+                        intermed_done.resize(intermed_log_end_time + 1)
+                        dir_size.resize(intermed_log_end_time + 1)
+                    #print((intermed_log_time, intermed_log_prevtime, intermed_log_runtime))
+                    #sys.stdout.flush()
+                    intermed[intermed_log_start_time:intermed_log_end_time + 1] += np.ones(intermed_log_end_time - intermed_log_start_time + 1, dtype = int)
+                    intermed_done[intermed_log_end_time] += 1
 
-                dir_size[intermed_log_end_time] = intermed_log_dir_size
+                    dir_size[intermed_log_end_time] = intermed_log_dir_size
 
 #if max_time < min_time:
 #    max_time = min_time

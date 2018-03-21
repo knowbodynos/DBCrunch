@@ -2,26 +2,12 @@
 
 ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
 
-modpath=$1
-controllerpath=$2
-shift 2
-
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
-
-#workpath=$3
-
-#max_job=$1
-#shift
-#max_time=$1
-#shift
-
 SHORTOPTS="j:t:" 
 LONGOPTS="job-limit:,time-limit:"
 
-ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@" ) 
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@")
 
-eval set -- "$ARGS" 
+eval set -- "$ARGS"
 
 job_limit=""
 time_limit=""
@@ -42,17 +28,26 @@ do
             break
             ;;
         *)
-            shift
-            break
+            echo "$1 is not a valid option."
+            exit 1
             ;;
     esac
     shift
 done
 
-if [ "$#" -eq 1 ]
-then
-    nodeshift=$1
-    python ${ProgDir}/tools/create_tool.py "${controllerpath}" "analyze.py" "${controllerpath}/logs" "${controllerpath}/analyze" --job-limit "${job_limit}" --time-limit "${time_limit}" --out-files "analysis.pdf" --node-shift "${nodeshift}"
-else
-    python ${ProgDir}/tools/create_tool.py "${controllerpath}" "analyze.py" "${controllerpath}/logs" "${controllerpath}/analyze" --job-limit "${job_limit}" --time-limit "${time_limit}" --out-files "analysis.pdf"
-fi
+modpath=$1
+controllerpath=$2
+#workpath=$3
+
+modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
+controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+
+tool="analyze.py"
+in_path="${controllerpath}/logs"
+out_path="${controllerpath}/analyze"
+out_file_name="analysis.pdf"
+
+jobid=$(python ${ProgDir}/tools/create_tool.py "${controllerpath}" "${tool}" "${in_path}" "${out_path}" --job-limit "${job_limit}" --time-limit "${time_limit}" --out-files "${out_file_name}")
+
+jobname="crunch_${modname}_${controllername}_analyze"
+echo "Submitted batch job ${jobid} as ${jobname}."

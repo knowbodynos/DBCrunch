@@ -1,10 +1,44 @@
 #!/bin/bash
 
+SHORTOPTS="a:b:" 
+LONGOPTS="aaa:,bbb:"
+
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@")
+
+eval set -- "$ARGS"
+
+a=0
+b=0
+
+while true
+do
+    case $1 in
+        -a | --aaa)
+            a=$2
+            shift
+            ;;
+        -b | --bbb)
+            b=$2
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "$1 is not a valid option."
+            exit 1
+            ;;
+    esac
+    shift
+done
+
 modpath=$1
 controllerpath=$2
 #workpath=$3
 
-echo ""
 echo ${modpath}
 echo ${controllerpath}
+echo "a=${a}"
+echo "b=${b}"
 #echo ${workpath}

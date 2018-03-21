@@ -1424,7 +1424,7 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
         nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
         licensesleft = clusterlicensesleft(nlicensesplit, ntasks)
         freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
-        releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+        get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and licensesleft and len(freenodes) > 0 and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
             time.sleep(controllerconfigdoc["controller"]["sleeptime"])
             if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
@@ -1444,11 +1444,11 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
             nlicensesplit = licensecount(username, needslicense, localbinpath, licensescript, sublicensescript)
             licensesleft = clusterlicensesleft(nlicensesplit, ntasks)
             freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
-            releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+            get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         #fcntl.flock(licensestream, fcntl.LOCK_EX)
         #fcntl.LOCK_EX might only work on files opened for writing. This one is open as "a + ", so instead use bitwise OR with non-controllerconfigdoc["options"]["blocking"] and loop until lock is acquired.
         #while (timeleft(starttime, controllerbuffertimelimit) > 0):
-        #    releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+        #    get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         #    #try:
         #    #    fcntl.flock(licensestream, fcntl.LOCK_EX | fcntl.LOCK_NB)
         #    #    break
@@ -1473,7 +1473,7 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
     else:
         jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
         freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
-        releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+        get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         while (timeleft(starttime, controllerbuffertimelimit) > 0) and not (jobslotsleft and len(freenodes) > 0 and storageleft(controllerpath, controllerconfigdoc["controller"]["storagelimit"])):
             time.sleep(controllerconfigdoc["controller"]["sleeptime"])
             if controllerconfigdoc["options"]["nrefill"] != None and get_ncontrollerstepsrunning(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) >= controllerconfigdoc["options"]["nworkers"]:
@@ -1491,7 +1491,7 @@ def waitforslots(controllerconfigdoc, reloadjob, needslicense, username, control
 
             jobslotsleft = clusterjobslotsleft(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], globalmaxjobcount, localmaxjobcount)
             freenodes = get_freenodes(controllerconfigdoc["job"]["partitions"])
-            releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+            get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         if not (timeleft(starttime, controllerbuffertimelimit) > 0):
             return None
 
@@ -1668,7 +1668,7 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
             #else:
             #    nthreads = [1 for x in docbatchparts]
             jobid = get_submitjob(controllerpath + "/jobs", jobname)
-            releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+            get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
             #time.sleep(10)
             jobstate = get_job_state(jobid)
             sleeptime = 0
@@ -1815,14 +1815,14 @@ def doaction(counters, inputdoc, docbatch, controllerconfigdoc, globalmaxjobcoun
         #    pendlicensestream.write(str(npendlicenses + niters) + ", " + str(npendsublicenses + totcontrollerconfigdoc["db"]["ntasksfield"]))
         #else:
         #    pendlicensestream.write(str(npendlicenses + niters))
-    #releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+    #get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
     #print "End action"
     #sys.stdout.flush()
     #seekstream.write(querystream.tell())
     #seekstream.flush()
     #seekstream.seek(0)
     #doc = querystream.readline()
-    releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+    get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
 
     #with open(statusstatefile, "r+") as statusstream:
     #    startstatus = statusstream.readline()
@@ -2086,11 +2086,11 @@ try:
                         open(controllerpath + "/docs/" + refillfile.replace(".refill", ".done"), "w").close()
         #print "bye"
         #firstrun = False
-        releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+        get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
         if (timeleft(starttime, controllerbuffertimelimit) > 0):
             firstlastrun = (not (get_prevcontrollerjobsrunningq(username, dependencies) or get_controllerjobsrunningq(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) or firstlastrun))
     #while get_controllerjobsrunningq(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"]) and (timeleft(starttime, controllerbuffertimelimit) > 0):
-    #    releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
+    #    get_releaseheldjobs(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"])
     #    skippedjobs = skippedjobslist(username, controllerconfigdoc["controller"]["modname"], controllerconfigdoc["controller"]["controllername"], workpath)
     #    for x in skippedjobs:
     #        maxmemorypernode = getmaxmemorypernode(resourcesstatefile, controllerpartition)

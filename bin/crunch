@@ -182,22 +182,26 @@ ProgName=$(basename "${BASH_SOURCE[0]}")
 ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
   
 sub_help(){
-    echo "Usage: $ProgName [options] [<subcommand>] [module_name/controller_name] [controller_name]\n"
+    echo "Usage: $ProgName [<$ProgName options>] [<subcommand>] [<subcommand options>] [module_name/controller_name] [controller_name]\n"
     echo ""
-    echo "Options:"
-    echo "    crunch --modules-dir [<dir>]     Specify a working directory other than the current one"
+    echo "$ProgName Options:"
+    echo "    --modules-dir [<dir>]            Specify a working directory other than the current one"
     echo ""
     echo "Subcommands:"
-    echo "    crunch analyze                   Analyze resource usage statistics"
-    echo "    crunch cancel                    Cancel module or controller jobs"
-    echo "    crunch create                    Create new controller job file for a module from a config file"
-    echo "    crunch monitor                   Monitor all controller jobs"
-    echo "    crunch plot                      Plot controller jobs steps"
-    echo "    crunch requeue                   Requeue jobs skipped by controller"
-    echo "    crunch reset                     Reset controller for a module"
-    echo "    crunch submit                    Submit controller batch job"
-    echo "    crunch template                  Create new controller job file for a module from a template"
-    echo "    crunch test (true/false)         Test what modules and controllers are matched"
+    echo "    analyze                          Analyze resource usage statistics"
+    echo "    cancel                           Cancel module or controller jobs"
+    echo "    create                           Create new controller job file for a module from a config file"
+    echo "    monitor                          Monitor all controller jobs"
+    echo "        monitor Subcommands:"
+    echo "            [<integer>]              Refresh interval (seconds)"
+    echo "    plot                             Plot controller jobs steps"
+    echo "    requeue                          Requeue jobs skipped by controller"
+    echo "    reset                            Reset controller for a module"
+    echo "    submit                           Submit controller batch job"
+    echo "    template                         Create new controller job file for a module from a template"
+    echo "    test                             Test what modules and controllers are matched"
+    echo "        test Subcommands:"
+    echo "            [<boolean>]              Create directory (true/false)"
     echo ""
     #echo "For help with each subcommand run:"
     #echo "$ProgName <subcommand> -h|--help"
@@ -254,16 +258,39 @@ sub_template(){
 }
 
 sub_test(){
+    modules_dir=$1
     is_create=$2
-    run_subcommand ${ProgDir}/test ${is_create} $1 ${@:3}
+    shift 2
+    run_subcommand ${ProgDir}/test ${is_create} ${modules_dir} ${@}
 }
 
+subcommand_arr=("analyze" "cancel" "create" "monitor" "plot" "requeue" "reset" "submit" "template" "test")
+
+i=0
+flag=false
+while [ "${i}" -le "$#" ] && ! ${flag}
+do
+    for x in ${subcommand_arr[@]}
+    do
+        if [ "${!i}" == "${x}" ]
+        then
+            flag=true
+            break
+        fi
+    done
+    i=$((${i}+1))
+done
+
+mainargs="${@:0:$((${i}-1))}"
+subcommand="${@:$((${i}-1)):1}"
+subargs="${@:${i}}"
+
 SHORTOPTS="m:" 
-LONGOPTS="modules-dir:" 
+LONGOPTS="modules-dir:"
 
-ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@") 
+ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "${mainargs}")
 
-eval set -- "$ARGS" 
+eval set -- "$ARGS"
 
 modules_dir=$(pwd -P)
 
@@ -272,18 +299,17 @@ do
     case $1 in
         -m | --modules-dir)
             modules_dir=$2
-            shift
+            shift 2
             ;;
         --)
             shift
-            break
+            break 
             ;;
         *)
-            shift
-            break
+            echo "$1 is not a valid option."
+            exit 1
             ;;
     esac
-    shift
 done
 
 if [ ! -d "${modules_dir}" ]
@@ -292,14 +318,14 @@ then
     exit 1
 fi
   
-subcommand=$1
+#subcommand=$1
 case $subcommand in
     "-h" | "--help")
         sub_help
         ;;
     *)
         shift
-        sub_${subcommand} ${modules_dir} ${@}
+        sub_${subcommand} ${modules_dir} ${subargs}
         if [ $? = 127 ]; then
             echo "Error: '$subcommand' is not a known subcommand." >&2
             echo "       Run '$ProgName --help' for a list of known subcommands." >&2

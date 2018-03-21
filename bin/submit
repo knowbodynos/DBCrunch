@@ -9,20 +9,15 @@ controllerpath=$2
 modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
 controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
-if [ "$#" -eq 3 ]
-then
-	nodeshift=$3
-	python ${ProgDir}/tools/create_controller.py ${controllerpath} ${nodeshift}
-else
-	python ${ProgDir}/tools/create_controller.py ${controllerpath}
-fi
+jobid=$(python ${ProgDir}/tools/create_controller.py ${controllerpath})
 
 #jobs=$(find ${controllerpath} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.job" -print 2>/dev/null)
 #for job in ${jobs}
 #do
 jobname="crunch_${modname}_${controllername}_controller"
-job="${controllerpath}/crunch_${modname}_${controllername}_controller.job"
+#job="${controllerpath}/crunch_${modname}_${controllername}_controller.job"
 #jobname=$(echo ${job} | rev | cut -d'/' -f1 | rev)
-jobmsg=$(sbatch ${job} 2>&1)
-echo "${jobmsg} as ${jobname}."
+#jobmsg=$(sbatch ${job} 2>&1)
+#echo "${jobmsg} as ${jobname}."
+echo "Submitted batch job ${jobid} as ${jobname}."
 #done
