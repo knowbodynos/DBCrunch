@@ -528,7 +528,7 @@ def do_verify(wm_api, config, counter, doc_batch):
             while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
                 sleep(0.1)
                 job_state = wm_api.get_job_state(job_id)
-            if job_state[0] == "RUNNING" or (job_state[0] == "PENDING" and job_state[1] == "None"):
+            if job_state[0] in ["RUNNING", "COMPLETING", "COMPLETED"] or (job_state[0] == "PENDING" and job_state[1] == "None"):
                 for i in range(len(steps)):
                     steps[i]["id"] = job_id + "." + str(i)
                 break
