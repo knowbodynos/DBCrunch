@@ -645,7 +645,7 @@ class ModuleInterface(WrapperConfig):
                             self.__batch_dict['log'] += out_intermed_time + " " + in_intermed_time + " " + str(dir_size(self.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(self.__bson_size) + " " + json.dumps(new_index_doc, separators = (',', ':')) + "\n"
                     stats_mark = {}
                     if self.options.statslocal or self.options.statsdb:
-                        stats_mark.update({self.module.name + "STATS": {"cpu_time": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": self.__bson_size}})
+                        stats_mark.update({self.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": self.__bson_size}})
                     if self.options.markdone:
                         stats_mark.update({self.module.name + self.options.markdone: True})
                     if len(stats_mark) > 0:

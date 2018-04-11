@@ -153,16 +153,16 @@ def write_job_file(wm_api, config, steps):
     job_string += "# Created " + wm_api.get_timestamp() + "\n"
     job_string += "\n"
     job_string += "# Job name\n"
-    job_string += "#SBATCH -J \"" + steps[0]["job_name"] + "\"\n"
+    job_string += "#SBATCH -J \"" + steps[0]["jobname"] + "\"\n"
     job_string += "#################\n"
     job_string += "# Working directory\n"
     job_string += "#SBATCH -D \"" + config.controller.path + "/logs\"\n"
     job_string += "#################\n"
     job_string += "# Job output file\n"
-    job_string += "#SBATCH -o \"" + steps[0]["job_name"] + ".info\"\n"
+    job_string += "#SBATCH -o \"" + steps[0]["jobname"] + ".info\"\n"
     job_string += "#################\n"
     job_string += "# Job error file\n"
-    job_string += "#SBATCH -e \"" + steps[0]["job_name"] + ".err\"\n"
+    job_string += "#SBATCH -e \"" + steps[0]["jobname"] + ".err\"\n"
     job_string += "#################\n"
     job_string += "# Job file write mode\n"
     job_string += "#SBATCH --open-mode=\"" + config.job.writemode + "\"\n"
@@ -220,7 +220,7 @@ def write_job_file(wm_api, config, steps):
 
     job_string += "wait"
 
-    with open(config.controller.path + "/jobs/" + steps[0]["job_name"] + ".job", "w") as job_stream:
+    with open(config.controller.path + "/jobs/" + steps[0]["jobname"] + ".job", "w") as job_stream:
         job_stream.write(job_string)
         job_stream.flush()
 
@@ -266,7 +266,7 @@ def write_job_submit_details(wm_api, config, steps, refill = False):
     #    print(pprint.pformat(steps))
     #    sys.stdout.flush()
     #    raise
-    print(submitstring + "batch job " + job_id + " as " + steps[0]["job_name"] + " on partition(s) [" + ", ".join(all_partitions) + "] with " + str(len(all_host_names)) + " nodes, " + str(all_n_cpus) + " CPU(s), and " + str(all_mem) + " RAM allocated.")
+    print(submitstring + "batch job " + job_id + " as " + steps[0]["jobname"] + " on partition(s) [" + ", ".join(all_partitions) + "] with " + str(len(all_host_names)) + " nodes, " + str(all_n_cpus) + " CPU(s), and " + str(all_mem) + " RAM allocated.")
     for i in range(len(steps)):
         n_iters = min(config.options.nbatch, len(steps[i]["docs"]))
         print("...(" + str(i + 1) + ")...with job step " + steps[i]["id"] + " as " + steps[i]["name"] + " in batches of " + str(n_iters) + "/" + str(len(steps[i]["docs"])) + " iteration(s) on partition [" + ", ".join(step_partitions[i]) + "] with " + str(len(steps[i]["hostlist"].keys())) + " nodes, " + str(step_n_cpus[i]) + " CPU(s), and " + str(step_memorylimits[i]) + " RAM allocated.")
@@ -489,17 +489,22 @@ def do_verify(wm_api, config, counter, doc_batch):
         
         i = 0
         next_doc_ind = 0
+        filled_steps = []
         while i < len(steps) and next_doc_ind + n_iters <= len(doc_batch):
-            steps[i]["docs"] = doc_batch[next_doc_ind:next_doc_ind + n_iters]
-            if "job_name" not in steps[i]:
-                steps[i]["job_name"] = job_name
-            if "name" not in steps[i]:
-                steps[i]["name"] = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_step_" + str(i + 1)
+            step = steps[i]
+            step["docs"] = doc_batch[next_doc_ind:next_doc_ind + n_iters]
+            if "jobname" not in step:
+                step["jobname"] = job_name
+            if "name" not in step:
+                step["name"] = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_step_" + str(i + 1)
             #print("Step name: " + steps[i]["name"])
             #print("Length steps_docs: " + str(len(steps[i]["docs"])) + "\n")
             #sys.stdout.flush()
+            filled_steps.append(step)
             i += 1
             next_doc_ind += n_iters
+        
+        steps = filled_steps
 
         if refill:
             break
