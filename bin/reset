@@ -13,11 +13,11 @@ controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
 
 rm ${controllerpath}/*.job ${controllerpath}/*.info ${controllerpath}/*.err 2>/dev/null
 rm ${controllerpath}/querystate* 2>/dev/null
-rm ${controllerpath}/reloadstate* 2>/dev/null
-rm ${controllerpath}/batchcounter 2>/dev/null
+#rm ${controllerpath}/reloadstate* 2>/dev/null
+rm ${controllerpath}/counter 2>/dev/null
 rm ${controllerpath}/status 2>/dev/null
-rm ${controllerpath}/locks 2>/dev/null
-rm ${controllerpath}/refill 2>/dev/null
+#rm ${controllerpath}/locks 2>/dev/null
+#rm ${controllerpath}/refill 2>/dev/null
 for dir in $(find ${controllerpath} -mindepth 1 -type d)
 do
 	rm -r ${dir} 2>/dev/null

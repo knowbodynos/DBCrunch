@@ -1,20 +1,19 @@
 #!/bin/bash
 
 monitorjobs() {
-    jobs=$(squeue -u ${USER} -o '%.130Z %.10i %.13P %.60j %.8u %.2t %.10M %.6D %R' -S 'P,-t,-p' 2>/dev/null | sed 's/^\s*//g' | head -c -1 | tr '\n' '!')
-
-    for controller in $(echo ${jobs} | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v '(null)' | grep -v ' CG ' | grep 'crunch_.*_controller' | sed 's/\s\s*/ /g' | cut -d' ' -f1,4 | sed 's/\s/\&/g')
+    jobs=$(squeue -u "${USER}" -o '%.130Z %.10i %.13P %.60j %.8u %.2t %.10M %.6D %R' -S 'P,-t,-p' 2>/dev/null | sed 's/^\s*//g' | head -c -1 | tr '\n' '!')
+    for controller in $(echo "${jobs}" | tr '!' '\n' 2>/dev/null | tail -n +2 | grep -v '(null)' | grep -v ' CG ' | grep 'crunch_.*_controller' | sed 's/\s\s*/ /g' | cut -d' ' -f1,4 | sed 's/\s/\&/g')
     do
-        controllerpath=$(echo ${controller} | cut -d'&' -f1)
-        modname=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f2)
-        controllername=$(echo ${controller} | cut -d'&' -f2 | cut -d'_' -f3)
+        controllerpath=$(echo "${controller}" | cut -d'&' -f1)
+        modname=$(echo "${controller}" | cut -d'&' -f2 | cut -d'_' -f2)
+        controllername=$(echo "${controller}" | cut -d'&' -f2 | cut -d'_' -f3)
         logspath="${controllerpath}/logs"
         intermeds=$(cat ${logspath}/*.log.intermed ${logspath}/*.log 2>/dev/null | rev | sort -u -k1,1 | wc -l)
-        outs=$(cat ${logspath}/*.log 2>/dev/null | wc -l)
+        outs=$(cat "${logspath}"/*.log 2>/dev/null | wc -l)
         #docs=$(cat ${docspath}/*.docs 2>/dev/null | wc -l)
-        reads=$(($(cat ${controllerpath}/batchcounter 2>/dev/null | tail -n +2 | cut -d' ' -f2)-1))
+        reads=$(cat "${controllerpath}/counter" 2>/dev/null | cut -d' ' -f3)
         echo "${modname}_${controllername}"
-        if [ "${reads}" -gt 0 ]
+        if [[ "${reads}" != "" ]] && [ "${reads}" -gt 0 ]
         then 
             intermedsperc=$(echo "scale=2;(100*${intermeds})/${reads}" | bc)
             echo "${intermedsperc}% Processing: ${intermeds} of ${reads}"
@@ -25,7 +24,7 @@ monitorjobs() {
         echo "Locks: $(ls ${controllerpath}/locks/*.lock 2>/dev/null | wc -l)"
         echo "Status: $(cat ${controllerpath}/status 2>/dev/null)"
         #controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.info 2>/dev/null | tr ' ' '/' | sed 's/\/\([0-9]*:\)/ \1/g' | sed 's/\/UTC/ UTC/g')
-        controllertime=$(head -n1 ${controllerpath}/crunch_${modname}_${controllername}_controller.info 2>/dev/null | cut -d'T' -f2)
+        controllertime=$(head -n1 "${controllerpath}/crunch_${modname}_${controllername}_controller.info" 2>/dev/null | cut -d'T' -f2)
         if [[ "${controllertime}" == "" ]]
         then
             echo "Duration: $(date -u -d "${controllertime}" +"%H:%M:%S")"
@@ -35,15 +34,15 @@ monitorjobs() {
             echo "Duration: $(date -u -d @$((${enddate}-${startdate})) +"%H:%M:%S")"
         fi
         echo "Size: $(du -ch ${controllerpath} 2>/dev/null | tail -n1 | sed 's/\s\s*/ /g' | cut -d' ' -f1)"
-        controllerjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | sed 's/^\s*//g' | grep "crunch_${modname}_${controllername}_job_" | head -c -1 | tr '\n' '!')
-        ncontrollerjobs=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | wc -l)
+        controllerjobs=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | sed 's/^\s*//g' | grep "crunch_${modname}_${controllername}_job_" | head -c -1 | tr '\n' '!')
+        ncontrollerjobs=$(echo "${controllerjobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | wc -l)
         if [ "${ncontrollerjobs}" -gt 0 ]
         then
-            nruncontrollerjobs=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' R ' | wc -l)
-            npendcontrollerjobs=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | wc -l)
+            nruncontrollerjobs=$(echo "${controllerjobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' R ' | wc -l)
+            npendcontrollerjobs=$(echo "${controllerjobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | wc -l)
             controllersteps=$(sacct -n -o "JobID%30,JobName%130,State" 2>/dev/null | grep "crunch_${modname}_${controllername}_job_.*_step_" | tr '\n' '!')
-            nruncontrollersteps=$(echo ${controllersteps} | tr '!' '\n' 2>/dev/null | grep 'RUNNING' | wc -l)
-            pendcontrollersteps=$(echo ${controllerjobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | sed 's/\s\s*/ /g' | cut -d' ' -f4 | rev | cut -d'_' -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr '\n' '+' | head -c -1)
+            nruncontrollersteps=$(echo "${controllersteps}" | tr '!' '\n' 2>/dev/null | grep 'RUNNING' | wc -l)
+            pendcontrollersteps=$(echo "${controllerjobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | sed 's/\s\s*/ /g' | cut -d' ' -f4 | rev | cut -d'_' -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr '\n' '+' | head -c -1)
             if [[ "${pendcontrollersteps}" == "" ]]
             then
                 npendcontrollersteps=0
@@ -62,14 +61,14 @@ monitorjobs() {
         echo ""
     done
     echo "Total"
-    njobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | wc -l)
+    njobs=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | wc -l)
     if [ "${njobs}" -gt 0 ]
     then
-        nrunjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' R ' | wc -l)
-        npendjobs=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | wc -l)
+        nrunjobs=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' R ' | wc -l)
+        npendjobs=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | wc -l)
         steps=$(sacct -n -o "JobID%30,JobName%130,State" 2>/dev/null | grep '_job_.*_step_' | tr '\n' '!')
-        nrunsteps=$(echo ${steps} | tr '!' '\n' 2>/dev/null | grep 'RUNNING' | wc -l)
-        pendsteps=$(echo ${jobs} | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | sed 's/\s\s*/ /g' | cut -d' ' -f4 | rev | cut -d'_' -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr '\n' '+' | head -c -1)
+        nrunsteps=$(echo "${steps}" | tr '!' '\n' 2>/dev/null | grep 'RUNNING' | wc -l)
+        pendsteps=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | sed 's/\s\s*/ /g' | cut -d' ' -f4 | rev | cut -d'_' -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr '\n' '+' | head -c -1)
         if [[ "${pendsteps}" == "" ]]
         then
             npendsteps=0

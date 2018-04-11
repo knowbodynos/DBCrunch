@@ -1,6 +1,6 @@
-[submodule "api/db/mongojoin"]
-	path = api/db/mongojoin
-	url = git@github.com:knowbodynos/mongojoin.git
 [submodule "modules"]
 	path = modules
 	url = https://github.com/knowbodynos/stringmods.git
+[submodule "api/db/db_mongodb"]
+	path = api/db/db_mongodb
+	url = git@github.com:knowbodynos/db_mongodb.git

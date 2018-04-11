@@ -16,55 +16,50 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, yaml
+import sys
 from time import sleep
+from crunch_config import *
 
-rootpath = os.environ['CRUNCH_ROOT']
-username = os.environ['USER']
+controller_path = sys.argv[1]
 
-controllerpath = sys.argv[1]
+# Configure controller
 
-modname, controllername = controllerpath.split("/")[-2:]
+config = Config(controller_path = controller_path)
 
-with open(rootpath + "/crunch.config", "r") as crunchconfigstream:
-    crunchconfigdoc = yaml.load(crunchconfigstream)
+# Import workload manager API
 
-with open(controllerpath + "/" + modname + "_" + controllername + ".config", "r") as controllerconfigstream:
-    controllerconfigdoc = yaml.load(controllerconfigstream)["controller"]
+wm_api = __import__(config.cluster.wm.api)
 
-jobname = "crunch_" + controllerconfigdoc["modname"] + "_" + controllerconfigdoc["controllername"] + "_controller"
+job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_controller"
 
-with open(controllerpath + "/status", "w") as statusstream:
-    statusstream.write("Controller pending.")
-    statusstream.flush()
+with open(config.controller.path + "/status", "w") as status_stream:
+    status_stream.write("Controller pending.")
+    status_stream.flush()
 
-if crunchconfigdoc["workload-manager"] == "slurm":
-    from crunch_slurm import *
-    nodenum = 0
-    while True:
-        freenodes = get_freenodes(controllerconfigdoc['partitions'])
-        node = freenodes[nodenum]
-        get_writecontrollerjobfile(crunchconfigdoc, controllerconfigdoc, jobname, node)
-        jobid = get_submitjob(controllerpath, jobname)
-        get_releaseheldjobs(username, controllerconfigdoc['modname'], controllerconfigdoc['controllername'])
-        jobstate = get_job_state(jobid)
-        sleeptime = 0
-        while sleeptime < 30 and jobstate[0] == "PENDING" and jobstate[1] == "None":
-            sleep(1)
-            jobstate = get_job_state(jobid)
-            sleeptime += 1
+start_slot = 0
+while True:
+    nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
+    node = nodes[start_slot]
+    maxtimelimit = wm_api.get_partition_time_limit(node["partition"])
+    if unformat_duration(maxtimelimit, unit = "seconds") < unformat_duration(config.controller.timelimit, unit = "seconds"):
+        config.controller.timelimit = maxtimelimit
+    wm_api.write_controller_job_file(config, job_name, node)
+    job_id = wm_api.submit_job(config.controller.path, job_name)
+    wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
+    job_state = wm_api.get_job_state(job_id)
+    start_time = time()
+    while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
+        sleep(0.1)
+        job_state = wm_api.get_job_state(job_id)
+    if job_state[0] == "RUNNING" or (job_state[0] == "PENDING" and job_state[1] == "None"):
+        break
+    else:
+        wm_api.cancel_job(job_id)
+        os.remove(config.controller.path + "/" + job_name + ".job")
+        start_slot += 1
+        if start_slot == len(slots):
+            start_slot = 0
+            sleep(10)
 
-        if jobstate[0] == "RUNNING":
-            break
-        elif jobstate[0] == "PENDING":
-            #if jobstate[1] == "Resources":
-            #    get_canceljob(jobid)
-            #else:
-            get_canceljob(jobid)
-            nodenum += 1
-            if nodenum == len(freenodes):
-                nodenum = 0
-                sleep(10)
-
-print(jobid)
+print(job_id)
 sys.stdout.flush()

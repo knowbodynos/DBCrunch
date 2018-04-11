@@ -19,10 +19,11 @@
 import sys, os, yaml
 from time import sleep
 from argparse import ArgumentParser, REMAINDER
+from crunch_config import *
 
 parser = ArgumentParser()
 
-parser.add_argument('controllerpath', help = '')
+parser.add_argument('controller_path', help = '')
 parser.add_argument('tool', help = '')
 parser.add_argument('in_path', help = '')
 parser.add_argument('out_path', help = '')
@@ -33,61 +34,45 @@ parser.add_argument('--out-files', dest = 'out_file_names', nargs = '+', action 
 
 kwargs = vars(parser.parse_known_args()[0])
 
-#if kwargs['nodeshift'] == None:
-#    kwargs['nodeshift'] = 0
-#else:
-#    kwargs['nodeshift'] = int(kwargs['nodeshift'])
+# Configure controller
 
-tool = sys.argv[1]
-job_limit = sys.argv[2]
-time_limit = sys.argv[3]
-in_path = sys.argv[4]
-out_path = sys.argv[5]
-controllerpath = sys.argv[8]
-out_file_names = sys.argv[9:]
+config = Config(controller_path = kwargs["controller_path"])
 
-toolname, toolext = kwargs['tool'].split('.')
+# Import workload manager API
 
-modname, controllername = kwargs['controllerpath'].split("/")[-2:]
+wm_api = __import__(config.cluster.wm.api)
 
-rootpath = os.environ['CRUNCH_ROOT']
-username = os.environ['USER']
+tool_name = kwargs["tool"].split(".")[0]
+job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_" + tool_name
 
-with open(rootpath + "/crunch.config", "r") as crunchconfigstream:
-    crunchconfigdoc = yaml.load(crunchconfigstream)
+with open(config.controller.path + "/status", "w") as status_stream:
+    status_stream.write("Controller pending.")
+    status_stream.flush()
 
-with open(kwargs['controllerpath'] + "/" + modname + "_" + controllername + ".config", "r") as controllerconfigstream:
-    controllerconfigdoc = yaml.load(controllerconfigstream)["controller"]
+start_slot = 0
+while True:
+    nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
+    node = nodes[start_slot]
+    maxtimelimit = wm_api.get_partition_time_limit(node["partition"])
+    if unformat_duration(maxtimelimit, unit = "seconds") < unformat_duration(config.controller.timelimit, unit = "seconds"):
+        config.controller.timelimit = maxtimelimit
+    wm_api.write_tool_job_file(config, job_name, node, kwargs)
+    job_id = wm_api.submit_job(config.controller.path + "/" + tool_name, job_name)
+    wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
+    job_state = wm_api.get_job_state(job_id)
+    start_time = time()
+    while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
+        sleep(0.1)
+        job_state = wm_api.get_job_state(job_id)
+    if job_state[0] == "RUNNING" or (job_state[0] == "PENDING" and job_state[1] == "None"):
+        break
+    else:
+        wm_api.cancel_job(job_id)
+        os.remove(config.controller.path + "/" + tool_name + "/" + job_name + ".job")
+        start_slot += 1
+        if start_slot == len(slots):
+            start_slot = 0
+            sleep(10)
 
-jobname = "crunch_" + controllerconfigdoc["modname"] + "_" + controllerconfigdoc["controllername"] + "_" + toolname
-
-if crunchconfigdoc["workload-manager"] == "slurm":
-    from crunch_slurm import *
-    nodenum = 0
-    while True:
-        freenodes = get_freenodes(controllerconfigdoc['partitions'])
-        node = freenodes[nodenum]
-        get_writetooljobfile(crunchconfigdoc, controllerconfigdoc, jobname, toolname, node, kwargs)
-        jobid = get_submitjob(kwargs['controllerpath'] + "/" + toolname, jobname)
-        get_releaseheldjobs(username, controllerconfigdoc['modname'], controllerconfigdoc['controllername'])
-        jobstate = get_job_state(jobid)
-        sleeptime = 0
-        while sleeptime < 30 and jobstate[0] == "PENDING" and jobstate[1] == "None":
-            sleep(1)
-            jobstate = get_job_state(jobid)
-            sleeptime += 1
-
-        if jobstate[0] == "RUNNING":
-            break
-        elif jobstate[0] == "PENDING":
-            #if jobstate[1] == "Resources":
-            #    get_canceljob(jobid)
-            #else:
-            get_canceljob(jobid)
-            nodenum += 1
-            if nodenum == len(freenodes):
-                nodenum = 0
-                sleep(10)
-
-print(jobid)
+print(job_id)
 sys.stdout.flush()
