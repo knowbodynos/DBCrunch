@@ -3,14 +3,10 @@ from datetime import datetime
 from pytz import utc
 from time import time, sleep
 
-def unformat_duration(duration, unit = "seconds"):
+def unformat_duration(duration):
     if not duration:
         return None
-    try:
-        assert isinstance(duration, (str, unicode))
-    except AssertionError:
-        print("duration: " + str(type(duration)) + str(duration))
-        sys.stdout.flush()
+    assert isinstance(duration, (str, unicode))
     days = 0
     if "-" in duration:
         daysstr, duration = duration.split("-")
@@ -24,6 +20,7 @@ def unformat_duration(duration, unit = "seconds"):
 def format_duration(duration):
     if not duration:
         return None
+    assert isinstance(duration, (int, float))
     duration = int(duration)
     duration_formatted = ""
     days = str(duration / (60 * 60 * 24))
@@ -56,21 +53,23 @@ def unformat_mem(mem):
     if unit.lower() == "" or unit.lower() == "b":
         return int(num)
     elif unit.lower() in ["k", "kb"]:
-        return int(num) * 1000
+        return int(num) * 1024
     elif unit.lower() in ["m", "mb"]:
-        return int(num) * 1000 * 1000
+        return int(num) * (1024 ** 2)
     elif unit.lower() in ["g", "gb"]:
-        return int(num) * 1000 * 1000 * 1000
+        return int(num) * (1024 ** 3)
 
 def format_mem(mem, unit = "MB"):
     if not mem:
         return None
+    assert isinstance(mem, (int, float))
+    mem = int(mem)
     if unit.lower() in ["k", "kb"]:
-        return str(mem / 1000) + unit
+        return str(mem / 1024) + unit
     elif unit.lower() in ["m", "mb"]:
-        return str(mem / (1000 * 1000)) + unit
+        return str(mem / (1024 ** 2)) + unit
     elif unit.lower() in ["g", "gb"]:
-        return str(mem / (1000 * 1000 * 1000)) + unit
+        return str(mem / (1024 ** 3)) + unit
 
 def dir_size(start_path = "."):
     total_size = 0
@@ -461,11 +460,11 @@ class Config(object):
         ##     Time Max
         if self.controller.partition:
             partition_timelimit = wm_api.get_partition_time_limit(self.controller.partition)
-            timelimit = unformat_duration(partition_timelimit, unit = "seconds")
+            timelimit = unformat_duration(partition_timelimit)
         else:
             timelimit = None
         if "timelimit" in self.controller:
-            controller_timelimit = unformat_duration(self.controller.timelimit, unit = "seconds")
+            controller_timelimit = unformat_duration(self.controller.timelimit)
             if isinstance(self.controller.timelimit, str) and ((not timelimit) or controller_timelimit < timelimit):
                 timelimit = controller_timelimit
             elif isinstance(self.controller.timelimit, (int, float)) and ((not timelimit) or self.controller.timelimit < timelimit):
@@ -476,7 +475,7 @@ class Config(object):
         buffertime = 0
         if "buffertime" in self.controller:
             if isinstance(self.controller.buffertime, str):
-                buffertime = unformat_duration(self.controller.buffertime, unit = "seconds")
+                buffertime = unformat_duration(self.controller.buffertime)
             elif isinstance(self.controller.buffertime, (int, float)):
                 buffertime = self.controller.buffertime
         self.controller.buffertime = buffertime
@@ -593,11 +592,11 @@ class Config(object):
         ##     Time Max
         if "partition" in self.job:
             partition_timelimit = wm_api.get_partition_time_limit(self.job.partition)
-            timelimit = unformat_duration(partition_timelimit, unit = "seconds")
+            timelimit = unformat_duration(partition_timelimit)
         else:
             timelimit = None
         if "timelimit" in self.job:
-            job = unformat_duration(self.job.timelimit, unit = "seconds")
+            job = unformat_duration(self.job.timelimit)
             if isinstance(self.job.timelimit, str) and ((not timelimit) or job < timelimit):
                 timelimit = job
             elif isinstance(self.job.timelimit, (int, float)) and ((not timelimit) or self.job.timelimit < timelimit):
@@ -608,7 +607,7 @@ class Config(object):
         buffertime = 0
         if "buffertime" in self.job:
             if isinstance(self.job.buffertime, str):
-                buffertime = unformat_duration(self.job.buffertime, unit = "seconds")
+                buffertime = unformat_duration(self.job.buffertime)
             elif isinstance(self.job.buffertime, (int, float)):
                 buffertime = self.job.buffertime
         self.job.buffertime = buffertime

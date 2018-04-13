@@ -41,7 +41,7 @@ while True:
     nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
     node = nodes[start_slot]
     maxtimelimit = wm_api.get_partition_time_limit(node["partition"])
-    if unformat_duration(maxtimelimit, unit = "seconds") < unformat_duration(config.controller.timelimit, unit = "seconds"):
+    if unformat_duration(maxtimelimit) < unformat_duration(config.controller.timelimit):
         config.controller.timelimit = maxtimelimit
     wm_api.write_controller_job_file(config, job_name, node)
     job_id = wm_api.submit_job(config.controller.path, job_name)

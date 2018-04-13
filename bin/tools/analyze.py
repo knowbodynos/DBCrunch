@@ -631,22 +631,22 @@ try:
     axtime[3].fill_between(xscale * times, yscale * plot_lists[0], yscale * np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
     axtime[3].fill_between(xscale * times, yscale * plot_lists[1], yscale * np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
 
+    for i in range(2):
+        fit = np.polyfit(times, plot_lists[i], deg = 1)
+        fit_pos_x = times[len(times) / 2]
+        fit_pos_y = (fit[0] * fit_pos_x + fit[1]) + ((1 - 2 * i) * (0.1 * plot_lists[i][-1]))
+        axtime[3].plot(xscale * times, yscale * (fit[0] * times + fit[1]), color = 'black', linestyle = '--', alpha = 1, linewidth = 2, label = plot_labels[i] + ' Fit')
+        slope = str("%.2f" % fit[0]) + "x"
+        if fit[1] > 0:
+            yintercept = " + " + str("%.2f" % fit[1])
+        elif fit[1] < 0:
+            yintercept = " - " + str("%.2f" % -fit[1])
+        else:
+            yintercept = ""
+        axtime[3].text(xscale * fit_pos_x, yscale * fit_pos_y, "y = " + slope + yintercept, horizontalalignment = 'left', verticalalignment = 'bottom')
 
-    #fit = np.polyfit(times, plot_lists[1], deg = 1)
-    #fit_pos_x = times[len(times) / 2]
-    #fit_pos_y = (fit[0] * fit_pos_x + fit[1]) - (0.1 * plot_lists[1][-1])
-    #axtime[2].plot(xscale * times, yscale * (fit[0] * times + fit[1]), color = 'black', linestyle = '--', alpha = 1, linewidth = 2, label = 'Linear Fit')
-    #slope = str("%.2f" % fit[0]) + "x"
-    #if fit[1] > 0:
-    #    yintercept = " + " + str("%.2f" % fit[1])
-    #elif fit[1] < 0:
-    #    yintercept = " - " + str("%.2f" % fit[1])
-    #else:
-    #    yintercept = ""
-    #axtime[2].text(xscale * fit_pos_x, yscale * fit_pos_y, "y = " + slope + yintercept, horizontalalignment = 'left', verticalalignment = 'bottom')
-
-    #axtime[2].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
-    axtime[3].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+    #axtime[3].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
+    axtime[3].legend(bbox_to_anchor = (0.7, 1.0, 0.3, 0.1), loc = 'lower left', ncol = 4, mode = "expand", borderaxespad = 0.)
 
     # 4) Writing
 

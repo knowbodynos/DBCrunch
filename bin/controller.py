@@ -16,7 +16,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, json, yaml, pprint
+import sys, os, json, yaml#, pprint
 from errno import ENOENT
 from math import ceil
 from glob import iglob
@@ -269,7 +269,7 @@ def write_job_submit_details(wm_api, config, steps, refill = False):
     print(submitstring + "batch job " + job_id + " as " + steps[0]["jobname"] + " on partition(s) [" + ", ".join(all_partitions) + "] with " + str(len(all_host_names)) + " nodes, " + str(all_n_cpus) + " CPU(s), and " + str(all_mem) + " RAM allocated.")
     for i in range(len(steps)):
         n_iters = min(config.options.nbatch, len(steps[i]["docs"]))
-        print("...(" + str(i + 1) + ")...with job step " + steps[i]["id"] + " as " + steps[i]["name"] + " in batches of " + str(n_iters) + "/" + str(len(steps[i]["docs"])) + " iteration(s) on partition [" + ", ".join(step_partitions[i]) + "] with " + str(len(steps[i]["hostlist"].keys())) + " nodes, " + str(step_n_cpus[i]) + " CPU(s), and " + str(step_memorylimits[i]) + " RAM allocated.")
+        print("...(" + str(i + 1) + ")...with job step " + steps[i]["id"] + " as " + steps[i]["name"] + " in batches of " + str(n_iters) + "/" + str(len(steps[i]["docs"])) + " iteration(s) on partition [" + ", ".join(step_partitions[i]) + "] with " + str(len(steps[i]["hostlist"].keys())) + " nodes, " + str(step_n_cpus[i]) + " CPU(s), and " + step_memorylimits[i] + " RAM allocated.")
     print("")
     sys.stdout.flush()
 
@@ -339,8 +339,6 @@ def wait_for_slots(wm_api, config):
     return False, nodes
 
 def prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = 0):
-    n_iters = config.options.niters
-
     with open(config.controller.path + "/status", "w") as status_stream:
         status_stream.write("Populating steps.")
         status_stream.flush()
@@ -349,122 +347,108 @@ def prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = 0):
         return slots
 
     nodes = slots[start_slot:]
-    n_docs = len(doc_batch)
-    wrapper_procs = []
-    other_procs = []
-    for node in nodes:
-        n_wrapper_cpus = int(ceil(float(config.job.threads.min) / node["threadspercpu"]))
-        n_wrappers = node["ncpus"] / n_wrapper_cpus
-        i = 0
-        if len(wrapper_procs) == 0:
-            while i < n_wrappers and (n_docs == 0 or len(wrapper_procs) * n_iters < n_docs):
-                wrapper_procs += [{"partition": node["partition"], "hostname": node["hostname"], "ncpus": n_wrapper_cpus, "cpumem": config.cluster.resources[node["partition"]]["memorylimit"] / node["ntotcpus"]}]
-                i += 1
-        if node["ncpus"] - (i * n_wrapper_cpus) > 0:
-            other_procs += [{"partition": node["partition"], "hostname": node["hostname"], "ncpus": node["ncpus"] - (i * n_wrapper_cpus), "cpumem": config.cluster.resources[node["partition"]]["memorylimit"] / node["ntotcpus"]}]
-    #print("wrapper_procs: " + str(wrapper_procs))
-    #print("other_procs: " + str(other_procs))
-    #sys.stdout.flush()
-    steps = []
+    min_mem = unformat_mem(config.job.memorylimit)
+    min_time_limit = unformat_duration(config.job.timelimit)
+    n_docs = 0
     host_names = []
-    break_flag = False
-    next_doc_ind = 0
-    while len(wrapper_procs) > 0 and len(steps) < config.job.steps.max and not break_flag:
-        i = 0
-        host_name = wrapper_procs[0]["hostname"]
-        if host_name not in host_names:
-            if len(steps) > 0:
-                break_flag = True
-                break
-            host_names += [host_name]
-        partition = wrapper_procs[0]["partition"]
-        min_time_limit = unformat_duration(config.job.timelimit, unit = "seconds")
-        part_time_limit = unformat_duration(wm_api.get_partition_time_limit(partition), unit = "seconds")
-        if not min_time_limit or part_time_limit < min_time_limit:
-            min_time_limit = part_time_limit
-        min_cpu_mem = config.job.memorylimit
-        if not min_cpu_mem or wrapper_procs[0]["cpumem"] < min_cpu_mem:
-            min_cpu_mem = wrapper_procs[0]["cpumem"]
-        n_cpus = wrapper_procs[0]["ncpus"]
-        step = {
-                 "hostlist":
-                   {
-                     host_name:
-                       {
-                         "partition": partition,
-                         "nprocs": 1,
-                         "ncpus": n_cpus
-                       }
-                    }
-               }
-        if len(doc_batch) > 0 and config.db.nprocsfield:
-            max_step_procs = max([x[config.db.nprocsfield] for x in doc_batch[next_doc_ind:next_doc_ind + n_iters]])
+    steps = []
+    partition_time_limits = {}
+    while len(steps) < config.job.steps.max and (len(host_names) <= 1 or n_docs < len(doc_batch)):
+        docs = doc_batch[n_docs:n_docs + config.options.niters]
+        if config.db.nprocsfield and len(docs) > 0:
+            min_procs = max([doc[config.db.nprocsfield] for doc in docs])
         else:
-            max_step_procs = 1
-        del wrapper_procs[0]
-        i += 1
-        while i < max_step_procs and (len(wrapper_procs) > 0 or len(other_procs) > 0) and not break_flag:
-            while i < max_step_procs and len(wrapper_procs) > 0:
-                host_name = wrapper_procs[0]["hostname"]
-                if host_name not in host_names:
-                    if len(steps) > 0:
-                        break_flag = True
-                        break
-                    host_names += [host_name]
-                partition = wrapper_procs[0]["partition"]
-                part_time_limit = unformat_duration(wm_api.get_partition_time_limit(partition), unit = "seconds")
-                if part_time_limit < min_time_limit:
-                    min_time_limit = part_time_limit
-                if  wrapper_procs[0]["cpumem"] < min_cpu_mem:
-                    min_cpu_mem = wrapper_procs[0]["cpumem"]
+            min_procs = 1
+        n_step_procs = 0
+        n_step_cpus = 0
+        step_cpu_mem = 0
+        step_time_limit = 0
+        step = {}
+        i = 0
+        while i < len(nodes):
+            n_step_cpus = int(ceil(float(config.job.threads.min) / nodes[i]["threadspercpu"]))
+            if nodes[i]["ncpus"] >= n_step_cpus:
+                n_step_procs = 1
+                step_cpu_mem = float(config.cluster.resources[nodes[i]["partition"]]["memorylimit"]) / nodes[i]["ntotcpus"]
+                if not nodes[i]["hostname"] in host_names:
+                    host_names.append(nodes[i]["hostname"])
+                step = {
+                          "hostlist":
+                            {
+                               nodes[i]["hostname"]:
+                                 {
+                                    "partition": nodes[i]["partition"],
+                                    "nprocs": n_step_procs,
+                                    "ncpus": n_step_cpus
+                                 }
+                            }
+                       }
+                step_time_limit = min_time_limit
+                if not nodes[i]["partition"] in partition_time_limits:
+                    partition_time_limits[nodes[i]["partition"]] = unformat_duration(wm_api.get_partition_time_limit(nodes[i]["partition"]))
+                part_time_limit = partition_time_limits[nodes[i]["partition"]]
+                if (not step_time_limit) or part_time_limit < step_time_limit:
+                    step_time_limit = part_time_limit
+                nodes[i]["ncpus"] -= n_step_cpus
+                if nodes[i]["ncpus"] == 0:
+                    del nodes[i]
+                    i -= 1
+                break
+            i += 1
+        if len(step) == 0:
+            break
+        if i >= len(nodes):
+            i = 0
+        while i < len(nodes) and n_step_procs < min_procs:
+                n_procs = 1
                 n_cpus = 1
-                if host_name not in step:
-                    step["hostlist"][host_name] = {
-                                                   "partition": partition,
-                                                   "nprocs": 1,
-                                                   "ncpus": n_cpus
-                                                 }
-                else:
-                    step["hostlist"][host_name]["nprocs"] += 1
-                    step["hostlist"][host_name]["ncpus"] += n_cpus
-                wrapper_procs[0]["ncpus"] -= 1
-                other_procs += [wrapper_procs[0]]
-                del wrapper_procs[0]
-                i += 1
-            while i < max_step_procs and len(other_procs) > 0:
-                host_name = other_procs[0]["hostname"]
-                if host_name not in host_names:
-                    if len(steps) > 0:
-                        break_flag = True
+                cpu_mem = float(config.cluster.resources[nodes[i]["partition"]]["memorylimit"]) / nodes[i]["ntotcpus"]
+                if cpu_mem < step_cpu_mem:
+                    step_cpu_mem = cpu_mem
+                if not nodes[i]["hostname"] in step["hostlist"]:
+                    host_names.append(nodes[i]["hostname"])
+                    step["hostlist"][nodes[i]["hostname"]] = {
+                                                               "partition": nodes[i]["partition"],
+                                                               "nprocs": 0,
+                                                               "ncpus": 0
+                                                             }
+                while n_step_procs < min_procs:                        
+                    step["hostlist"][nodes[i]["hostname"]]["nprocs"] += n_procs
+                    n_step_procs += n_procs
+                    step["hostlist"][nodes[i]["hostname"]]["ncpus"] += n_cpus
+                    n_step_cpus += n_cpus
+                    if not nodes[i]["partition"] in partition_time_limits:
+                        partition_time_limits[nodes[i]["partition"]] = unformat_duration(wm_api.get_partition_time_limit(nodes[i]["partition"]))
+                    part_time_limit = partition_time_limits[nodes[i]["partition"]]
+                    if (not step_time_limit) or part_time_limit < step_time_limit:
+                        step_time_limit = part_time_limit
+                    nodes[i]["ncpus"] -= n_cpus
+                    if nodes[i]["ncpus"] == 0:
+                        del nodes[i]
+                        i -= 1
                         break
-                    host_names += [host_name]
-                partition = other_procs[0]["partition"]
-                part_time_limit = unformat_duration(wm_api.get_partition_time_limit(partition), unit = "seconds")
-                if part_time_limit < min_time_limit:
-                    min_time_limit = part_time_limit
-                if  other_procs[0]["cpumem"] < min_cpu_mem:
-                    min_cpu_mem = other_procs[0]["cpumem"]
-                n_cpus = 1
-                if host_name not in step:
-                    step["hostlist"][host_name] = {
-                                                   "partition": partition,
-                                                   "nprocs": 1,
-                                                   "ncpus": n_cpus
-                                                 }
-                else:
-                    step["hostlist"][host_name]["nprocs"] += 1
-                    step["hostlist"][host_name]["ncpus"] += n_cpus
-                other_procs[0]["ncpus"] -= 1
-                if other_procs[0]["ncpus"] == 0:
-                    del other_procs[0]
                 i += 1
-        if i == max_step_procs:
-            step["cpumemorylimit"] = format_mem(min_cpu_mem, unit = "MB")
-            step["maxtime"] = min_time_limit
-            step["timelimit"] = format_duration(min_time_limit)
-            #step["buffertime"] = format_duration(config.job.buffertime)
-            steps += [step]
-            next_doc_ind += n_iters
+        if min_mem:
+            i = 0
+            while i < len(nodes):
+                if nodes[i]["hostname"] in step["hostlist"]:
+                    n_cpus = 1
+                    while (step["hostlist"][nodes[i]["hostname"]]["ncpus"] + n_cpus) * step_cpu_mem <= min_mem:
+                        step["hostlist"][nodes[i]["hostname"]]["ncpus"] += n_cpus
+                        n_step_cpus += n_cpus
+                        nodes[i]["ncpus"] -= n_cpus
+                        if nodes[i]["ncpus"] == 0:
+                            del nodes[i]
+                            i -= 1
+                            break
+                i += 1
+        step["timelimit"] = format_duration(step_time_limit)
+        step["cpumemorylimit"] = format_mem(step_cpu_mem, unit = "MB")
+        steps.append(step)
+        n_docs += config.options.niters
+        if len(host_names) > 1:
+            del steps[-1]
+            break
 
     return steps
 
@@ -754,7 +738,7 @@ if (not time_left(config) > 0) and (firstlastrun or wm_api.is_dependency_running
 
     node = slots[0]
     max_time_limit = wm_api.get_partition_time_limit(node["partition"])
-    if unformat_duration(max_time_limit, unit = "seconds") < config.controller.timelimit:
+    if unformat_duration(max_time_limit) < config.controller.timelimit:
         config.controller.wmtimelimit = max_time_limit
     wm_api.write_controller_job_file(config, job_name, node)
     job_id = wm_api.submit_job(config.controller.path, job_name)
