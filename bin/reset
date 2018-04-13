@@ -1,33 +1,33 @@
 #!/bin/bash
 
-modpath=$1
-controllerpath=$2
+mod_path=$1
+controller_path=$2
 #workpath=$3
 
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
+controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
-#workpath="${controllerpath}/jobs"
+#workpath="${controller_path}/jobs"
 #mongolinkpath="${SLURMONGO_ROOT}/packages/python/mongolink"
 #toolspath="${SLURMONGO_ROOT}/scripts/tools"
 
-rm ${controllerpath}/*.job ${controllerpath}/*.info ${controllerpath}/*.err 2>/dev/null
-rm ${controllerpath}/querystate* 2>/dev/null
-#rm ${controllerpath}/reloadstate* 2>/dev/null
-rm ${controllerpath}/counter 2>/dev/null
-rm ${controllerpath}/status 2>/dev/null
-#rm ${controllerpath}/locks 2>/dev/null
-#rm ${controllerpath}/refill 2>/dev/null
-for dir in $(find ${controllerpath} -mindepth 1 -type d)
+rm ${controller_path}/*.job ${controller_path}/*.info ${controller_path}/*.err 2>/dev/null
+#rm ${controller_path}/querystate* 2>/dev/null
+#rm ${controller_path}/reloadstate* 2>/dev/null
+rm ${controller_path}/counter 2>/dev/null
+rm ${controller_path}/status 2>/dev/null
+#rm ${controller_path}/locks 2>/dev/null
+#rm ${controller_path}/refill 2>/dev/null
+for dir in $(find ${controller_path} -mindepth 1 -type d)
 do
 	rm -r ${dir} 2>/dev/null
 done
 
-#echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
-#echo -e "BatchCounter,StepCounter\n1,1" > ${controllerpath}/batchcounter 2>/dev/null
-#echo "Controller pending." > ${controllerpath}/status 2>/dev/null
+#echo "JobStep,ExitCode,Resubmit?" > ${controller_path}/skipped 2>/dev/null
+#echo -e "BatchCounter,StepCounter\n1,1" > ${controller_path}/batchcounter 2>/dev/null
+#echo "Controller pending." > ${controller_path}/status 2>/dev/null
 
-echo "Finished resetting ${modname}_${controllername}."
+echo "Finished resetting ${mod_name}_${controller_name}."
 
 #currdir=$(pwd)
 #cd ${mongolinkpath}
@@ -35,9 +35,9 @@ echo "Finished resetting ${modname}_${controllername}."
 #sage --python setup.py install --user --record filessage.txt
 #cd ${currdir}
 
-#mongouri=$(cat ${controllerpath}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
-#basecollection=$(cat ${controllerpath}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
-#modname=$(cat ${controllerpath}/controller*.job | grep "modname=" | cut -d'=' -f2 | sed 's/"//g')
-#markdone=$(cat ${controllerpath}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
-#h11=$(cat ${controllerpath}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
-#python ${toolspath}/unmark.py "${basecollection}" "${modname}" "${markdone}" "{\"H11\":${h11}}"
+#mongouri=$(cat ${controller_path}/controller*.job | grep "mongouri=" | cut -d'=' -f2 | sed 's/"//g')
+#basecollection=$(cat ${controller_path}/controller*.job | grep "basecollection=" | cut -d'=' -f2 | sed 's/"//g')
+#mod_name=$(cat ${controller_path}/controller*.job | grep "mod_name=" | cut -d'=' -f2 | sed 's/"//g')
+#markdone=$(cat ${controller_path}/controller*.job | grep "markdone=" | cut -d'=' -f2 | sed 's/"//g')
+#h11=$(cat ${controller_path}/controller*.job | grep "h11=" | cut -d'=' -f2 | sed 's/"//g')
+#python ${toolspath}/unmark.py "${basecollection}" "${mod_name}" "${markdone}" "{\"H11\":${h11}}"

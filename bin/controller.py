@@ -195,18 +195,18 @@ def write_job_file(wm_api, config, steps):
     i = 0
     for step in steps:
         host_names = []
-        partitions = []
-        n_cpus = []
-        n_procs = []
+        #partitions = []
+        n_step_cpus = 0
+        n_step_procs = 0
         for host_name, host in step["hostlist"].items():
             host_names += [host_name]
-            partitions += [host["partition"]]
-            n_cpus += [host["ncpus"]]
-            n_procs += [host["nprocs"]]
+            #partitions += [host["partition"]]
+            n_step_cpus += host["ncpus"]
+            n_step_procs += host["nprocs"]
 
         job_string += "# " + str(i + 1) + "\n"
-        job_string += "srun -w \"" + ",".join(host_names) + "\" -n \"1\" -c \"" + str(sum(n_cpus)) + "\" -J \"" + step["name"] + "\" --mem-per-cpu=\"" + step["cpumemorylimit"] + "\" "
-        #job_string += "srun -w \"" + ",".join(host_names) + "\" -n \"" + str(sum(n_cpus)) + "\" -J \"" + step["name"] + "\" --mem-per-cpu=\"" + step["cpumemorylimit"] + "\" "
+        job_string += "mpirun -srun -w \"" + ",".join(host_names) + "\" -n \"" + str(n_step_procs) + "\" -c \"" + str(n_step_cpus) + "\" -J \"" + step["name"] + "\" --mem-per-cpu=\"" + step["cpumemorylimit"] + "\" "
+        #job_string += "srun -w \"" + ",".join(host_names) + "\" -n \"" + str(n_step_cpus) + "\" -J \"" + step["name"] + "\" --mem-per-cpu=\"" + step["cpumemorylimit"] + "\" "
         if step["timelimit"]:
             job_string += "--time=\"" + step["timelimit"] + "\" "
         #wrapstep = {}
@@ -215,7 +215,7 @@ def write_job_file(wm_api, config, steps):
         #        wrapstep[key] = step[key]
         job_string += "python ${CRUNCH_ROOT}/bin/wrapper.py --controller-path \"" + config.controller.path + "\" --step-name \"" + step["name"] + "\" --step-id \"${SLURM_JOBID}." + str(i) + "\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" &"#"\" --stepdoc " + json.dumps(wrapstep, separators = (',',':'))
         job_string += "\n\n"
-        #jobinfo += [{"host_names": host_names, "jobstepname": step["name"], "partitions": partitions, "ncpus": sum(n_cpus), "mem": step["cpumemorylimit"], "n_docs": len(step["docs"])}]
+        #jobinfo += [{"host_names": host_names, "jobstepname": step["name"], "partitions": partitions, "ncpus": n_step_cpus, "mem": step["cpumemorylimit"], "n_docs": len(step["docs"])}]
         i += 1
 
     job_string += "wait"
@@ -468,8 +468,6 @@ def do_verify(wm_api, config, counter, doc_batch):
     while time_left(config) > 0:
         refill, slots = wait_for_slots(wm_api, config)
         steps = prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = start_slot)
-
-        job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_steps_" + str(counter.step + 1) + "-" + str(counter.step + len(steps))
         
         i = 0
         next_doc_ind = 0
@@ -477,8 +475,6 @@ def do_verify(wm_api, config, counter, doc_batch):
         while i < len(steps) and next_doc_ind + n_iters <= len(doc_batch):
             step = steps[i]
             step["docs"] = doc_batch[next_doc_ind:next_doc_ind + n_iters]
-            if "jobname" not in step:
-                step["jobname"] = job_name
             if "name" not in step:
                 step["name"] = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_step_" + str(i + 1)
             #print("Step name: " + steps[i]["name"])
@@ -489,6 +485,12 @@ def do_verify(wm_api, config, counter, doc_batch):
             next_doc_ind += n_iters
         
         steps = filled_steps
+
+        job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_steps_" + str(counter.step + 1) + "-" + str(counter.step + len(steps))
+        
+        for step in steps:
+            if "jobname" not in step:
+                step["jobname"] = job_name
 
         if refill:
             break

@@ -20,22 +20,22 @@ run_subcommand() {
     modules_dir=$1
     shift
 
-    startpath=$(cd ${modules_dir} && pwd -P)
+    start_path=$(cd ${modules_dir} && pwd -P)
 
-    currdir=${startpath}
+    curr_dir=${start_path}
 
-    module_paths=($(find ${currdir} -mindepth 1 -type d -path '*/.*' -prune -o -type f -name '.DBCrunch' -execdir pwd -P \;))
+    module_paths=($(find ${curr_dir} -mindepth 1 -type d -path '*/.*' -prune -o -type f -name '.DBCrunch' -execdir pwd -P \;))
 
-    currdir=$(cd ${currdir}/.. && pwd -P)
-    dirstats=$(stat -c '%a %U' ${currdir})
-    while [[ "${dirstats}" =~ ^"777 " ]] || [[ "${dirstats}" =~ " ${USER}"$ ]]
+    curr_dir=$(cd ${curr_dir}/.. && pwd -P)
+    dir_stats=$(stat -c '%a %U' ${curr_dir})
+    while [[ "${dir_stats}" =~ ^"777 " ]] || [[ "${dir_stats}" =~ " ${USER}"$ ]]
     do
-        if [ -f "${currdir}/.DBCrunch" ]
+        if [ -f "${curr_dir}/.DBCrunch" ]
         then
-            module_paths=("${currdir}" "${module_paths[@]}")
+            module_paths=("${curr_dir}" "${module_paths[@]}")
         fi
-        currdir=$(cd ${currdir}/.. && pwd -P)
-        dirstats=$(stat -c '%a %U' ${currdir})
+        curr_dir=$(cd ${curr_dir}/.. && pwd -P)
+        dir_stats=$(stat -c '%a %U' ${curr_dir})
     done
 
     if [ "${#module_paths[@]}" -eq 0 ]
@@ -52,67 +52,67 @@ run_subcommand() {
         exit 1
     fi
 
-    moddirpath=${module_paths[0]}
-    pathdiff=${startpath##${moddirpath}/}
-    if [[ "${pathdiff}" == "${startpath}" ]]
+    mod_dir_path=${module_paths[0]}
+    path_diff=${start_path##${mod_dir_path}/}
+    if [[ "${path_diff}" == "${start_path}" ]]
     then
-        pathdiff=""
+        path_diff=""
     fi
-    read modname controllername <<< $(echo ${pathdiff} | sed 's/\// /g' | cut -d' ' -f1,2)
+    read mod_name controller_name <<< $(echo ${path_diff} | sed 's/\// /g' | cut -d' ' -f1,2)
 
     case $# in
         0)
-            if [[ "${modname}" != "" ]]
+            if [[ "${mod_name}" != "" ]]
             then
-                if [[ "${controllername}" != "" ]] && [ -d "${moddirpath}/${modname}/${controllername}" ]
+                if [[ "${controller_name}" != "" ]] && [ -d "${mod_dir_path}/${mod_name}/${controller_name}" ]
                 then
-                    modnames=(${modname})
-                    controllernames=(${controllername})
+                    mod_names=(${mod_name})
+                    controller_names=(${controller_name})
                 else
-                    modnames=(${modname})
-                    controllernames=($(find ${moddirpath}/${modname} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+                    mod_names=(${mod_name})
+                    controller_names=($(find ${mod_dir_path}/${mod_name} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
                 fi
             else
-                modnames=($(find ${moddirpath} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
-                controllernames=()
+                mod_names=($(find ${mod_dir_path} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+                controller_names=()
             fi
-            #modnames=(${modname})
-            #controllernames=(${controllername})
+            #mod_names=(${mod_name})
+            #controller_names=(${controller_name})
             ;;
         1)
             case $1 in
-                ${modname} | ${controllername})
-                    modnames=(${modname})
-                    controllernames=(${controllername})
+                ${mod_name} | ${controller_name})
+                    mod_names=(${mod_name})
+                    controller_names=(${controller_name})
                     ;;
                 *)
-                    if [[ "${modname}" != "" ]]
+                    if [[ "${mod_name}" != "" ]]
                     then
-                        if [ -d "${moddirpath}/${modname}/$1" ]
+                        if [ -d "${mod_dir_path}/${mod_name}/$1" ]
                         then
-                            modnames=(${modname})
-                            controllernames=($1)
+                            mod_names=(${mod_name})
+                            controller_names=($1)
                         else
                             if ${is_create}
                             then
-                                modnames=(${modname})
-                                controllernames=($1)
+                                mod_names=(${mod_name})
+                                controller_names=($1)
                             else
-                                modnames=($1)
-                                controllernames=()
+                                mod_names=($1)
+                                controller_names=()
                             fi
                         fi
                     else
-                        modnames=($1)
-                        controllernames=()
+                        mod_names=($1)
+                        controller_names=()
                     fi
                     ;;
             esac
             shift
             ;;
         *)
-            modnames=($1)
-            controllernames=($2)
+            mod_names=($1)
+            controller_names=($2)
             shift
             shift
             ;;
@@ -122,64 +122,64 @@ run_subcommand() {
         #    ;;
     esac
 
-    for i in ${!modnames[@]}
+    for i in ${!mod_names[@]}
     do
-        modname=${modnames[${i}]}
+        mod_name=${mod_names[${i}]}
 
-        modpath="${moddirpath}/${modname}"
+        mod_path="${mod_dir_path}/${mod_name}"
 
-        if [ ! -d "${modpath}" ] && ${is_create}
+        if [ ! -d "${mod_path}" ] && ${is_create}
         then
-            do_create ${is_create} ${modpath}
+            do_create ${is_create} ${mod_path}
         fi
 
-        if [[ "${controllernames[${i}]}" == "" ]]
+        if [[ "${controller_names[${i}]}" == "" ]]
         then
-            controllernames=($(find ${modpath} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
+            controller_names=($(find ${mod_path} -mindepth 1 -maxdepth 1 -type d -path '*/.*' -prune -o -type d -print 2>/dev/null | rev | cut -d'/' -f1 | rev))
 
-            for controllername in ${controllernames[@]}
+            for controller_name in ${controller_names[@]}
             do
-                controllerpath="${modpath}/${controllername}"
+                controller_path="${mod_path}/${controller_name}"
 
-                if [ ! -d "${controllerpath}" ] && ${is_create}
+                if [ ! -d "${controller_path}" ] && ${is_create}
                 then
-                    do_create ${is_create} ${controllerpath}
+                    do_create ${is_create} ${controller_path}
                 fi
 
-                #workpath="${controllerpath}/jobs"
+                #workpath="${controller_path}/jobs"
 
                 #if [ ! -d "${workpath}" ] && ${is_create}
                 #then
                 #    do_create ${is_create} ${workpath}
                 #fi
 
-                #${scriptpath} ${modpath} ${controllerpath} ${workpath} ${@}
-                ${scriptpath} ${modpath} ${controllerpath} ${@}
+                #${scriptpath} ${mod_path} ${controller_path} ${workpath} ${@}
+                ${scriptpath} ${mod_path} ${controller_path} ${@}
             done
         else
-            controllername=${controllernames[${i}]}
-            controllerpath="${modpath}/${controllername}"
+            controller_name=${controller_names[${i}]}
+            controller_path="${mod_path}/${controller_name}"
 
-            if [ ! -d "${controllerpath}" ] && ${is_create}
+            if [ ! -d "${controller_path}" ] && ${is_create}
             then
-                do_create ${is_create} ${controllerpath}
+                do_create ${is_create} ${controller_path}
             fi
 
-            #workpath="${controllerpath}/jobs"
+            #workpath="${controller_path}/jobs"
 
             #if [ ! -d "${workpath}" ] && ${is_create}
             #then
             #    do_create ${is_create} ${workpath}
             #fi
 
-            #${scriptpath} ${modpath} ${controllerpath} ${workpath} ${@}
-            ${scriptpath} ${modpath} ${controllerpath} ${@}
+            #${scriptpath} ${mod_path} ${controller_path} ${workpath} ${@}
+            ${scriptpath} ${mod_path} ${controller_path} ${@}
         fi
     done
 }
 
 ProgName=$(basename "${BASH_SOURCE[0]}")
-ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
+prog_dir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
   
 sub_help(){
     echo "Usage: $ProgName [<$ProgName options>] [<subcommand>] [<subcommand options>] [module_name/controller_name] [controller_name]\n"
@@ -210,58 +210,58 @@ sub_help(){
 
 sub_analyze(){
     is_create=false
-    run_subcommand ${ProgDir}/analyze ${is_create} ${@}
+    run_subcommand ${prog_dir}/analyze ${is_create} ${@}
 }
 
 sub_cancel(){
     is_create=false
-    run_subcommand ${ProgDir}/cancel ${is_create} ${@}
+    run_subcommand ${prog_dir}/cancel ${is_create} ${@}
 }
 
 sub_create(){
     is_create=false
-    run_subcommand ${ProgDir}/create ${is_create} ${@}
+    run_subcommand ${prog_dir}/create ${is_create} ${@}
 }
 
 sub_monitor(){
     if [ "$#" -eq 1 ]
     then
-        ${ProgDir}/monitor 1
+        ${prog_dir}/monitor 1
     else
-        ${ProgDir}/monitor $2
+        ${prog_dir}/monitor $2
     fi
 }
 
 sub_plot(){
     is_create=false
-    run_subcommand ${ProgDir}/plot ${is_create} ${@}
+    run_subcommand ${prog_dir}/plot ${is_create} ${@}
 }
 
 sub_requeue(){
     is_create=false
-    run_subcommand ${ProgDir}/requeue ${is_create} ${@}
+    run_subcommand ${prog_dir}/requeue ${is_create} ${@}
 }
 
 sub_reset(){
     is_create=false
-    run_subcommand ${ProgDir}/reset ${is_create} ${@}
+    run_subcommand ${prog_dir}/reset ${is_create} ${@}
 }
 
 sub_submit(){
     is_create=false
-    run_subcommand ${ProgDir}/submit ${is_create} ${@}
+    run_subcommand ${prog_dir}/submit ${is_create} ${@}
 }
 
 sub_template(){
     is_create=true
-    run_subcommand ${ProgDir}/template ${is_create} ${@}
+    run_subcommand ${prog_dir}/template ${is_create} ${@}
 }
 
 sub_test(){
     modules_dir=$1
     is_create=$2
     shift 2
-    run_subcommand ${ProgDir}/test ${is_create} ${modules_dir} ${@}
+    run_subcommand ${prog_dir}/test ${is_create} ${modules_dir} ${@}
 }
 
 subcommand_arr=("analyze" "cancel" "create" "monitor" "plot" "requeue" "reset" "submit" "template" "test")
@@ -281,16 +281,16 @@ do
     i=$((${i}+1))
 done
 
-mainargs="${@:0:$((${i}-1))}"
+main_args="${@:0:$((${i}-1))}"
 subcommand="${@:$((${i}-1)):1}"
 subargs="${@:${i}}"
 
-SHORTOPTS="m:" 
-LONGOPTS="modules-dir:"
+short_opts="m:" 
+long_opts="modules-dir:"
 
-ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "${mainargs}")
+args=$(getopt -s bash --options ${short_opts} --longoptions ${long_opts} -- "${main_args}")
 
-eval set -- "$ARGS"
+eval set -- "${args}"
 
 modules_dir=$(pwd -P)
 

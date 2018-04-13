@@ -51,8 +51,8 @@ with open(config.controller.path + "/status", "w") as status_stream:
 
 start_slot = 0
 while True:
-    nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
-    node = nodes[start_slot]
+    slots = wm_api.get_avail_nodes(config.cluster.resources.keys())
+    node = slots[start_slot]
     maxtimelimit = wm_api.get_partition_time_limit(node["partition"])
     if unformat_duration(maxtimelimit) < unformat_duration(config.controller.timelimit):
         config.controller.timelimit = maxtimelimit

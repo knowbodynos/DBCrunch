@@ -33,12 +33,12 @@ do
     shift
 done
 
-modpath=$1
-controllerpath=$2
-#workpath=$3
+mod_path=$1
+controller_path=$2
+#work_path=$3
 
-echo ${modpath}
-echo ${controllerpath}
+echo ${mod_path}
+echo ${controller_path}
 echo "a=${a}"
 echo "b=${b}"
-#echo ${workpath}
+#echo ${work_path}

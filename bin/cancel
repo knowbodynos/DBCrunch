@@ -1,23 +1,23 @@
 #!/bin/bash
 
-modpath=$1
-controllerpath=$2
+mod_path=$1
+controller_path=$2
 #workpath=$3
 
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
+controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
 jobs=$(squeue -h -u ${USER} -o '%.10i %.100j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
-if [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | wc -l)" -ne 0 ]
+if [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${mod_name}_${controller_name}_" | wc -l)" -ne 0 ]
 then
-    while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | wc -l)" -ne 0 ]
+    while [ "$(echo ${jobs} | tr '!' '\n' 2>/dev/null | head -c -1 | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${mod_name}_${controller_name}_" | wc -l)" -ne 0 ]
     do
-        for jobid in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${modname}_${controllername}_" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
+        for job_id in $(echo " ${jobs}" | tr '!' '\n' 2>/dev/null | grep -vE ' CG( |$)' | grep -v '(null)' | grep "crunch_${mod_name}_${controller_name}_" | sed 's/\s\s*/ /g' | cut -d' ' -f2)
         do
-            scancel ${jobid} 2>/dev/null
+            scancel ${job_id} 2>/dev/null
         done
         jobs=$(squeue -h -u ${USER} -o '%.10i %.100j %.2t' 2>/dev/null | head -c -1 | tr '\n' '!')
     done
 
-    echo "Finished cancelling ${modname}_${controllername}."
+    echo "Finished cancelling ${mod_name}_${controller_name}."
 fi

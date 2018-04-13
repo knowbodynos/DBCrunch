@@ -1,10 +1,10 @@
 #!/bin/bash
 
-ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
+prog_dir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
 
-modpath=$1
+mod_path=$1
 shift
-controllerpath=$1
+controller_path=$1
 shift
 #workpath=$3
 
@@ -13,12 +13,12 @@ shift
 #max_time=$1
 #shift
 
-SHORTOPTS="j:t:" 
-LONGOPTS="job-limit:time-limit:" 
+short_opts="j:t:" 
+long_opts="job-limit:time-limit:" 
 
-ARGS=$(getopt -s bash --options $SHORTOPTS --longoptions $LONGOPTS -- "$@" ) 
+args=$(getopt -s bash --options ${short_opts} --longoptions ${long_opts} -- "$@" ) 
 
-eval set -- "$ARGS" 
+eval set -- "${args}" 
 
 job_limit=""
 time_limit=""
@@ -46,7 +46,7 @@ do
     shift
 done
 
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
+controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
-python ${ProgDir}/tools/create_tool.py "plot.py" "${job_limit}" "${time_limit}" "${controllerpath}/logs" "${controllerpath}/plot" "${modname}" "${controllername}" "${controllerpath}" "plot_INTERMED.pdf" "plot_OUT.pdf"
+python ${prog_dir}/tools/create_tool.py "plot.py" "${job_limit}" "${time_limit}" "${controller_path}/logs" "${controller_path}/plot" "${mod_name}" "${controller_name}" "${controller_path}" "plot_INTERMED.pdf" "plot_OUT.pdf"

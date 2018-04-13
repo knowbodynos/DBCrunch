@@ -1,35 +1,35 @@
 #!/bin/bash
 
-modpath=$1
-controllerpath=$2
+mod_path=$1
+controller_path=$2
 #workpath=$3
 
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
+controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
-#loadfilenames=$(find ${mainpath}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
-loadfilenames=$(find ${controllerpath}/docs -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.docs" -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
-#loadfilejobpatt=$(echo ${loadfilenames} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
-#mkdir ${mainpath}/jobs/requeued 2>/dev/null
-#for patt in ${loadfilejobpatt}
+#load_file_names=$(find ${main_path}/jobs/ -maxdepth 1 -type f -name "*.docs" | rev | cut -d'/' -f1 | rev | tr '\n' ',')
+load_file_names=$(find ${controller_path}/docs -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.docs" -print 2>/dev/null | rev | cut -d'/' -f1 | rev)
+#load_file_job_patt=$(echo ${load_file_names} | tr ',' '\n' | sed 's/\(.*_job_[0-9]*\).*/\1/g' | sort -u)
+#mkdir ${main_path}/jobs/requeued 2>/dev/null
+#for patt in ${load_file_job_patt}
 #do
-#    mv ${mainpath}/jobs/${patt}* ${mainpath}/jobs/requeued/ 2>/dev/null
+#    mv ${main_path}/jobs/${patt}* ${main_path}/jobs/requeued/ 2>/dev/null
 #done
-#for loadfilename in $(echo ${loadfilenames} | tr ',' '\n')
-for loadfilename in ${loadfilenames}
+#for load_file_name in $(echo ${load_file_names} | tr ',' '\n')
+for load_file_name in ${load_file_names}
 do
-    if [ -s "${loadfilename/.docs/.err}" ]
+    if [ -s "${load_file_name/.docs/.err}" ]
     then
-        #errcode=$(cat ${mainpath}/jobs/requeued/${loadfilename/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
-        errcode=$(cat ${controllerpath}/logs/${loadfilename/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
-        if [[ "${errcode}" == "" ]]
+        #errcode=$(cat ${main_path}/jobs/requeued/${load_file_name/.docs/.out} | grep "ExitCode: " | cut -d' ' -f2)
+        err_code=$(cat ${controller_path}/logs/${load_file_name/.docs/.err} | grep "ExitCode: " | cut -d' ' -f2)
+        if [[ "${err_code}" == "" ]]
         then
-            errcode="-1:0"
+            err_code="-1:0"
         fi
     else
-        errcode="-1:0"
+        err_code="-1:0"
     fi
-    echo "${loadfilename},${errcode},True"
-done >> ${controllerpath}/skipped
+    echo "${load_file_name},${err_code},True"
+done >> ${controller_path}/skipped
 
-echo "Finished requeuing ${modname}_${controllername}."
+echo "Finished requeuing ${mod_name}_${controller_name}."

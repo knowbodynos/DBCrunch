@@ -1,4 +1,4 @@
-import os
+import sys, os
 from signal import signal, SIGPIPE, SIG_DFL
 from subprocess import Popen, PIPE
 from pytz import utc
@@ -11,16 +11,23 @@ from time import sleep
 def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
 
-def retry(script):
-    MAX_TRIES = 6
-    for i in range(MAX_TRIES):
+def retry(script, max_tries = None):
+    #MAX_TRIES = 10
+    #for i in range(MAX_TRIES):
+    n_tries = 0
+    while True:
         proc = Popen(script, shell = True, stdout = PIPE, stderr = PIPE, preexec_fn = default_sigpipe)
         stdout, stderr = proc.communicate()
         if stderr:
-            sleep(0.05)
+            n_tries += 1
+            sys.stderr.write("Attempt " + str(n_tries) + ": " + stderr + "\n")
+            sys.stderr.flush()
+            if (not max_tries) or n_tries < max_tries:
+                sleep(0.1)
+            else:
+                raise Exception(stderr)
         else:
             return stdout, stderr
-    raise Exception(stderr)
 
 def get_timestamp():
     return datetime.utcnow().replace(tzinfo = utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
@@ -235,7 +242,7 @@ def write_tool_job_file(config, job_name, node, kwargs):
         job_string += "--job-limit " + kwargs['job_limit'] + " "
     if kwargs['time_limit'] != "":
         job_string += "--time-limit " + kwargs['time_limit'] + " "
-    job_string += kwargs['in_path'] + " " + kwargs['out_path'] + " " + config.module.name + " " + config.controller.name + " " + kwargs['controller_path'] + " " + " ".join(kwargs['out_file_names'])
+    job_string += kwargs['in_path'] + " " + kwargs['out_path'] + " " + kwargs['controller_path'] + " " + " ".join(kwargs['out_file_names'])
 
     if not os.path.isdir(config.controller.path + "/" + tool_name):
         os.mkdir(config.controller.path + "/" + tool_name)

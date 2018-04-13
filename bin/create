@@ -1,14 +1,14 @@
 #!/bin/bash
 
-ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
+prog_dir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
 
-modpath=$1
-controllerpath=$2
+mod_path=$1
+controller_path=$2
 #workpath=$3
 
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
+controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
-python ${ProgDir}/tools/create_controller.py ${modname} ${controllerpath}
+python ${prog_dir}/tools/create_controller.py ${mod_name} ${controller_path}
 
-echo "Finished creating controller job file for ${modname}_${controllername}."
+echo "Finished creating controller job file for ${mod_name}_${controller_name}."

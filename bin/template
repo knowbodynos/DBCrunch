@@ -1,31 +1,31 @@
 #!/bin/bash
 
-ProgDir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
+prog_dir=$(cd $(dirname "${BASH_SOURCE[0]}"); pwd -P)
 
-modpath=$1
-controllerpath=$2
+mod_path=$1
+controller_path=$2
 #workpath=$3
 
-modname=$(echo ${modpath} | rev | cut -d'/' -f1 | rev)
-controllername=$(echo ${controllerpath} | rev | cut -d'/' -f1 | rev)
+mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
+controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
-modulespath="${CRUNCH_ROOT}/modules/modules"
+modules_path="${CRUNCH_ROOT}/modules/modules"
 
-cp -T "${modulespath}/${modname}/${modname}.config" "${controllerpath}/${modname}_${controllername}.config"
-#echo "JobStep,ExitCode,Resubmit?" > ${controllerpath}/skipped 2>/dev/null
+cp -T "${modules_path}/${mod_name}/${mod_name}.config" "${controller_path}/${mod_name}_${controller_name}.config"
+#echo "JobStep,ExitCode,Resubmit?" > ${controller_path}/skipped 2>/dev/null
 
-#modulesworkpath=$(echo ${modpath} | rev | cut -d'/' -f1 --complement | rev)
+#modulesworkpath=$(echo ${mod_path} | rev | cut -d'/' -f1 --complement | rev)
 
-files=$(find ${controllerpath} -mindepth 1 -type d -path '*/.*' -prune -o -type f -print 2>/dev/null)
+files=$(find ${controller_path} -mindepth 1 -type d -path '*/.*' -prune -o -type f -print 2>/dev/null)
 for file in ${files}
 do
     #perl -i -pe 's|#SBATCH(.*)\${CRUNCH_ROOT}|#SBATCH\1'"${CRUNCH_ROOT}"'|g' ${file}
-    sed -i "s|path\_to\_controller|${controllerpath}|g" ${file}
-    sed -i "s|template|${controllername}|g" ${file}
-    #newfile=$(echo "${file}" | sed "s/template/${controllername}/g")
+    sed -i "s|path\_to\_controller|${controller_path}|g" ${file}
+    sed -i "s|template|${controller_name}|g" ${file}
+    #newfile=$(echo "${file}" | sed "s/template/${controller_name}/g")
     #mv ${file} ${newfile} 2>/dev/null
 done
 
-python ${ProgDir}/tools/create_controller.py ${controllerpath}
+python ${prog_dir}/tools/create_controller.py ${controller_path}
 
-echo "Finished creating controller job file for ${modname}_${controllername}."
+echo "Finished creating controller job file for ${mod_name}_${controller_name}."

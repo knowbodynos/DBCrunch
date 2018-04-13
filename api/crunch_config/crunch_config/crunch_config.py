@@ -4,7 +4,7 @@ from pytz import utc
 from time import time, sleep
 
 def unformat_duration(duration):
-    if not duration:
+    if duration == None:
         return None
     assert isinstance(duration, (str, unicode))
     days = 0
@@ -17,26 +17,28 @@ def unformat_duration(duration):
     seconds += minutes * 60
     return seconds
 
-def format_duration(duration):
-    if not duration:
+def format_duration(duration, form = "D-HH:MM:SS"):
+    if duration == None:
         return None
     assert isinstance(duration, (int, float))
-    duration = int(duration)
-    duration_formatted = ""
-    days = str(duration / (60 * 60 * 24))
-    remainder = duration % (60 * 60 * 24)
-    hours = str(remainder / (60 * 60)).zfill(2)
-    remainder = remainder % (60 * 60)
-    minutes = str(remainder / 60).zfill(2)
-    remainder = remainder % 60
-    seconds = str(remainder).zfill(2)
-    if days != "0":
-        duration_formatted += days + "-"
-    duration_formatted += hours + ":" + minutes + ":" + seconds
-    return duration_formatted
+    fields = {}
+    seconds = duration
+    fields["D"] = int(seconds / (60 * 60 * 24))
+    days_rem = seconds % (60 * 60 * 24)
+    fields["H"] = int(days_rem / (60 * 60))
+    hours_rem = days_rem % (60 * 60)
+    fields["M"] = int(hours_rem / 60)
+    minutes_rem = hours_rem % 60
+    fields["S"] = int(minutes_rem)
+    timestamp = form.upper()
+    for field, val in fields.items():
+        count = timestamp.count(field)
+        if count > 0:
+            timestamp = timestamp.replace(count * field, str(val).zfill(count))
+    return timestamp
 
 def unformat_mem(mem):
-    if not mem:
+    if mem == None:
         return None
     try:
         assert isinstance(mem, (str, unicode))
@@ -60,7 +62,7 @@ def unformat_mem(mem):
         return int(num) * (1024 ** 3)
 
 def format_mem(mem, unit = "MB"):
-    if not mem:
+    if mem == None:
         return None
     assert isinstance(mem, (int, float))
     mem = int(mem)
