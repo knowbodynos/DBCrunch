@@ -66,7 +66,7 @@ monitorjobs() {
     then
         n_run_jobs=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' R ' | wc -l)
         n_pend_jobs=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | wc -l)
-        steps=$(sacct -n -o "job_id%30,job_name%130,State" 2>/dev/null | grep '_job_.*_step_' | tr '\n' '!')
+        steps=$(sacct -n -o "JobID%30,JobName%130,State" 2>/dev/null | grep '_job_.*_step_' | tr '\n' '!')
         n_run_steps=$(echo "${steps}" | tr '!' '\n' 2>/dev/null | grep 'RUNNING' | wc -l)
         pend_steps=$(echo "${jobs}" | tr '!' '\n' 2>/dev/null | grep '_steps_' | grep ' PD ' | sed 's/\s\s*/ /g' | cut -d' ' -f4 | rev | cut -d'_' -f1 | rev | sed 's/^\(.*\)$/\1-1/g' | tr '\n' '+' | head -c -1)
         if [[ "${pend_steps}" == "" ]]

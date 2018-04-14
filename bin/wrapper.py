@@ -433,7 +433,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, wm_api, db_api, db_client, batch_queue, process, **kwargs):
+    def __init__(self, wm_api, db_api, db_client, batch_queue, **kwargs):
         # Assertions
 
         assert isinstance(batch_queue, Queue)
@@ -460,7 +460,6 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
         # Initiate private variables
 
         self.__signal = False
-        self.__process = process
         self.__batch_queue = batch_queue
         self.__bulk_colls = {}
         self.__count_io_outs = {}
@@ -532,7 +531,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
 
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
-        while self.__process.poll() == None:
+        while not self.__signal:
             while self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name) and not self.__batch_queue.empty():
                 if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".lock"):
                     if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".ready"):
@@ -593,6 +592,9 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                         count += 1
                     os.rename(temp_stream.name, intermed_io_stream.name)
                 flock(intermed_io_stream, LOCK_UN)
+
+    def signal(self):
+        self.__signal = True
 
 class ModuleInterface(WrapperConfig):
     def __init__(self, db_api, db_client, **kwargs):
@@ -847,7 +849,7 @@ reader.start()
 
 # Initialize bulk write thread
 
-writer = AsyncBulkWriteStream(wm_api, db_api, db_client, batch_queue, process, **kwargs)
+writer = AsyncBulkWriteStream(wm_api, db_api, db_client, batch_queue, **kwargs)
 writer.start()
 
 # Remove step file
@@ -876,9 +878,17 @@ flock(sys.stdout, LOCK_UN)
 while reader.is_alive():
     interface.process_module_output(intermed_queue, out_queue, stats_queue, batch_queue)
 
+reader.join()
+process.stdin.close()
+process.stdout.close()
+process.stderr.close()
+
 interface.process_module_output(intermed_queue, out_queue, stats_queue, batch_queue)
 
 interface.end_module_output(batch_queue)
+
+writer.signal()
+writer.join()
 
 # End wrapper body
 
@@ -901,13 +911,6 @@ sys.stdout.flush()
 flock(sys.stdout, LOCK_UN)
 
 # Tie up loose ends
-
-process.stdin.close()
-process.stdout.close()
-process.stderr.close()
-
-reader.join()
-writer.join()
 
 db_client.close()
 

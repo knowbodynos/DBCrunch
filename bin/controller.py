@@ -534,18 +534,18 @@ def do_verify(wm_api, config, counter, doc_batch):
 
     doc_batch = doc_batch[next_doc_ind:]
 
-    write_job_submit_details(wm_api, config, steps, refill = refill)
+    if len(steps) > 0:
+        write_job_submit_details(wm_api, config, steps, refill = refill)
 
     wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
 
     return refill, steps, doc_batch
 
 def do_initialize(config, steps, refill):
-    with open(config.controller.path + "/status", "w") as status_stream:
-        status_stream.write("Initializing job.")
-        status_stream.flush()
-
     if refill:
+        with open(config.controller.path + "/status", "w") as status_stream:
+            status_stream.write("Refilling job.")
+            status_stream.flush()
         for step in steps:
             with open(config.controller.path + "/docs/" + step["name"] + ".refill", "w") as doc_stream:
                 for doc in step["docs"]:
@@ -553,6 +553,10 @@ def do_initialize(config, steps, refill):
                     doc_stream.flush()
                 os.rename(doc_stream.name, doc_stream.name.replace(".refill", ".docs"))
     else:
+        with open(config.controller.path + "/status", "w") as status_stream:
+            status_stream.write("Initializing job.")
+            status_stream.flush()
+
         for step in steps:
             with open(config.controller.path + "/docs/" + step["name"] + ".docs", "w") as doc_stream:
                 for doc in step["docs"]:
@@ -584,12 +588,13 @@ def next_batch(wm_api, db_cursor, config, counter, doc_batch):
     if len(doc_batch) < n_docs:
         counter.done = True
         for doc in db_cursor:
+            counter.done = False
             doc_batch.append(doc)
             #print(len(doc_batch))
             #sys.stdout.flush()
             counter.incr_doc(1)
             if len(doc_batch) == n_docs:
-                counter.done = False
+                #counter.done = False
                 break
 
     refill, steps, doc_batch = do_verify(wm_api, config, counter, doc_batch)
@@ -616,10 +621,10 @@ def iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch):
     if config.db.sort:
         db_cursor = db_cursor.sort(config.db.sort)
     while time_left(config) > 0 and not counter.done:
-        try:
-            doc_batch = next_batch(wm_api, db_cursor, config, counter, doc_batch)
-        except StopIteration:
-            break
+        #try:
+        doc_batch = next_batch(wm_api, db_cursor, config, counter, doc_batch)
+        #except StopIteration:
+        #    break
 
     return doc_batch
 
@@ -685,27 +690,25 @@ print("Starting job crunch_" + config.module.name + "_" + config.controller.name
 print("")
 sys.stdout.flush()
 
-# Initialize counter and batch list
-
-counter = BatchCounter(config.controller.path + "/counter")
-doc_batch = []
-
 # Begin controller body
 
+doc_batch = []
+counter = BatchCounter(config.controller.path + "/counter")
 doc_batch = iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch)
 
-while time_left(config) > 0 and (wm_api.is_dependency_running(config.cluster.user, config.controller.dependencies) or wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0):
+while time_left(config) > 0 and wm_api.is_dependency_running(config.cluster.user, config.controller.dependencies):
+    counter = BatchCounter(config.controller.path + "/counter")
     doc_batch = iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch)
 
-doc_batch = iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch)
+while time_left(config) > 0 and wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0:
+    if counter.done:
+        for refill_file in os.listdir(config.controller.path + "/docs"):
+            if refill_file.endswith(".refill"):
+                with open(config.controller.path + "/docs/" + refill_file, "w") as refill_stream:
+                    os.rename(refill_stream.name, refill_stream.name.replace(".refill", ".done"))
+    sleep(0.1)
 
 # Tie up loose ends and restart controller if necessary
-
-if config.options.nrefill:
-    for refill_file in os.listdir(config.controller.path + "/docs"):
-        if refill_file.endswith(".refill"):
-            os.remove(config.controller.path + "/docs/" + refill_file)
-            open(config.controller.path + "/docs/" + refill_file.replace(".refill", ".done"), "w").close()
 
 job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_controller"
 
