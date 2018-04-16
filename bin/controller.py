@@ -288,7 +288,7 @@ def wait_for_slots(wm_api, config):
             with open(refill_file, "r") as refill_stream:
                 refill_line = refill_stream.readline().rstrip("\n")
                 steps.append(json.loads(refill_line))
-        if len(steps) > config.options.nrefill:
+        if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(wm_api, config)):
             return True, steps
 
     nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
@@ -317,7 +317,7 @@ def wait_for_slots(wm_api, config):
                 with open(refill_file, "r") as refill_stream:
                     refill_line = refill_stream.readline().rstrip("\n")
                     steps.append(json.loads(refill_line))
-            if len(steps) > config.options.nrefill:
+            if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(wm_api, config)):
                 return True, steps
 
         nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())

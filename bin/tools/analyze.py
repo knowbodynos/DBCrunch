@@ -23,6 +23,7 @@ from argparse import ArgumentParser
 from pytz import utc
 from glob import iglob
 import numpy as np
+from scipy import signal
 #from scipy.stats import norm#, poisson
 #import matplotlib.mlab as mlab
 matplotlib.use('Agg')
@@ -373,15 +374,15 @@ dir_size = np.delete(dir_size, range(min_time))
 #print(max_time - min_time)
 #sys.stdout.flush()
 
-intermed_cum = np.zeros(max_time - min_time, dtype = int)
-intermed_count = 0
-out_cum = np.zeros(max_time - min_time, dtype = int)
-out_count = 0
-for i in range(max_time - min_time):
-    intermed_count += intermed_done[i]
-    intermed_cum[i] = intermed_count
-    out_count += out_done[i]
-    out_cum[i] = out_count
+intermed_cum = np.cumsum(intermed_done)#np.zeros(max_time - min_time, dtype = int)
+#intermed_count = 0
+out_cum = np.cumsum(out_done)#np.zeros(max_time - min_time, dtype = int)
+#out_count = 0
+#for i in range(max_time - min_time):
+#    intermed_count += intermed_done[i]
+#    intermed_cum[i] = intermed_count
+#    out_count += out_done[i]
+#    out_cum[i] = out_count
 
 jobs_pend = np.zeros(max_time - min_time, dtype = int)
 jobs_run = np.zeros(max_time - min_time, dtype = int)
@@ -481,6 +482,14 @@ steps_run = steps_run_zip
 intermed_cum = intermed_zip
 out_cum = out_zip
 
+interval = min(times.size, 60 * 2)
+weights = np.ones(interval) / interval
+
+intermed_smooth = signal.fftconvolve(intermed, weights[::-1], mode = 'same')
+intermed_done_smooth = signal.fftconvolve(intermed_done, weights[::-1], mode = 'same')
+out_smooth = signal.fftconvolve(out, weights[::-1], mode = 'same')
+out_done_smooth = signal.fftconvolve(out_done, weights[::-1], mode = 'same')
+
 #plot_labels = ["# Jobs", "# Steps", "Processing", "Processed", "Writing", "Written"]
 #plot_lists = [jobs, total, run, intermed, wait, out]
 
@@ -510,7 +519,7 @@ sys.stdout.flush()
 width, height = 30., 25.
 #line_width = width / times[-1]
 
-n_time = 6
+n_time = 7
 n_hist = 2
 
 gs = GridSpec(n_time + n_hist, 1)
@@ -636,22 +645,22 @@ ax_time[time_ax_ind].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lowe
 
 time_ax_ind += 1
 
-# 4) Processing and Writing
+# 4) Processing
 
-plot_labels = ["Processing", "Writing"]#, "Active"]
-plot_lists = [intermed, out]#, total]]
-colors = ['green', 'blue']#, 'purple']
+plot_label = "Processing"#, "Active"]
+plot_list = intermed_smooth#, total]]
+color = 'green'#, 'purple']
 
-concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
-if concat_lists.size > 0:
-    y_max = max(concat_lists)
+#concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
+if plot_list.size > 0:
+    y_max = max(plot_list)
 else:
     y_max = 0
 y_exp = len(str(int(y_max))) - 1
 if y_exp != 0:
     ax_time[time_ax_ind].text(0, 1, u"\u00D7" + " 10^" + str(y_exp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = ax_time[time_ax_ind].transAxes)
 ax_time[time_ax_ind].yaxis.set_major_formatter(create_y_ticker(y_scale, y_exp))
-ax_time[time_ax_ind].set_ylabel("# of Docs")
+ax_time[time_ax_ind].set_ylabel("# of Docs " + plot_label)
 ax_time[time_ax_ind].set_ylim(0, 1.1 * y_scale * y_max)
 #for i in range(len(plot_lists)):
 #    ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
@@ -659,8 +668,7 @@ ax_time[time_ax_ind].set_ylim(0, 1.1 * y_scale * y_max)
 #ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[0], y_scale * np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
 #ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[1], y_scale * np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
 
-ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[0], color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
-ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[1], color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
+ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_list, color = color, alpha = 0.5, linewidth = 0.1, label = plot_label)
 
 
 #for i in range(2):
@@ -677,11 +685,55 @@ ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[1], colo
 #        yintercept = ""
 #    ax_time[time_ax_ind].text(x_scale * fit_pos_x, y_scale * fit_pos_y, "y = " + slope + yintercept, horizontalalignment = 'left', verticalalignment = 'bottom')
 #ax_time[time_ax_ind].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
-ax_time[time_ax_ind].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+#ax_time[time_ax_ind].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
 
 time_ax_ind += 1
 
-# 5) Processed and Writen
+# 5) Writing
+
+plot_label = "Writing"#, "Active"]
+plot_list = out_smooth#, total]]
+color = 'blue'#, 'purple']
+
+#concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
+if plot_list.size > 0:
+    y_max = max(plot_list)
+else:
+    y_max = 0
+y_exp = len(str(int(y_max))) - 1
+if y_exp != 0:
+    ax_time[time_ax_ind].text(0, 1, u"\u00D7" + " 10^" + str(y_exp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = ax_time[time_ax_ind].transAxes)
+ax_time[time_ax_ind].yaxis.set_major_formatter(create_y_ticker(y_scale, y_exp))
+ax_time[time_ax_ind].set_ylabel("# of Docs " + plot_label)
+ax_time[time_ax_ind].set_ylim(0, 1.1 * y_scale * y_max)
+#for i in range(len(plot_lists)):
+#    ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
+
+#ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[0], y_scale * np.where(plot_lists[0] > plot_lists[1], plot_lists[1], 0), color = colors[0], alpha = 0.5, linewidth = 0.1, label = plot_labels[0])
+#ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[1], y_scale * np.where(plot_lists[1] > plot_lists[0], plot_lists[0], 0), color = colors[1], alpha = 0.5, linewidth = 0.1, label = plot_labels[1])
+
+ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_list, color = color, alpha = 0.5, linewidth = 0.1, label = plot_label)
+
+
+#for i in range(2):
+#    fit = np.polyfit(times, plot_lists[i], deg = 1)
+#    fit_pos_x = times[len(times) / 2]
+#    fit_pos_y = (fit[0] * fit_pos_x + fit[1]) + ((1 - 2 * i) * (0.1 * plot_lists[i][-1]))
+#    ax_time[time_ax_ind].plot(x_scale * times, y_scale * (fit[0] * times + fit[1]), color = 'black', linestyle = '--', alpha = 1, linewidth = 2, label = plot_labels[i] + ' Fit')
+#    slope = str("%.2f" % fit[0]) + "x"
+#    if fit[1] > 0:
+#        yintercept = " + " + str("%.2f" % fit[1])
+#    elif fit[1] < 0:
+#        yintercept = " - " + str("%.2f" % -fit[1])
+#    else:
+#        yintercept = ""
+#    ax_time[time_ax_ind].text(x_scale * fit_pos_x, y_scale * fit_pos_y, "y = " + slope + yintercept, horizontalalignment = 'left', verticalalignment = 'bottom')
+#ax_time[time_ax_ind].legend(bbox_to_anchor = (0.775, 1.0, 0.225, 0.1), loc = 'lower left', ncol = 3, mode = "expand", borderaxespad = 0.)
+#ax_time[time_ax_ind].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lower left', ncol = 2, mode = "expand", borderaxespad = 0.)
+
+time_ax_ind += 1
+
+# 6) Processed and Writen
 
 plot_labels = ["Processed", "Written"]#, "Active"]
 plot_lists = [intermed_cum, out_cum]#, total]]
@@ -726,10 +778,18 @@ ax_time[time_ax_ind].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lowe
 
 time_ax_ind += 1
 
-# 6) Processed and Written Derivatives
+# 7) Processed and Written Derivatives
+
+#interval = 5
+#intermed_der = np.empty(intermed_done.size, dtype = int)
+#out_der = np.empty(out_done.size, dtype = int)
+#for i in range(0, times.size, interval):
+#    intermed_der[i:i + interval].fill(sum(intermed_done[i:i + interval]))
+#    out_der[i:i + interval].fill(sum(out_done[i:i + interval]))
 
 plot_labels = ["Processed", "Written"]#, "Active"]
-interval, plot_lists = piecewise_least_squares_derivative(times, [intermed_cum, out_cum], interval = int(ceil(0.005 * times.size)))
+#interval, plot_lists = piecewise_least_squares_derivative(times, [intermed_cum, out_cum], interval = 5)
+plot_lists = [intermed_done_smooth, out_done_smooth]
 colors = ['green', 'blue']#, 'purple']
 
 concat_lists = np.concatenate(tuple(plot_lists), axis = 0)
@@ -741,11 +801,7 @@ y_exp = len(str(int(y_max))) - 1
 if y_exp != 0:
     ax_time[time_ax_ind].text(0, 1, u"\u00D7" + " 10^" + str(y_exp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = ax_time[time_ax_ind].transAxes)
 ax_time[time_ax_ind].yaxis.set_major_formatter(create_y_ticker(y_scale, y_exp))
-if interval > 1:
-    plural = "s"
-else:
-    plural = ""
-ax_time[time_ax_ind].set_ylabel("# of Docs per " + str(interval) + " second" + plural)
+ax_time[time_ax_ind].set_ylabel("# of Docs per Second")
 ax_time[time_ax_ind].set_ylim(0, 1.1 * y_scale * y_max)
 #for i in range(len(plot_lists)):
 #    ax_time[time_ax_ind].fill_between(x_scale * times, y_scale * plot_lists[i], color = colors[i], alpha = 0.5, linewidth = 1, label = plot_labels[i])
@@ -775,13 +831,13 @@ ax_time[time_ax_ind].legend(bbox_to_anchor = (0.85, 1.0, 0.15, 0.1), loc = 'lowe
 time_ax_ind += 1
 
 hist_ax_ind = 0
-interval, done = piecewise_least_squares_derivative(times, [intermed_cum, out_cum], interval = int(ceil(0.005 * times.size)))
+#interval, done = piecewise_least_squares_derivative(times, [intermed_cum, out_cum], interval = 5)
 
-# 7) Steps Processed
+# 8) Steps Processed
 
 plot_label = "Processed"
-intermed_done = done[0]
-nonzero_list = [x for x in intermed_done if x > 0]
+#intermed_done = done[0]
+nonzero_list = [x for x in intermed_done_smooth if x > 0]
 #nonzero_list = [float(intermed_done[i]) / intermed[i] for i in range(intermed_done.size) if intermed_done[i] > 0 and intermed[i] > 0]
 #nonzero_list = []
 #uncert = 2
@@ -814,11 +870,7 @@ else:
 y_exp = len(str(int(y_max))) - 1
 if y_exp != 0:
     ax_hist[hist_ax_ind].text(0, 1, u"\u00D7" + " 10^" + str(y_exp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = ax_hist[hist_ax_ind].transAxes)
-if interval > 1:
-    plural = "s"
-else:
-    plural = ""
-ax_hist[hist_ax_ind].set_xlabel("# of Docs " + plot_label + " per " + str(interval) + " second" + plural)
+ax_hist[hist_ax_ind].set_xlabel("# of Docs " + plot_label + " per Second")
 ax_hist[hist_ax_ind].yaxis.set_major_formatter(create_y_ticker(1, y_exp))
 ax_hist[hist_ax_ind].set_ylabel("Frequency")
 ax_hist[hist_ax_ind].set_ylim(0, 1 * y_max)
@@ -843,8 +895,8 @@ hist_ax_ind += 1
 # 8) Steps Written
 
 plot_label = "Written"
-out_done = done[1]
-nonzero_list = [x for x in out_done if x > 0]
+#out_done = done[1]
+nonzero_list = [x for x in out_done_smooth if x > 0]
 #nonzero_list = [float(out_done[i]) / out[i] for i in range(out_done.size) if out_done[i] > 0 and out[i] > 0]
 #nonzero_list = []
 #uncert = 2
@@ -880,11 +932,7 @@ else:
 y_exp = len(str(int(y_max))) - 1
 if y_exp != 0:
     ax_hist[hist_ax_ind].text(0, 1, u"\u00D7" + " 10^" + str(y_exp), horizontalalignment = 'left', verticalalignment = 'bottom', transform = ax_hist[hist_ax_ind].transAxes)
-if interval > 1:
-    plural = "s"
-else:
-    plural = ""
-ax_hist[hist_ax_ind].set_xlabel("# of Docs " + plot_label + " per " + str(interval) + " second" + plural)
+ax_hist[hist_ax_ind].set_xlabel("# of Docs " + plot_label + " per Second")
 ax_hist[hist_ax_ind].yaxis.set_major_formatter(create_y_ticker(1, y_exp))
 ax_hist[hist_ax_ind].set_ylabel("Frequency")
 ax_hist[hist_ax_ind].set_ylim(0, 1 * y_max)
