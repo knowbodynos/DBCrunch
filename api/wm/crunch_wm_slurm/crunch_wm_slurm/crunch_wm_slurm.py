@@ -20,12 +20,13 @@ def retry(script, max_tries = None):
         stdout, stderr = proc.communicate()
         if stderr:
             n_tries += 1
-            sys.stderr.write("Attempt " + str(n_tries) + ": " + stderr + "\n")
-            sys.stderr.flush()
             if (not max_tries) or n_tries < max_tries:
                 sleep(0.1)
             else:
-                raise Exception(stderr)
+                sys.stderr.write(stderr + "\n")
+                sys.stderr.write(str(n_tries) + " attempts made.")
+                sys.stderr.flush()
+                raise
         else:
             return stdout, stderr
 

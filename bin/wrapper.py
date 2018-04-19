@@ -509,8 +509,6 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
         '''The body of the thread: read lines and put them on the queue.'''
         while not self.__signal:
             while self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name) and not self.__db_writer.empty():
-                print("hi")
-                sys.stdout.flush()
                 if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".lock"):
                     if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".ready"):
                         ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
