@@ -57,13 +57,16 @@ class DatabaseReader(object):
         self.done = False
 
     def read(self, n):
+        doc_count = 0
         if len(self.batch) < n:
             self.done = True
             for doc in self.__db_cursor:
                 self.done = False
                 self.batch.append(doc)
+                doc_count += 1
                 if len(self.batch) == n:
                     break
+        return doc_count
 
     def close(self):
         self.__db_client.close()

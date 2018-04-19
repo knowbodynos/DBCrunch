@@ -581,8 +581,8 @@ def next_batch(config, wm_api, db_reader, counter):
         status_stream.write("Loading input from database.")
         status_stream.flush()
 
-    db_reader.read(n_docs)
-    counter.incr_doc(len(db_reader.batch))
+    doc_count = db_reader.read(n_docs)
+    counter.incr_doc(doc_count)
 
     refill, steps = do_verify(config, wm_api, db_reader, counter)
 
