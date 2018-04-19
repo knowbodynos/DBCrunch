@@ -37,7 +37,7 @@ Using `DBCrunch`:
 
 2) If your module is compiled or is written in a scripting language you haven't used before, make sure to enter this information into the `${CRUCH_ROOT}/crunch.config` file under the *software* key.
 
-3) Write a controller configuration template for your module and add it to the `${CRUNCH_ROOT}/modules/modules/<module>` directory. A typical job script template looks like:
+3) Write a controller configuration template for your module called `<module>.config` and add it to the `${CRUNCH_ROOT}/modules/modules/<module>` directory. A typical job script template looks like:
 
 ```
 # Options for controller job
