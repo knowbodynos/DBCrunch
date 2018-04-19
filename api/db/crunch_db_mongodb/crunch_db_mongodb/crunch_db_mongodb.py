@@ -95,7 +95,6 @@ class DatabaseWriter(Queue):
         self.indexes = self.__db_database[db_info.basecollection].get_indexes()
         self.collections = {}
 
-        
         self.count = 0
         self.bson_size = 0
 

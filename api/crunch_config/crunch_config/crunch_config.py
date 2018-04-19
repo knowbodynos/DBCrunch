@@ -244,7 +244,7 @@ class Config(object):
 
         ##     Import workload manager methods
 
-        wm_api = __import__(self.cluster.wm.api)
+        wm_api = __import__("crunch_wm_" + self.cluster.wm.api)
 
         ##     User
         self.cluster.user = os.environ['USER']

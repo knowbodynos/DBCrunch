@@ -40,7 +40,7 @@ config = Config(controller_path = kwargs["controller_path"])
 
 # Import workload manager API
 
-wm_api = __import__("crunch_" + config.cluster.wm.api)
+wm_api = __import__("crunch_wm_" + config.cluster.wm.api)
 
 tool_name = kwargs["tool"].split(".")[0]
 job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_" + tool_name

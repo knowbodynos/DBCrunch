@@ -22,12 +22,12 @@ def retry(script, warn_tries = 10, max_tries = None):
         stdout, stderr = proc.communicate()
         if stderr:
             n_tries += 1
-            if n_tries > 0 and n_tries % warn_tries == 0:
+            if n_tries % warn_tries == 0:
                 sys.stderr.write(stderr + "\n")
-                sys.stderr.write(str(n_tries) + " attempts made.")
+                sys.stderr.write(str(n_tries) + " attempts made.\n")
                 sys.stderr.flush()
             if (not max_tries) or n_tries < max_tries:
-                sleep(0.1)
+                sleep(1)
             else:
                 raise Exception(stderr)
         else:
@@ -39,7 +39,8 @@ def get_timestamp():
 # Miscellaneous workload manager methods
 
 def get_partition(job_id):
-    script = "sacct -n -j " + job_id + " -o 'Partition%30' | head -n 1 | sed 's/\s//g' | head -c -1"
+    #script = "sacct -n -j " + job_id + " -o 'Partition%30' | head -n 1 | sed 's/\s//g' | head -c -1"
+    script = "squeue -h -j " + job_id + " -o '%P' | head -c -1"
     stdout, stderr = retry(script)
     return stdout
 
@@ -61,7 +62,8 @@ def n_controller_jobs(user_name, module_name, controller_name):
     return int(stdout)
 
 def n_controller_steps(user_name, module_name, controller_name):
-    script = "sacct -n -u " + user_name + " -s 'R' -o 'JobName%50' | grep -E 'crunch_" + module_name + "_" + controller_name + "_job_.*_step_' | wc -l | head -c -1"
+    #script = "sacct -n -u " + user_name + " -s 'R' -o 'JobName%50' | grep -E 'crunch_" + module_name + "_" + controller_name + "_job_.*_step_' | wc -l | head -c -1"
+    script = "squeue -h -s -u " + user_name + " -o '%j' | grep -E 'crunch_" + module_name + "_" + controller_name + "_job_.*_step_' | wc -l | head -c -1"
     stdout, stderr = retry(script)
     return int(stdout)
 

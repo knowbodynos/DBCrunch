@@ -335,7 +335,7 @@ def wait_for_slots(config, wm_api):
     #sys.stdout.flush()
     return False, nodes
 
-def prep_nodes(config, wm_api, refill, slots, db_reader, start_slot = 0):
+def prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = 0):
     with open(config.controller.path + "/status", "w") as status_stream:
         status_stream.write("Populating steps.")
         status_stream.flush()
@@ -455,7 +455,7 @@ def do_input(config, wm_api, db_reader):
     #sys.stdout.flush()
     
     refill, slots = wait_for_slots(config, wm_api)
-    steps = prep_nodes(config, wm_api, refill, slots, db_reader, start_slot = 0)
+    steps = prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = 0)
     
     return steps
 
@@ -464,7 +464,7 @@ def do_verify(config, wm_api, db_reader, counter):
     start_slot = 0
     while time_left(config) > 0:
         refill, slots = wait_for_slots(config, wm_api)
-        steps = prep_nodes(config, wm_api, refill, slots, db_reader, start_slot = start_slot)
+        steps = prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = start_slot)
         
         i = 0
         next_doc_ind = 0
@@ -615,11 +615,11 @@ config = Config(**kwargs)
 
 # Import workload manager API
 
-wm_api = __import__("crunch_" + config.cluster.wm.api)
+wm_api = __import__("crunch_wm_" + config.cluster.wm.api)
 
 # Initialize database reader
 
-db_api = __import__("crunch_" + config.db.api)
+db_api = __import__("crunch_db_" + config.db.api)
 
 db_reader = db_api.DatabaseReader(config.db)
 
@@ -664,7 +664,7 @@ while time_left(config) > 0 and wm_api.is_dependency_running(config.cluster.user
     iterate_batches(config, wm_api, db_reader, counter)
 
 while time_left(config) > 0 and wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0:
-    if counter.done:
+    if db_reader.done:
         for refill_file in os.listdir(config.controller.path + "/docs"):
             if refill_file.endswith(".refill"):
                 with open(config.controller.path + "/docs/" + refill_file, "w") as refill_stream:

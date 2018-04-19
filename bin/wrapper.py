@@ -528,7 +528,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
             #print("NThreads: " + str(active_count()))
             #sys.stdout.flush()
 
-        self.__db_client.close()
+        self.__db_writer.close()
 
     def cleanup_intermed_log(self):
         with open(self.controller.path + "/logs/" + self.step.name + ".log.intermed", "r") as intermed_log_stream:
@@ -661,7 +661,7 @@ config = WrapperConfig(**kwargs)
 
 # Import workload manager API
 
-wm_api = __import__("crunch_" + config.cluster.wm.api)
+wm_api = __import__("crunch_wm_" + config.cluster.wm.api)
 
 # Initialize stats
 
@@ -689,7 +689,7 @@ process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE
 
 # Initialize database writer
 
-db_api = __import__("crunch_" + config.db.api)
+db_api = __import__("crunch_db_" + config.db.api)
 
 db_writer = db_api.DatabaseWriter(config.db, ordered = False)
 
