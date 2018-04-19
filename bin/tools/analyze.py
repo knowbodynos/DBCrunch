@@ -331,7 +331,7 @@ for intermed_log_file_path in iglob(args["in_path"] + "/*.log.intermed"):
 #print(out_done.size)
 #print(max([x for y in job_submit_start_end.values() for x in y if x] + [x for y in step_submit_start_end.values() for x in y if x]))
 #sys.stdout.flush()
-max_time = min(max(intermed_done.size, out_done.size), max([x for y in job_submit_start_end.values() for x in y if x] + [x for y in step_submit_start_end.values() for x in y if x]))
+max_time = max([intermed_done.size, out_done.size] + [x for y in job_submit_start_end.values() for x in y if x] + [x for y in step_submit_start_end.values() for x in y if x])
 #max_time = out_done.size
 if args["time_limit"] and max_time > args["time_limit"]:
     max_time = args["time_limit"]

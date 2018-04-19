@@ -11,22 +11,25 @@ from time import sleep
 def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
 
-def retry(script, max_tries = None):
+def retry(script, warn_tries = 10, max_tries = None):
     #MAX_TRIES = 10
     #for i in range(MAX_TRIES):
+    if max_tries and warn_tries > max_tries:
+        max_tries = warn_tries
     n_tries = 0
     while True:
         proc = Popen(script, shell = True, stdout = PIPE, stderr = PIPE, preexec_fn = default_sigpipe)
         stdout, stderr = proc.communicate()
         if stderr:
             n_tries += 1
-            if (not max_tries) or n_tries < max_tries:
-                sleep(0.1)
-            else:
+            if n_tries > 0 and n_tries % warn_tries == 0:
                 sys.stderr.write(stderr + "\n")
                 sys.stderr.write(str(n_tries) + " attempts made.")
                 sys.stderr.flush()
-                raise
+            if (not max_tries) or n_tries < max_tries:
+                sleep(0.1)
+            else:
+                raise Exception(stderr)
         else:
             return stdout, stderr
 
