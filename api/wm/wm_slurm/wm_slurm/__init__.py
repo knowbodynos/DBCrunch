@@ -1,1 +1,0 @@
-from wm_slurm import *

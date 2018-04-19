@@ -110,7 +110,7 @@ do
     wait
 done
 
-#Install mpi4py package
+# Install mpi4py package
 
 echo "Installing mpi4py package..."
 
@@ -134,11 +134,8 @@ then
     rm -rf pymongo
 fi
 
-#Install database APIs
+# Install pymongo
 
-echo "Installing database APIs..."
-
-#Install pymongo
 if $(python -c "import pymongo" |& grep -q "ImportError" && echo true || echo false)
 then
     cd ${HOME}
@@ -159,24 +156,67 @@ then
     rm -rf pymongo
 fi
 
-#Install mongojoin
-cd ${CRUNCH_ROOT}/api/db/mongojoin
+# Install pymongojoin
+
+if $(python -c "import pymongojoin" |& grep -q "ImportError" && echo true || echo false)
+then
+    cd ${HOME}
+    rm -r ${HOME}/pymongojoin 2>/dev/null
+    git clone https://github.com/knowbodynos/pymongojoin.git pymongojoin
+    wait
+    cd pymongojoin
+    git checkout master
+    wait
+    rm -rf .git
+    python setup.py install --user
+    if [[ "$(command -v sage)" != "" ]]
+    then
+        sage --python setup.py install --user
+    fi
+    wait
+    cd ..
+    rm -rf pymongojoin
+fi
+
+# Install config API
+
+echo "Installing config API..."
+
+#     Install crunch_slurm
+
+cd ${CRUNCH_ROOT}/api/crunch_config
 python setup.py install --user --record filespy.txt
 if [[ "$(command -v sage)" != "" ]]
 then
     sage --python setup.py install --user --record filessage.txt
 fi
 
-#Install workload APIs
+# Install database APIs
 
-echo "Installing workload APIs..."
+echo "Installing database APIs..."
 
-#Install crunch_slurm
-cd ${CRUNCH_ROOT}/api/workload/crunch_slurm
-python setup.py install --user --record filespy.txt
-if [[ "$(command -v sage)" != "" ]]
-then
-    sage --python setup.py install --user --record filessage.txt
-fi
+for db_api in $(find ${CRUNCH_ROOT}/api/db -mindepth 1 -maxdepth 1 -type d)
+do
+    cd ${db_api}
+    python setup.py install --user --record filespy.txt
+    if [[ "$(command -v sage)" != "" ]]
+    then
+        sage --python setup.py install --user --record filessage.txt
+    fi
+done
+
+#Install workload manager APIs
+
+echo "Installing workload manager APIs..."
+
+for wm_api in $(find ${CRUNCH_ROOT}/api/wm -mindepth 1 -maxdepth 1 -type d)
+do
+    cd ${db_api}
+    python setup.py install --user --record filespy.txt
+    if [[ "$(command -v sage)" != "" ]]
+    then
+        sage --python setup.py install --user --record filessage.txt
+    fi
+done
 
 cd ${currpath}

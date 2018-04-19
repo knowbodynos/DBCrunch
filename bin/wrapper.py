@@ -39,12 +39,6 @@ from crunch_config import *
 def default_sigpipe():
     signal(SIGPIPE, SIG_DFL)
 
-def merge_two_dicts(x, y):
-    """Given two dicts, merge them into a new dict as a shallow copy."""
-    z = x.copy()
-    z.update(y)
-    return z
-
 def time_left(config):
     if config.step.maxtime:
         return config.starttime + config.step.maxtime - config.step.buffertime - time()
@@ -120,6 +114,8 @@ class WrapperConfig(Config):
         step_id = kwargs["step_id"]
         controller_id = step_id.split(".")[0]
 
+        # Initialize Config
+
         Config.__init__(self, controller_path = controller_path, controller_id = controller_id)
 
         while True:
@@ -132,6 +128,8 @@ class WrapperConfig(Config):
                     raise
                 else:
                     sleep(0.1)
+
+        # Initialize Step
 
         self.step = self.Objectify(**stepdoc)
         self.step.buffertime = self.job.buffertime
@@ -156,11 +154,11 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
         assert isinstance(stats_queue, Queue)
         assert callable(process.stdin.write)
 
-        # Initiate config
+        # Initialize WrapperConfig
 
         WrapperConfig.__init__(self, **kwargs)
 
-        # Initiate thread
+        # Initialize Thread
         
         Thread.__init__(self)
 
@@ -168,7 +166,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
 
         self.__wm_api = wm_api
 
-        # Initiate private variables
+        # Initialize private variables
 
         self.__intermed_queue = intermed_queue
         self.__out_queue = out_queue
@@ -433,16 +431,12 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, wm_api, db_api, db_client, batch_queue, **kwargs):
-        # Assertions
-
-        assert isinstance(batch_queue, Queue)
-
-        # Initiate config
+    def __init__(self, wm_api, db_writer, **kwargs):
+        # Initialize WrapperConfig
 
         WrapperConfig.__init__(self, **kwargs)
 
-        # Initiate thread
+        # Initialize Thread
         
         Thread.__init__(self)
 
@@ -450,57 +444,40 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
 
         self.__wm_api = wm_api
 
-        # Import database module API
+        # Import database writer
 
-        self.__db_api = db_api
+        self.__db_writer = db_writer
 
-        self.__db_client = db_client
-        self.__db_database = self.__db_client[self.db.name]
-
-        # Initiate private variables
+        # Initialize private variables
 
         self.__signal = False
-        self.__batch_queue = batch_queue
-        self.__bulk_colls = {}
-        self.__count_io_outs = {}
+        self.__count_bkp_ext_out = {}
         self.__count_log_out = 0
         self.__count_batches_out = 0
 
         self.daemon = True
 
     def write_batch(self):
-
-        write_dict = self.__batch_queue.get()
+        count, log_lines, bkp_ext_lines = self.__db_writer.get_batch(upsert = True)
         
-        self.__count_batches_out += write_dict['count']
+        self.__count_batches_out += count
 
         if self.options.outlog:
             in_write_timestamp = datetime.utcnow().replace(tzinfo = utc)
             in_write_time = time()
 
-        if self.options.outdb or self.options.statsdb:
-            if self.db.api == "db_mongodb":
-                for coll, requests in write_dict['requests'].items():
-                    try:
-                        if coll not in self.__bulk_colls:
-                            self.__bulk_colls[coll] = self.__db_database.get_collection(coll, write_concern = self.__db_api.WriteConcern(w = self.db.writeconcern, fsync = self.db.fsync))
-                        self.__bulk_colls[coll].bulk_write(requests, ordered = False)
-                    except self.__db_api.BulkWriteError as bwe:
-                        pprint(bwe.details)
-
         if self.options.outlog:
             write_time = time() - in_write_time
-            out_log_io_split = write_dict['log'].rstrip("\n").split("\n")
-            avg_write_time = write_time / len(out_log_io_split)
-            out_log_io_line_count = 1
-            for out_log_io_line in out_log_io_split:
-                if out_log_io_line != "":
-                    start_write_timestamp = (in_write_timestamp + timedelta(seconds = (out_log_io_line_count - 1) * avg_write_time)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
-                    end_write_timestamp = (in_write_timestamp + timedelta(seconds = out_log_io_line_count * avg_write_time)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+            avg_write_time = write_time / len(log_lines)
+            out_log_line_count = 1
+            for out_log_line in log_lines:
+                if out_log_line != "":
+                    start_write_timestamp = (in_write_timestamp + timedelta(seconds = (out_log_line_count - 1) * avg_write_time)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
+                    end_write_timestamp = (in_write_timestamp + timedelta(seconds = out_log_line_count * avg_write_time)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:(2 - 6)] + "Z"
                     with open(self.controller.path + "/logs/" + self.step.name + ".log", "a") as out_log_stream:
-                        out_log_stream.write(end_write_timestamp + " " + start_write_timestamp + " " + str(dir_size(self.controller.path)) + " " + out_log_io_line + "\n")
+                        out_log_stream.write(end_write_timestamp + " " + start_write_timestamp + " " + str(dir_size(self.controller.path)) + " " + out_log_line + "\n")
                         out_log_stream.flush()
-                    out_log_io_line_count += 1
+                    out_log_line_count += 1
                     self.__count_log_out += 1
             
             if self.options.intermedlog and self.__count_batches_out >= self.options.cleanup:
@@ -508,21 +485,20 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                 self.__count_log_out = 0
 
         if self.options.outlocal or self.options.statslocal:
-            for out_ext, outio in write_dict['io'].items():
-                with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext, "a") as out_io_stream:
-                    out_io_split = outio.rstrip("\n").split("\n")
-                    for out_io_line in out_io_split:
-                        if out_io_line != "":
-                            out_io_stream.write(out_io_line + "\n")
-                            out_io_stream.flush()
-                            if out_ext in self.__count_io_outs:
-                                self.__count_io_outs[out_ext] += 1
+            for bkp_ext, bkp_lines in bkp_ext_lines.items():
+                with open(self.controller.path + "/bkps/" + self.step.name + "." + bkp_ext, "a") as out_bkp_stream:
+                    for out_bkp_line in bkp_lines:
+                        if out_bkp_line != "":
+                            out_bkp_stream.write(out_bkp_line + "\n")
+                            out_bkp_stream.flush()
+                            if bkp_ext in self.__count_bkp_ext_out:
+                                self.__count_bkp_ext_out[bkp_ext] += 1
                             else:
-                                self.__count_io_outs[out_ext] = 1
+                                self.__count_bkp_ext_out[bkp_ext] = 1
 
             if self.options.intermedlocal and self.__count_batches_out >= self.options.cleanup:
-                self.cleanup_intermed_io()
-                self.__count_io_outs = {}
+                self.cleanup_intermed_bkp()
+                self.__count_bkp_ext_out = {}
 
         if self.__count_batches_out >= self.options.cleanup:
             self.__count_batches_out = 0
@@ -532,7 +508,9 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
         while not self.__signal:
-            while self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name) and not self.__batch_queue.empty():
+            while self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name) and not self.__db_writer.empty():
+                print("hi")
+                sys.stdout.flush()
                 if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".lock"):
                     if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".ready"):
                         ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
@@ -542,7 +520,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                 #print("NThreads: " + str(active_count()))
                 #sys.stdout.flush()
 
-        while self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name) and not self.__batch_queue.empty():
+        while self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name) and not self.__db_writer.empty():
             if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".lock"):
                 if not os.path.exists(self.controller.path + "/locks/" + self.step.name + ".ready"):
                     ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
@@ -565,223 +543,108 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                         raise
             with tempfile.NamedTemporaryFile(dir = self.controller.path + "/logs", delete = False) as temp_stream:
                 count = 0
-                for intermedlogline in intermed_log_stream:
+                for intermed_log_line in intermed_log_stream:
                     if count >= self.__count_log_out:
-                        temp_stream.write(intermedlogline)
+                        temp_stream.write(intermed_log_line)
                         temp_stream.flush()
                     count += 1
                 os.rename(temp_stream.name, intermed_log_stream.name)
             flock(intermed_log_stream, LOCK_UN)
 
-    def cleanup_intermed_io(self):
-        for out_ext in self.__count_io_outs.keys():
-            with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext + ".intermed", "r") as intermed_io_stream:
+    def cleanup_intermed_bkp(self):
+        for bkp_ext in self.__count_bkp_ext_out.keys():
+            with open(self.controller.path + "/bkps/" + self.step.name + "." + bkp_ext + ".intermed", "r") as intermed_bkp_stream:
                 while True:
                     try:
-                        flock(intermed_io_stream, LOCK_EX | LOCK_NB)
+                        flock(intermed_bkp_stream, LOCK_EX | LOCK_NB)
                         break
                     except IOError as e:
                         if e.errno != EAGAIN:
                             raise
                 with tempfile.NamedTemporaryFile(dir = self.controller.path + "/bkps", delete = False) as temp_stream:
                     count = 0
-                    for intermedioline in intermed_io_stream:
-                        if count >= self.__count_io_outs[out_ext]:
-                            temp_stream.write(intermedioline)
+                    for intermed_bkp_line in intermed_bkp_stream:
+                        if count >= self.__count_bkp_ext_out[bkp_ext]:
+                            temp_stream.write(intermed_bkp_line)
                             temp_stream.flush()
                         count += 1
-                    os.rename(temp_stream.name, intermed_io_stream.name)
-                flock(intermed_io_stream, LOCK_UN)
+                    os.rename(temp_stream.name, intermed_bkp_stream.name)
+                flock(intermed_bkp_stream, LOCK_UN)
 
     def signal(self):
         self.__signal = True
 
-class ModuleInterface(WrapperConfig):
-    def __init__(self, db_api, db_client, **kwargs):
-        # Configure wrapper
-
-        WrapperConfig.__init__(self, **kwargs)
-
-        # Import database module API
-
-        self.__db_api = db_api
-        
-        self.db.client = db_client
-        db_database = self.db.client[self.db.name]
-        self.__db_indexes = db_database[self.db.basecollection].get_indexes()
-
-        # Initialize private variables
-
-        self.__batch_dict = {'requests': {}, 'count': 0}
-        if self.options.outlog:
-            self.__batch_dict['log'] = ""
-        if self.options.outlocal or self.options.statslocal:
-            self.__batch_dict['io'] = {}
-        self.__bson_size = 0
-        self.__count_this_batch = 0
-
-    def process_module_output(self, intermed_queue, out_queue, stats_queue, batch_queue):
-        while not out_queue.empty():
-            line = out_queue.get().rstrip("\n")
-            if not (self.module.ignore and line in self.module.ignore):
-                line_split = line.split()
-                if len(line_split) > 0:
-                    line_action = line_split[0]
-                if line == "":
-                    stats = stats_queue.get()
-                    cpu_time = eval("%.4f" % stats["stats"]["totalcputime"])
-                    max_rss = stats["max"]["rss"]
-                    max_vmsize = stats["max"]["size"]
-                    new_collection = self.db.basecollection
-                    doc = json.loads(intermed_queue.get())
-                    new_index_doc = dict([(x, doc[x]) for x in self.__db_indexes]);
-                    out_ext = new_collection + ".set"
-                    in_intermed_time = stats["in_timestamp"]
-                    out_intermed_time = stats["out_timestamp"]
-                    if self.options.intermedlog or self.options.outlog:
-                        if self.options.intermedlog:
-                            with open(self.controller.path + "/logs/" + self.step.name + ".log.intermed", "a") as intermed_log_stream:
-                                intermed_log_stream.write(out_intermed_time + " " + in_intermed_time + " " + str(dir_size(self.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(self.__bson_size) + " " + json.dumps(new_index_doc, separators = (',', ':')) + "\n")
-                                intermed_log_stream.flush()
-                        if self.options.outlog:
-                            self.__batch_dict['log'] += out_intermed_time + " " + in_intermed_time + " " + str(dir_size(self.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(self.__bson_size) + " " + json.dumps(new_index_doc, separators = (',', ':')) + "\n"
-                    stats_mark = {}
-                    if self.options.statslocal or self.options.statsdb:
-                        stats_mark.update({self.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": self.__bson_size}})
-                    if self.options.markdone:
-                        stats_mark.update({self.module.name + self.options.markdone: True})
-                    if len(stats_mark) > 0:
-                        line_out = json.dumps(new_index_doc, separators = (',', ':')) + " " + json.dumps(stats_mark, separators = (',', ':'))
-                        if self.options.intermedlocal:
-                            with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext + ".intermed", "a") as intermed_io_stream:
-                                intermed_io_stream.write(line_out + "\n")
-                                intermed_io_stream.flush()
-                        if self.options.statslocal:
-                            if out_ext not in self.__batch_dict['io']:
-                                self.__batch_dict['io'][out_ext] = ""
-                            self.__batch_dict['io'][out_ext] += line_out + "\n"
-                        if new_collection not in self.__batch_dict['requests']:
-                            self.__batch_dict['requests'][new_collection] = []
-                        if self.db.api == "db_mongodb":
-                            self.__batch_dict['requests'][new_collection] += [self.__db_api.UpdateOne(new_index_doc, {"$set": stats_mark}, upsert = True)]
-                    self.__bson_size = 0
-                    self.__count_this_batch += 1
-                    self.__batch_dict['count'] += 1
-                    if self.__count_this_batch == self.options.nbatch:
-                        batch_queue.put(self.__batch_dict)
-                        self.__batch_dict = {'requests': {}, 'count': 0}
-                        if self.options.outlog:
-                            self.__batch_dict['log'] = ""
-                        if self.options.outlocal or self.options.statslocal:
-                            self.__batch_dict['io'] = {}
-                        self.__count_this_batch = 0
-                        self.reload()
-                        #print("NThreads: " + str(active_count()))
-                        #sys.stdout.flush()
-                elif line[0] == "#":
-                    if self.options.intermedlog or self.options.outlog:
-                        if self.options.intermedlog:
-                            with open(self.controller.path + "/logs/" + self.step.name + ".log.intermed", "a") as intermed_log_stream:
-                                intermed_log_stream.write("# " + line + "\n")
-                                intermed_log_stream.flush()
-                        if self.options.outlog:
-                            with open(self.controller.path + "/logs/" + self.step.name + ".log", "a") as out_log_stream:
-                                out_log_stream.write("# " + line + "\n")
-                                out_log_stream.flush()
-                elif len(line_split) == 4:
-                    if line_action == "unset":
-                        new_collection = line_split[1]
-                        new_index_doc = json.loads(line_split[2])
-                        doc = json.loads(line_split[3])
-                        line_out = json.dumps(new_index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':'))
-                        out_ext = new_collection + "." + line_action
-                        self.__bson_size -= len(BSON.encode(doc))
-                        if self.options.intermedlocal:
-                            with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext + ".intermed", "a") as intermed_io_stream:
-                                intermed_io_stream.write(line_out + "\n")
-                                intermed_io_stream.flush()
-                        if self.options.outlocal:
-                            if out_ext not in self.__batch_dict['io']:
-                                self.__batch_dict['io'][out_ext] = ""
-                            self.__batch_dict['io'][out_ext] += line_out + "\n"
-                        if self.options.outdb:
-                            if new_collection not in self.__batch_dict['requests']:
-                                self.__batch_dict['requests'][new_collection] = []
-                            if self.db.api == "db_mongodb":
-                                self.__batch_dict['requests'][new_collection] += [self.__db_api.UpdateOne(new_index_doc, {"$unset": doc})]
-                    elif line_action == "set":
-                        new_collection = line_split[1]
-                        new_index_doc = json.loads(line_split[2])
-                        doc = json.loads(line_split[3])
-                        line_out = json.dumps(new_index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':'))
-                        out_ext = new_collection + "." + line_action
-                        self.__bson_size += len(BSON.encode(doc))
-                        if self.options.intermedlocal:
-                            with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext + ".intermed", "a") as intermed_io_stream:
-                                intermed_io_stream.write(line_out + "\n")
-                                intermed_io_stream.flush()
-                        if self.options.outlocal:
-                            if out_ext not in self.__batch_dict['io']:
-                                self.__batch_dict['io'][out_ext] = ""
-                            self.__batch_dict['io'][out_ext] += line_out + "\n"
-                        if self.options.outdb:
-                            if new_collection not in self.__batch_dict['requests']:
-                                self.__batch_dict['requests'][new_collection] = []
-                            if self.db.api == "db_mongodb":
-                                self.__batch_dict['requests'][new_collection] += [self.__db_api.UpdateOne(new_index_doc, {"$set": doc}, upsert = True)]
-                    elif line_action == "addToSet":
-                        new_collection = line_split[1]
-                        new_index_doc = json.loads(line_split[2])
-                        doc = json.loads(line_split[3])
-                        line_out = json.dumps(new_index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':'))
-                        out_ext = new_collection + "." + line_action
-                        self.__bson_size += len(BSON.encode(doc))
-                        if self.options.intermedlocal:
-                            with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext + ".intermed", "a") as intermed_io_stream:
-                                intermed_io_stream.write(line_out + "\n")
-                                intermed_io_stream.flush()
-                        if self.options.outlocal:
-                            if out_ext not in self.__batch_dict['io']:
-                                self.__batch_dict['io'][out_ext] = ""
-                            self.__batch_dict['io'][out_ext] += line_out + "\n"
-                        if self.options.outdb:
-                            if new_collection not in self.__batch_dict['requests']:
-                                self.__batch_dict['requests'][new_collection] = []
-                            if self.db.api == "db_mongodb":
-                                self.__batch_dict['requests'][new_collection] += [self.__db_api.UpdateOne(new_index_doc, {"$addToSet": doc}, upsert = True)]
-                    elif line_action == "insert":
-                        new_collection = line_split[1]
-                        new_index_doc = json.loads(line_split[2])
-                        doc = json.loads(line_split[3])
-                        merged_doc = merge_two_dicts(new_index_doc, doc)
-                        line_out = json.dumps(merged_doc, separators = (',', ':'))
-                        out_ext = new_collection + "." + line_action
-                        self.__bson_size += len(BSON.encode(doc))
-                        if self.options.intermedlocal:
-                            with open(self.controller.path + "/bkps/" + self.step.name + "." + out_ext + ".intermed", "a") as intermed_io_stream:
-                                intermed_io_stream.write(line_out + "\n")
-                                intermed_io_stream.flush()
-                        if self.options.outlocal:
-                            if out_ext not in self.__batch_dict['io']:
-                                self.__batch_dict['io'][out_ext] = ""
-                            self.__batch_dict['io'][out_ext] += line_out + "\n"
-                        if self.options.outdb:
-                            if new_collection not in self.__batch_dict['requests']:
-                                self.__batch_dict['requests'][new_collection] = []
-                            if self.db.api == "db_mongodb":
-                                self.__batch_dict['requests'][new_collection] += [self.__db_api.InsertOne(merged_doc)]
-                else:
-                    try:
-                        raise IndexError("Modules should only output commented lines, blank lines separating processed input documents, or line with 4 columns representing: collection name, update action, index document, output document.")
-                    except IndexError as e:
-                        with open(self.controller.path + "/logs/" + self.step.name + ".err", "a") as err_file_stream:
-                            traceback.print_exc(file = err_file_stream)
-                            err_file_stream.flush()
-                        raise
-    
-    def end_module_output(self, batch_queue):
-        if self.__batch_dict['count'] > 0:
-            batch_queue.put(self.__batch_dict)
+def process_module_output(config, db_writer, intermed_queue, out_queue, stats_queue):
+    while not out_queue.empty():
+        line = out_queue.get()
+        if not (config.module.ignore and line in config.module.ignore):
+            line_split = line.split()
+            if len(line_split) > 0:
+                action = line_split[0]
+            else:
+                action = "set"
+            if line == "":
+                stats = stats_queue.get()
+                cpu_time = eval("%.4f" % stats["stats"]["totalcputime"])
+                max_rss = stats["max"]["rss"]
+                max_vmsize = stats["max"]["size"]
+                in_intermed_time = stats["in_timestamp"]
+                out_intermed_time = stats["out_timestamp"]
+                collection = config.db.basecollection
+                doc = json.loads(intermed_queue.get())
+                index_doc = dict([(x, doc[x]) for x in db_writer.indexes])
+                log_line = ""
+                if config.options.intermedlog or config.options.outlog:
+                    if config.options.intermedlog:
+                        with open(config.controller.path + "/logs/" + config.step.name + ".log.intermed", "a") as intermed_log_stream:
+                            intermed_log_stream.write(out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':')) + "\n")
+                            intermed_log_stream.flush()
+                    if config.options.outlog:
+                        log_line = out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':'))
+                stats_mark = {}
+                if config.options.statslocal or config.options.statsdb:
+                    stats_mark.update({config.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": config.bson_size}})
+                if config.options.markdone:
+                    stats_mark.update({config.module.name + config.options.markdone: True})
+                if len(stats_mark) > 0:
+                    bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, doc)
+                    if config.options.intermedlocal:
+                        with open(config.controller.path + "/bkps/" + config.step.name + "." + bkp_ext + ".intermed", "a") as intermed_bkp_stream:
+                            intermed_bkp_stream.write(bkp_line + "\n")
+                            intermed_bkp_stream.flush()
+                db_writer.add_to_batch(log_line)
+                if db_writer.count == config.options.nbatch:
+                    db_writer.put_batch()
+                    config.reload()
+                    #print("NThreads: " + str(active_count()))
+                    #sys.stdout.flush()
+            elif line[0] == "#":
+                if config.options.intermedlog or config.options.outlog:
+                    if config.options.intermedlog:
+                        with open(config.controller.path + "/logs/" + config.step.name + ".log.intermed", "a") as intermed_log_stream:
+                            intermed_log_stream.write("# " + line + "\n")
+                            intermed_log_stream.flush()
+                    if config.options.outlog:
+                        with open(config.controller.path + "/logs/" + config.step.name + ".log", "a") as out_log_stream:
+                            out_log_stream.write("# " + line + "\n")
+                            out_log_stream.flush()
+            elif len(line_split) == 4:
+                collection = line_split[1]
+                index_doc = json.loads(line_split[2])
+                doc = json.loads(line_split[3])
+                bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, doc)
+                if config.options.intermedlocal:
+                    with open(config.controller.path + "/bkps/" + config.step.name + "." + bkp_ext + ".intermed", "a") as intermed_bkp_stream:
+                        intermed_bkp_stream.write(bkp_line + "\n")
+                        intermed_bkp_stream.flush()
+            else:
+                try:
+                    raise IndexError("Modules should only output commented lines, blank lines separating processed input documents, or line with 4 columns representing: collection name, update action, index document, output document.")
+                except IndexError as e:
+                    with open(config.controller.path + "/logs/" + config.step.name + ".err", "a") as err_file_stream:
+                        traceback.print_exc(file = err_file_stream)
+                        err_file_stream.flush()
+                    raise
 
 # Load arguments
 
@@ -800,18 +663,7 @@ config = WrapperConfig(**kwargs)
 
 # Import workload manager API
 
-wm_api = __import__(config.cluster.wm.api)
-
-# Import database module API
-
-db_api = __import__(config.db.api)
-
-db_host = str(config.db.host) + ":" + str(config.db.port) + "/" + config.db.name
-if config.db.api == "db_mongodb":
-    if config.db.username and config.db.password:
-        db_host = config.db.username + ":" + config.db.password + "@" + db_host
-    db_uri = "mongodb://" + db_host
-db_client = db_api.dbClient(db_uri)
+wm_api = __import__("crunch_" + config.cluster.wm.api)
 
 # Initialize stats
 
@@ -825,7 +677,6 @@ for req_stat in ["totalcputime", "rss", "size"]:
 intermed_queue = Queue()
 out_queue = Queue()
 stats_queue = Queue()
-batch_queue = Queue()
 
 # Run module
 script = ""
@@ -838,9 +689,11 @@ if config.module.args:
     script += " " + " ".join(config.module.args)
 process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, bufsize = 1, preexec_fn = default_sigpipe)
 
-# Initialize module interface
+# Initialize database writer
 
-interface = ModuleInterface(db_api, db_client, **kwargs)
+db_api = __import__("crunch_" + config.db.api)
+
+db_writer = db_api.DatabaseWriter(config.db, ordered = False)
 
 # Initialize stats thread
 
@@ -849,7 +702,7 @@ reader.start()
 
 # Initialize bulk write thread
 
-writer = AsyncBulkWriteStream(wm_api, db_api, db_client, batch_queue, **kwargs)
+writer = AsyncBulkWriteStream(wm_api, db_writer, **kwargs)
 writer.start()
 
 # Remove step file
@@ -876,16 +729,17 @@ sys.stdout.flush()
 flock(sys.stdout, LOCK_UN)
 
 while reader.is_alive():
-    interface.process_module_output(intermed_queue, out_queue, stats_queue, batch_queue)
+    process_module_output(config, db_writer, intermed_queue, out_queue, stats_queue)
 
 reader.join()
 process.stdin.close()
 process.stdout.close()
 process.stderr.close()
 
-interface.process_module_output(intermed_queue, out_queue, stats_queue, batch_queue)
+process_module_output(config, db_writer, intermed_queue, out_queue, stats_queue)
 
-interface.end_module_output(batch_queue)
+if db_writer.count > 0:
+    db_writer.put_batch()
 
 writer.signal()
 writer.join()
@@ -912,11 +766,11 @@ flock(sys.stdout, LOCK_UN)
 
 # Tie up loose ends
 
-db_client.close()
+db_writer.close()
 
 if config.options.intermedlog:
     os.remove(config.controller.path + "/logs/" + config.step.name + ".log.intermed")
 
 if config.options.intermedlocal:
-    for intermed_io_file_name in iglob(config.controller.path + "/bkps/" + config.step.name + ".*.intermed"):
-        os.remove(intermed_io_file_name)
+    for intermed_bkp_file_name in iglob(config.controller.path + "/bkps/" + config.step.name + ".*.intermed"):
+        os.remove(intermed_bkp_file_name)

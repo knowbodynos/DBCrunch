@@ -75,10 +75,7 @@ class AsyncTrackLocks(Config, Thread):
 class BatchCounter(object):
     def __init__(self, counter_path):
         self.__counter_path = counter_path
-        self.done = False
-        self.load()
 
-    def load(self):
         try:
             with open(self.__counter_path, "r") as counter_stream:
                 self.batch, self.step, self.doc = counter_stream.readline().rstrip("\n").split()
@@ -121,7 +118,7 @@ def storage_left(config):
         st = os.statvfs(config.controller.path)
         return st.f_frsize * st.f_bavail
 
-def job_slots_left(wm_api, config):
+def job_slots_left(config, wm_api):
     nuserjobs = wm_api.n_user_jobs(config.cluster.user)
     if config.cluster.job.jobs.max and nuserjobs >= config.cluster.job.jobs.max:
         return False
@@ -130,7 +127,7 @@ def job_slots_left(wm_api, config):
         return False
     return True
 
-def write_job_file(wm_api, config, steps):
+def write_job_file(config, wm_api, steps):
     job_max_time_limit = 0
     job_n_cpus = 0
     max_cpus = 0
@@ -226,7 +223,7 @@ def write_job_file(wm_api, config, steps):
 
     #return jobinfo
 
-def write_job_submit_details(wm_api, config, steps, refill = False):
+def write_job_submit_details(config, wm_api, steps, refill = False):
     steps = sorted(steps, key = lambda step: tuple(int(x) for x in step["name"].split("_") if x.isdigit()))
 
     all_partitions = []
@@ -273,7 +270,7 @@ def write_job_submit_details(wm_api, config, steps, refill = False):
     print("")
     sys.stdout.flush()
 
-def wait_for_slots(wm_api, config):
+def wait_for_slots(config, wm_api):
     with open(config.controller.path + "/status", "w") as status_stream:
         status_stream.truncate(0)
         status_stream.write("Waiting for slots.")
@@ -288,7 +285,7 @@ def wait_for_slots(wm_api, config):
             with open(refill_file, "r") as refill_stream:
                 refill_line = refill_stream.readline().rstrip("\n")
                 steps.append(json.loads(refill_line))
-        if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(wm_api, config)):
+        if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
             return True, steps
 
     nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
@@ -304,11 +301,11 @@ def wait_for_slots(wm_api, config):
     if not has_wrapper_node:
         nodes = []
     wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
-    #print((time_left(config) > 0, job_slots_left(wm_api, config), len(nodes) > 0, storage_left(config) > 0))
+    #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
     #sys.stdout.flush()
-    while time_left(config) > 0 and not (job_slots_left(wm_api, config) and len(nodes) > 0 and storage_left(config) > 0):
+    while time_left(config) > 0 and not (job_slots_left(config, wm_api) and len(nodes) > 0 and storage_left(config) > 0):
         sleep(0.1)
-        #print((time_left(config) > 0, job_slots_left(wm_api, config), len(nodes) > 0, storage_left(config) > 0))
+        #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
         #sys.stdout.flush()
 
         if config.options.nrefill and wm_api.n_controller_steps(config.cluster.user, config.module.name, config.controller.name) >= config.options.nworkers:
@@ -317,7 +314,7 @@ def wait_for_slots(wm_api, config):
                 with open(refill_file, "r") as refill_stream:
                     refill_line = refill_stream.readline().rstrip("\n")
                     steps.append(json.loads(refill_line))
-            if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(wm_api, config)):
+            if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
                 return True, steps
 
         nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
@@ -334,11 +331,11 @@ def wait_for_slots(wm_api, config):
             nodes = []
         wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
 
-    #print((time_left(config) > 0, job_slots_left(wm_api, config), len(nodes) > 0, storage_left(config) > 0))
+    #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
     #sys.stdout.flush()
     return False, nodes
 
-def prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = 0):
+def prep_nodes(config, wm_api, refill, slots, db_reader, start_slot = 0):
     with open(config.controller.path + "/status", "w") as status_stream:
         status_stream.write("Populating steps.")
         status_stream.flush()
@@ -353,8 +350,8 @@ def prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = 0):
     host_names = []
     steps = []
     partition_time_limits = {}
-    while len(steps) < config.job.steps.max and (len(host_names) <= 1 or n_docs < len(doc_batch)):
-        docs = doc_batch[n_docs:n_docs + config.options.niters]
+    while len(steps) < config.job.steps.max and (len(host_names) <= 1 or n_docs < len(db_reader.batch)):
+        docs = db_reader.batch[n_docs:n_docs + config.options.niters]
         if config.db.nprocsfield and len(docs) > 0:
             min_procs = max([doc[config.db.nprocsfield] for doc in docs])
         else:
@@ -452,29 +449,29 @@ def prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = 0):
 
     return steps
 
-def do_input(wm_api, config, doc_batch):
-    config.reload()
+def do_input(config, wm_api, db_reader):
+    #config.reload()
     #print("NThreads: " + str(active_count()))
     #sys.stdout.flush()
     
-    refill, slots = wait_for_slots(wm_api, config)
-    steps = prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = 0)
+    refill, slots = wait_for_slots(config, wm_api)
+    steps = prep_nodes(config, wm_api, refill, slots, db_reader, start_slot = 0)
     
     return steps
 
-def do_verify(wm_api, config, counter, doc_batch):
+def do_verify(config, wm_api, db_reader, counter):
     n_iters = config.options.niters
     start_slot = 0
     while time_left(config) > 0:
-        refill, slots = wait_for_slots(wm_api, config)
-        steps = prep_nodes(wm_api, config, refill, slots, doc_batch, start_slot = start_slot)
+        refill, slots = wait_for_slots(config, wm_api)
+        steps = prep_nodes(config, wm_api, refill, slots, db_reader, start_slot = start_slot)
         
         i = 0
         next_doc_ind = 0
         filled_steps = []
-        while i < len(steps) and next_doc_ind + n_iters <= len(doc_batch):
+        while i < len(steps) and next_doc_ind + n_iters <= len(db_reader.batch):
             step = steps[i]
-            step["docs"] = doc_batch[next_doc_ind:next_doc_ind + n_iters]
+            step["docs"] = db_reader.batch[next_doc_ind:next_doc_ind + n_iters]
             if "name" not in step:
                 step["name"] = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_step_" + str(i + 1)
             #print("Step name: " + steps[i]["name"])
@@ -499,7 +496,7 @@ def do_verify(wm_api, config, counter, doc_batch):
                 status_stream.write("Writing job file.")
                 status_stream.flush()
 
-            write_job_file(wm_api, config, steps)
+            write_job_file(config, wm_api, steps)
 
             with open(config.controller.path + "/status", "w") as status_stream:
                 status_stream.write("Submitting job.")
@@ -532,14 +529,14 @@ def do_verify(wm_api, config, counter, doc_batch):
 
         #break
 
-    doc_batch = doc_batch[next_doc_ind:]
+    db_reader.batch = db_reader.batch[next_doc_ind:]
 
     if len(steps) > 0:
-        write_job_submit_details(wm_api, config, steps, refill = refill)
+        write_job_submit_details(config, wm_api, steps, refill = refill)
 
     wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
 
-    return refill, steps, doc_batch
+    return refill, steps
 
 def do_initialize(config, steps, refill):
     if refill:
@@ -571,13 +568,12 @@ def do_initialize(config, steps, refill):
                 #sys.stdout.flush()
                 yaml.dump(wrap_step, step_stream)
 
-def next_batch(wm_api, db_cursor, config, counter, doc_batch):
-    #doc_batch = []
+def next_batch(config, wm_api, db_reader, counter):
     config.reload()
     #print("NThreads: " + str(active_count()))
     #sys.stdout.flush()
     
-    steps = do_input(wm_api, config, doc_batch)
+    steps = do_input(config, wm_api, db_reader)
 
     n_docs = len(steps) * config.options.niters
 
@@ -585,19 +581,10 @@ def next_batch(wm_api, db_cursor, config, counter, doc_batch):
         status_stream.write("Loading input from database.")
         status_stream.flush()
 
-    if len(doc_batch) < n_docs:
-        counter.done = True
-        for doc in db_cursor:
-            counter.done = False
-            doc_batch.append(doc)
-            #print(len(doc_batch))
-            #sys.stdout.flush()
-            counter.incr_doc(1)
-            if len(doc_batch) == n_docs:
-                #counter.done = False
-                break
+    db_reader.read(n_docs)
+    counter.incr_doc(len(db_reader.batch))
 
-    refill, steps, doc_batch = do_verify(wm_api, config, counter, doc_batch)
+    refill, steps = do_verify(config, wm_api, db_reader, counter)
 
     do_initialize(config, steps, refill)
 
@@ -606,27 +593,12 @@ def next_batch(wm_api, db_cursor, config, counter, doc_batch):
         counter.incr_step(len(steps))
     counter.dump()
 
-    return doc_batch
-
-def iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch):
-    if config.db.api == "db_mongodb":
-        kwargs = {
-                     "no_cursor_timeout": True,
-                     "allow_partial_results": True,
-                 }
-    db_cursor = db_collections.find(config.db.query, config.db.projection, **kwargs)
-    db_cursor = db_cursor.hint(config.db.hint)
-    db_cursor = db_cursor.skip(config.db.skip)
-    db_cursor = db_cursor.limit(config.db.limit)
-    if config.db.sort:
-        db_cursor = db_cursor.sort(config.db.sort)
-    while time_left(config) > 0 and not counter.done:
+def iterate_batches(config, wm_api, db_reader, counter):
+    while time_left(config) > 0 and not db_reader.done:
         #try:
-        doc_batch = next_batch(wm_api, db_cursor, config, counter, doc_batch)
+        next_batch(config, wm_api, db_reader, counter)
         #except StopIteration:
         #    break
-
-    return doc_batch
 
 # Load arguments
 
@@ -643,22 +615,13 @@ config = Config(**kwargs)
 
 # Import workload manager API
 
-wm_api = __import__(config.cluster.wm.api)
+wm_api = __import__("crunch_" + config.cluster.wm.api)
 
-# Import database module API
+# Initialize database reader
 
-db_api = __import__(config.db.api)
+db_api = __import__("crunch_" + config.db.api)
 
-db_host = str(config.db.host) + ":" + str(config.db.port) + "/" + config.db.name
-if config.db.api == "db_mongodb":
-    if config.db.username and config.db.password:
-        db_host = config.db.username + ":" + config.db.password + "@" + db_host
-    db_uri = "mongodb://" + db_host
-db_client = db_api.dbClient(db_uri)
-db_database = db_client[config.db.name]
-db_collections = db_api.dbCollections()
-for collection_name in config.db.collections:
-    db_collections.join(db_database[collection_name])
+db_reader = db_api.DatabaseReader(config.db)
 
 # Create controller subdirectories
 
@@ -692,13 +655,13 @@ sys.stdout.flush()
 
 # Begin controller body
 
-doc_batch = []
 counter = BatchCounter(config.controller.path + "/counter")
-doc_batch = iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch)
+
+iterate_batches(config, wm_api, db_reader, counter)
 
 while time_left(config) > 0 and wm_api.is_dependency_running(config.cluster.user, config.controller.dependencies):
-    counter = BatchCounter(config.controller.path + "/counter")
-    doc_batch = iterate_batches(wm_api, db_api, db_collections, config, counter, doc_batch)
+    db_reader.reset()
+    iterate_batches(config, wm_api, db_reader, counter)
 
 while time_left(config) > 0 and wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0:
     if counter.done:
@@ -725,7 +688,7 @@ if (not time_left(config) > 0) and (firstlastrun or wm_api.is_dependency_running
         has_wrapper_node = True
     if not has_wrapper_node:
         slots = []
-    while time_left(config) > 0 and not (job_slots_left(wm_api, config) and len(slots) > 0 and storage_left(config) > 0):
+    while time_left(config) > 0 and not (job_slots_left(config, wm_api) and len(slots) > 0 and storage_left(config) > 0):
         sleep(0.1)
 
         slots = wm_api.get_avail_nodes(config.cluster.resources.keys())
@@ -778,4 +741,4 @@ else:
 locker.signal()
 locker.join()
 
-db_client.close()
+db_reader.close()
