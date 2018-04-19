@@ -27,7 +27,7 @@ Installation instructions:
    ./install [--USER_LOCAL ~/opt] [--CRUNCH_ROOT .]
 ```
 
-4) Update the `config.yaml` file to reflect your cluster's workload manager, partition names and RAM resources, installed software, and custom max job/step information.
+4) Update the `crunch.config` file in the `${CRUNCH_ROOT}` directory to reflect your cluster's workload manager, partition names and RAM resources, installed software, and custom max job/step information.
 
 ------------------------------------------------------------------------------------------------------------
 
@@ -35,92 +35,132 @@ Using `DBCrunch`:
 
 1) Write a new module (script or compiled program) or use an existing one to process the records in your database and place it in a new directory `${CRUNCH_ROOT}/modules/modules/<module>`.
 
-2) If your module is compiled or is written in a scripting language you haven't used before, make sure to enter this information into the `${CRUCH_ROOT}/config.yaml` file under the *software* key.
+2) If your module is compiled or is written in a scripting language you haven't used before, make sure to enter this information into the `${CRUCH_ROOT}/crunch.config` file under the *software* key.
 
-3) Write a job script template for your module and add it to the `${CRUNCH_ROOT}/modules/templates` directory. A typical job script template looks like:
+3) Write a controller configuration template for your module and add it to the `${CRUNCH_ROOT}/modules/modules/<module>` directory. A typical job script template looks like:
 
 ```
-   #!/bin/bash
-   
-   #Job name
-   #SBATCH -J "controller_<module>_template"
-   #################
-   #Working directory
-   #SBATCH -D "path_to_module/<module>/template"
-   #################
-   #Job output file
-   #SBATCH -o "controller_<module>_template.out"
-   #################
-   #Job error file
-   #SBATCH -e "controller_<module>_template.err"
-   #################
-   #Job file write mode
-   #SBATCH --open-mode="append"
-   #################
-   #Job max time
-   #SBATCH --time="1-00:00:00"
-   #################
-   #Partition (queue) to use for job
-   #SBATCH --partition="ser-par-10g"
-   #################
-   #Number of tasks (CPUs) allocated for job
-   #SBATCH -n 1
-   #################
-   #Number of nodes to distribute n tasks across
-   #SBATCH -N 1
-   #################
-   #Lock down N nodes for job
-   #SBATCH --exclusive
-   #################
-    
-   #Input controller info
-   modname="<module>"
-   controllername="template"
-   controllerjobid="${SLURM_JOBID}"
-   controllerbuffertime="00:05:00"
-   storagelimit="10G"
-   sleeptime="1"
+# Options for controller job
+controller:
+  # Controller name
+  name: "template"
+  # Controller working directory
+  path: "path_to_controller"
+  # Storage limit
+  storagelimit: "10G"
+  # Controller STDOUT and STDERR write mode
+  writemode: "append"
+  # Controller time limit
+  timelimit: "1-00:00:00"
+  # Controller buffer time
+  buffertime: "00:05:00"
+  # Lock down node(s) for controller?
+  exclusive: false
+  # Requeue job on node failure
+  requeue: true
 
-   #Input database info
-   dbtype="mongodb"
-   dbusername="<db_username>"
-   dbpassword="<db_password>"
-   dbhost="<db_host>"
-   dbport="<db_port>"
-   dbname="<db_name>"
-   queries="<mongolink_query>"
-   basecollection="<db_collection>"
-   nthreadsfield=""
-    
-   #Input script info
-   scriptlanguage="<module_language>"
-   partitions="ser-par-10g,ser-par-10g-2,ser-par-10g-3,ser-par-10g-4"
-   writemode="truncate"
-   scriptmemorylimit="500000000"
-   scripttimelimit=""
-   scriptbuffertime="00:01:00"
-   joblimit=""
-    
-   #Options
-   blocking="False"
-   logging="True"
-   templocal="True"
-   writelocal="True"
-   writedb="True"
-   statslocal="True"
-   statsdb="True"
-   markdone="MARK"
-   cleanup="100"
-   niters="200"
-   nbatch="5"
-   nworkers="2"
-    
-   python ${CRUNCH_ROOT}/bin/controller.py "${modname}" "${controllername}" "${controllerjobid}" "${controllerbuffertime}" "${storagelimit}" "${sleeptime}" "${dbtype}" "${dbusername}" "${dbpassword}" "${dbhost}" "${dbport}" "${dbname}" "${queries}" "${basecollection}" "${nthreadsfield}" "${scriptlanguage}" "${scriptargs}" "${partitions}" "${writemode}" "${scriptmemorylimit}" "${scripttimelimit}" "${scriptbuffertime}" "${joblimit}" "${blocking}" "${logging}" "${templocal}" "${writelocal}" "${writedb}" "${statslocal}" "${statsdb}" "${markdone}" "${cleanup}" "${niters}" "${nbatch}" "${nworkers}"
+# Options for remote database
+db:
+  # Database type
+  api: "db_mongodb"
+  # Database name
+  name: "<database_name>"
+  # Database host
+  host: "<host_ip>"
+  # Database port
+  port: "<port>"
+  # Database username
+  username: "<username>"
+  # Database password
+  password: "<password>"
+  # Database writeconcern
+  writeconcern: "majority"
+  # Database fsync
+  fsync: false
+  # Database collections
+  collections:
+    - "<collection>"
+  # Database query
+  query: 
+    <field_1>:
+      <value_1>
+  # Database projection
+  projection:
+    <field_1>: 1
+    <field_2>: 1
+  # Database hint
+  hint:
+  # Database skip
+  skip:
+  # Database limit
+  limit: 100000
+  # Database sort
+  sort:
+  # Base collection
+  basecollection: "<collection>"
+  # Field in base collection that determines number of tasks
+  nprocsfield: 
+
+# Options for batch jobs
+job:
+  # Job STDOUT and STDERR write mode
+  writemode: "truncate"
+  # Requeue job on node failure
+  requeue: true
+  # Job memory limit
+  memorylimit: "5G"
+  # Job time limit
+  timelimit: 
+  # Job buffer time
+  buffertime: "00:01:00"
+  # Job limits
+  jobs:
+    max: 20
+
+# Options for module
+module:
+  # Module name
+  name: "<module>"
+  # Module language
+  language: "<script_langauge>"
+  # Arguments to module
+  args:
+
+# Other options
+options:
+  # Block until dependencies are finished
+  blocking: false
+  # Generate intermediate log file
+  intermedlog: true
+  # Generate intermediate output files
+  intermedlocal: true
+  # Generate output log file
+  outlog: true
+  # Generate output files
+  outlocal: true
+  # Write output to database
+  outdb: true
+  # Generate output files for statistics
+  statslocal: true
+  # Write statistics to database
+  statsdb: true
+  # Write boolean field (modname)+(markdone) in database and set to true when output is written
+  markdone: 
+  # Clear completed records from input files after (cleanup) records have been processed
+  cleanup: 50
+  # When nrefill processors have completed, refill each with niters new documents to process
+  nrefill: 5
+  # Number of records in each input file to a job step
+  niters: 200
+  # Number of output records for each worker to write
+  nbatch: 10
+  # Maximum number of workers writing records simultaneously
+  nworkers: 100
 ```
 
 Make sure to replace everything in `<...>` with your job information.
 
-4) If your module depends on previous modules, add these dependencies to the file `${CRUNCH_ROOT}/modules/dependencies/<module>`, where `<module>` is the name of your module.
+4) If your module depends on previous modules, add these dependencies to the file `${CRUNCH_ROOT}/modules/modules/<module>/dependencies`, where `<module>` is the name of your module.
 
 5) Create your working directory `<work_dir>` and navigate to it
 
@@ -151,7 +191,7 @@ where `<controller>` is a name you choose for the segment of your database that 
 9) Begin processing
 
 ```
-   crunch submit
+   crunch submit <module> <controller>
 ```
 
 10) Monitor your progress
@@ -168,13 +208,7 @@ where `<s>` is the refresh interval. Use `Ctrl-C` to exit.
    crunch cancel <module> <controller>
 ```
 
-12) In order to requeue jobs that may have failed, use:
-
-```
-   crunch requeue <module> <controller>
-```
-
-13) If you wish to reset the entire controller directory to initial conditions, use:
+12) If you wish to reset the entire controller directory to initial conditions, use:
 
 ```
    crunch reset <module> <controller>
