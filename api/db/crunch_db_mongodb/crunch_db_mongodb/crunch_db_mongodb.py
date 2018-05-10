@@ -39,6 +39,12 @@ class DatabaseReader(object):
         self.__db_collections = db_collections
         self.__find_kwargs = find_kwargs
 
+        if self.__db_info.hint:
+            self.__db_info.hint = self.__db_info.hint.items()
+
+        if self.__db_info.sort:
+            self.__db_info.sort = self.__db_info.sort.items()
+
         # Initialize public variables
         
         self.batch = []
@@ -48,11 +54,11 @@ class DatabaseReader(object):
     def restart(self, **kwargs):
         self.__find_kwargs.update(kwargs)
         self.__db_cursor = self.__db_collections.find(self.__db_info.query, self.__db_info.projection, **self.__find_kwargs)
-        self.__db_cursor = self.__db_cursor.hint(self.__db_info.hint.items())
+        self.__db_cursor = self.__db_cursor.hint(self.__db_info.hint)
         self.__db_cursor = self.__db_cursor.skip(self.__db_info.skip)
         self.__db_cursor = self.__db_cursor.limit(self.__db_info.limit)
         if self.__db_info.sort:
-            self.__db_cursor = self.__db_cursor.sort(self.__db_info.sort.items())
+            self.__db_cursor = self.__db_cursor.sort(self.__db_info.sort)
 
         self.done = False
 
