@@ -18,9 +18,20 @@
 
 import sys
 from time import sleep
+from argparse import ArgumentParser, REMAINDER
 from crunch_config import *
 
 controller_path = sys.argv[1]
+submit = sys.argv[2]
+
+parser = ArgumentParser()
+
+parser.add_argument('controller_path', help = '')
+parser.add_argument('--submit-job', '-s', dest = 'submit_job', action = 'store_true', help = '')
+
+#parser.add_argument('--node-shift', dest = 'nodeshift', action = 'store', default = None, help = '')
+
+kwargs = vars(parser.parse_known_args()[0])
 
 # Configure controller
 
@@ -44,22 +55,25 @@ while True:
     if unformat_duration(maxtimelimit) < unformat_duration(config.controller.timelimit):
         config.controller.timelimit = maxtimelimit
     wm_api.write_controller_job_file(config, job_name, node)
-    job_id = wm_api.submit_job(config.controller.path, job_name)
-    wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
-    job_state = wm_api.get_job_state(job_id)
-    start_time = time()
-    while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
-        sleep(0.1)
-        job_state = wm_api.get_job_state(job_id)
-    if job_state[0] in ["RUNNING", "COMPLETING", "COMPLETED"] or (job_state[0] == "PENDING" and job_state[1] == "None"):
+    if not kwargs['submit_job']:
         break
     else:
-        wm_api.cancel_job(job_id)
-        os.remove(config.controller.path + "/" + job_name + ".job")
-        start_slot += 1
-        if start_slot == len(slots):
-            start_slot = 0
-            sleep(10)
+        job_id = wm_api.submit_job(config.controller.path, job_name)
+        wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
+        job_state = wm_api.get_job_state(job_id)
+        start_time = time()
+        while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
+            sleep(0.1)
+            job_state = wm_api.get_job_state(job_id)
+        if job_state[0] in ["RUNNING", "COMPLETING", "COMPLETED"] or (job_state[0] == "PENDING" and job_state[1] == "None"):
+            break
+        else:
+            wm_api.cancel_job(job_id)
+            os.remove(config.controller.path + "/" + job_name + ".job")
+            start_slot += 1
+            if start_slot == len(slots):
+                start_slot = 0
+                sleep(10)
 
 print(job_id)
 sys.stdout.flush()

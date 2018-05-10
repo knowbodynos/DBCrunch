@@ -16,7 +16,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, json, yaml, tempfile, shutil
+import sys, os, json, yaml, tempfile, shutil, traceback
 from bson import BSON
 from fcntl import fcntl, flock, LOCK_EX, LOCK_NB, LOCK_UN, F_GETFL, F_SETFL
 from errno import EAGAIN, ENOENT
@@ -257,6 +257,8 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 self.__cleanup_counter = 0
             else:
                 self.__intermed_queue.put(in_line)
+                #sys.stdout.write(in_line + "\n")
+                #sys.stdout.flush()
                 self.__process.stdin.write(in_line + "\n")
                 self.__process.stdin.flush()
                 self.__cleanup_counter += 1
@@ -380,7 +382,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
             while err_line != "":
                 err_flag = True;
                 err_line = err_line.rstrip("\n")
-                if err_line not in self.module.ignore:
+                if not (self.module.ignore and err_line in self.module.ignore):
                     with open(self.controller.path + "/logs/" + self.step.name + ".err", "a") as err_file_stream:
                         err_file_stream.write(err_line + "\n")
                         err_file_stream.flush()
@@ -458,13 +460,13 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
         self.daemon = True
 
     def write_batch(self):
-        count, log_lines, bkp_ext_lines = self.__db_writer.get_batch(upsert = True)
-        
-        self.__count_batches_out += count
-
         if self.options.outlog:
             in_write_timestamp = datetime.utcnow().replace(tzinfo = utc)
             in_write_time = time()
+
+        count, log_lines, bkp_ext_lines = self.__db_writer.get_batch(upsert = True)
+
+        self.__count_batches_out += count
 
         if self.options.outlog:
             write_time = time() - in_write_time
@@ -496,12 +498,12 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                             else:
                                 self.__count_bkp_ext_out[bkp_ext] = 1
 
-            if self.options.intermedlocal and self.__count_batches_out >= self.options.cleanup:
-                self.cleanup_intermed_bkp()
-                self.__count_bkp_ext_out = {}
+                if self.options.intermedlocal and self.__count_batches_out >= self.options.cleanup:
+                    self.cleanup_intermed_bkp()
+                    self.__count_bkp_ext_out = {}
 
-        if self.__count_batches_out >= self.options.cleanup:
-            self.__count_batches_out = 0
+            if self.__count_batches_out >= self.options.cleanup:
+                self.__count_batches_out = 0
 
         os.remove(self.controller.path + "/locks/" + self.step.name + ".lock")
 
@@ -582,6 +584,10 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
             else:
                 action = "set"
             if line == "":
+                if config.options.statsdb:
+                    action = "stat"
+                else:
+                    action = "none"
                 stats = stats_queue.get()
                 cpu_time = eval("%.4f" % stats["stats"]["totalcputime"])
                 max_rss = stats["max"]["rss"]
@@ -601,12 +607,12 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                         log_line = out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':'))
                 stats_mark = {}
                 if config.options.statslocal or config.options.statsdb:
-                    stats_mark.update({config.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": config.bson_size}})
+                    stats_mark.update({config.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": db_writer.bson_size}})
                 if config.options.markdone:
                     stats_mark.update({config.module.name + config.options.markdone: True})
                 if len(stats_mark) > 0:
-                    bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, doc)
-                    if config.options.intermedlocal:
+                    bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, stats_mark)
+                    if config.options.statslocal and config.options.intermedlocal:
                         with open(config.controller.path + "/bkps/" + config.step.name + "." + bkp_ext + ".intermed", "a") as intermed_bkp_stream:
                             intermed_bkp_stream.write(bkp_line + "\n")
                             intermed_bkp_stream.flush()
@@ -637,6 +643,8 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                         intermed_bkp_stream.flush()
             else:
                 try:
+                    #print(line)
+                    #sys.stdout.flush()
                     raise IndexError("Modules should only output commented lines, blank lines separating processed input documents, or line with 4 columns representing: collection name, update action, index document, output document.")
                 except IndexError as e:
                     with open(config.controller.path + "/logs/" + config.step.name + ".err", "a") as err_file_stream:
@@ -648,10 +656,10 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
 
 parser = ArgumentParser()
 
-parser.add_argument('--controller-path', dest = 'controller_path', action = 'store', required = True, help = '')
-parser.add_argument('--step-id', dest = 'step_id', action = 'store', required = True, help = '')
-parser.add_argument('--step-name', dest = 'step_name', action = 'store', required = True, help = '')
-parser.add_argument('--stats', dest = 'stats', nargs = '+', action = 'store', default = [], help = '')
+parser.add_argument('controller_path', help = '')
+parser.add_argument('step_id', help = '')
+parser.add_argument('step_name', help = '')
+parser.add_argument('stats', nargs = '+', default = [], help = '')
 
 kwargs = vars(parser.parse_known_args()[0])
 
@@ -691,7 +699,11 @@ process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE
 
 db_api = __import__("crunch_db_" + config.db.api)
 
-db_writer = db_api.DatabaseWriter(config.db, ordered = False)
+db_writer = db_api.DatabaseWriter(config.db, out_local = config.options.outlocal,
+                                             out_db = config.options.outdb,
+                                             stats_local = config.options.statslocal,
+                                             stats_db = config.options.statsdb,
+                                             ordered = False)
 
 # Initialize stats thread
 

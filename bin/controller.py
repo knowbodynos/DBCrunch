@@ -210,7 +210,7 @@ def write_job_file(config, wm_api, steps):
         #for key in step.keys():
         #    if key != "docs":
         #        wrapstep[key] = step[key]
-        job_string += "python ${CRUNCH_ROOT}/bin/wrapper.py --controller-path \"" + config.controller.path + "\" --step-name \"" + step["name"] + "\" --step-id \"${SLURM_JOBID}." + str(i) + "\" --stats \"TotalCPUTime\" \"Rss\" \"Size\" &"#"\" --stepdoc " + json.dumps(wrapstep, separators = (',',':'))
+        job_string += "python ${CRUNCH_ROOT}/bin/wrapper.py \"" + config.controller.path + "\" \"${SLURM_JOBID}." + str(i) + "\" \"" + step["name"] + "\" \"TotalCPUTime\" \"Rss\" \"Size\" &"#"\" --stepdoc " + json.dumps(wrapstep, separators = (',',':'))
         job_string += "\n\n"
         #jobinfo += [{"host_names": host_names, "jobstepname": step["name"], "partitions": partitions, "ncpus": n_step_cpus, "mem": step["cpumemorylimit"], "n_docs": len(step["docs"])}]
         i += 1
@@ -465,11 +465,13 @@ def do_verify(config, wm_api, db_reader, counter):
     while time_left(config) > 0:
         refill, slots = wait_for_slots(config, wm_api)
         steps = prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = start_slot)
+        #print((len(slots), len(steps), len(db_reader.batch)))
+        #sys.stdout.flush()
         
         i = 0
         next_doc_ind = 0
         filled_steps = []
-        while i < len(steps) and next_doc_ind + n_iters <= len(db_reader.batch):
+        while i < len(steps) and next_doc_ind < len(db_reader.batch):
             step = steps[i]
             step["docs"] = db_reader.batch[next_doc_ind:next_doc_ind + n_iters]
             if "name" not in step:
@@ -482,6 +484,9 @@ def do_verify(config, wm_api, db_reader, counter):
             next_doc_ind += n_iters
         
         steps = filled_steps
+
+        if len(steps) == 0:
+            break
 
         job_name = "crunch_" + config.module.name + "_" + config.controller.name + "_job_" + str(counter.batch + 1) + "_steps_" + str(counter.step + 1) + "-" + str(counter.step + len(steps))
         
@@ -586,12 +591,13 @@ def next_batch(config, wm_api, db_reader, counter):
 
     refill, steps = do_verify(config, wm_api, db_reader, counter)
 
-    do_initialize(config, steps, refill)
+    if len(steps) > 0:
+        do_initialize(config, steps, refill)
 
-    if not refill:
-        counter.incr_batch(1)
-        counter.incr_step(len(steps))
-    counter.dump()
+        if not refill:
+            counter.incr_batch(1)
+            counter.incr_step(len(steps))
+        counter.dump()
 
 def iterate_batches(config, wm_api, db_reader, counter):
     while time_left(config) > 0 and not db_reader.done:
@@ -604,8 +610,8 @@ def iterate_batches(config, wm_api, db_reader, counter):
 
 parser = ArgumentParser()
 
-parser.add_argument('--controller-path', dest = 'controller_path', action = 'store', required = True, help = '')
-parser.add_argument('--controller-id', dest = 'controller_id', action = 'store', required = True, help = '')
+parser.add_argument('controller_path', help = '')
+parser.add_argument('controller_id', help = '')
 
 kwargs = vars(parser.parse_known_args()[0])
 

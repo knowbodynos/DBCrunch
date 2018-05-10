@@ -48,11 +48,11 @@ class DatabaseReader(object):
     def restart(self, **kwargs):
         self.__find_kwargs.update(kwargs)
         self.__db_cursor = self.__db_collections.find(self.__db_info.query, self.__db_info.projection, **self.__find_kwargs)
-        self.__db_cursor = self.__db_cursor.hint(self.__db_info.hint)
+        self.__db_cursor = self.__db_cursor.hint(self.__db_info.hint.items())
         self.__db_cursor = self.__db_cursor.skip(self.__db_info.skip)
         self.__db_cursor = self.__db_cursor.limit(self.__db_info.limit)
         if self.__db_info.sort:
-            self.__db_cursor = self.__db_cursor.sort(self.__db_info.sort)
+            self.__db_cursor = self.__db_cursor.sort(self.__db_info.sort.items())
 
         self.done = False
 
@@ -72,7 +72,7 @@ class DatabaseReader(object):
         self.__db_client.close()
 
 class DatabaseWriter(Queue):
-    def __init__(self, db_info, out_db = False, stats_db = False, ordered = False):
+    def __init__(self, db_info, out_local = False, out_db = False, stats_local = False, stats_db = False, ordered = False):
         # Initialize Queue
 
         Queue.__init__(self)
@@ -87,7 +87,9 @@ class DatabaseWriter(Queue):
         self.__db_database = self.__db_client[db_info.name]
         self.__write_concern = db_info.writeconcern
         self.__fsync = db_info.fsync
+        self.__out_local = out_local
         self.__out_db = out_db
+        self.__stats_local = stats_local
         self.__stats_db = stats_db
         self.__ordered = ordered
         self.__batch = {}
@@ -110,12 +112,16 @@ class DatabaseWriter(Queue):
 
         self.__batch[collection][action].append((index_doc, doc))
 
-        if action == "unset":
-            self.bson_size -= len(BSON.encode(doc))
-        else:
-            self.bson_size += len(BSON.encode(doc))
+        if action != "none":
+            if action == "unset":
+                self.bson_size -= len(BSON.encode(doc))
+            else:
+                self.bson_size += len(BSON.encode(doc))
 
-        bkp_ext = collection + "." + action
+        if action in ["none", "stat"]:
+            bkp_ext = collection + ".set"
+        else:
+            bkp_ext = collection + "." + action
         bkp_line = json.dumps(index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':'))
 
         return bkp_ext, bkp_line
@@ -140,21 +146,25 @@ class DatabaseWriter(Queue):
                 self.collections[collection] = self.__db_database.get_collection(collection, write_concern = WriteConcern(w = self.__write_concern, fsync = self.__fsync))
             requests = []
             for action in batch[collection]:
-                bkp_ext = collection + "." + action
+                if action in ["none", "stat"]:
+                    bkp_ext = collection + ".set"
+                else:
+                    bkp_ext = collection + "." + action
                 if not bkp_ext in bkp_ext_lines:
                     bkp_ext_lines[bkp_ext] = []
                 for index_doc, doc in batch[collection][action]:
-                    bkp_ext_lines[bkp_ext].append(json.dumps(index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':')))
-                    if action == "unset":
+                    if (self.__out_local and action in ["unset", "set", "addToSet", "insert"]) or (self.__stats_local and action in ["none", "stat"]):
+                        bkp_ext_lines[bkp_ext].append(json.dumps(index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':')))
+                    if self.__out_db and action == "unset":
                         requests.append(UpdateOne(index_doc, {"$unset": doc}))
-                    elif action == "set":
+                    elif (self.__out_db and action == "set") or (self.__stats_db and action == "stat"):
                         requests.append(UpdateOne(index_doc, {"$set": doc}, upsert = upsert))
-                    elif action == "addToSet":
+                    elif self.__out_db and action == "addToSet":
                         requests.append(UpdateOne(index_doc, {"$addToSet": doc}, upsert = upsert))
-                    elif action == "insert":
+                    elif self.__out_db and action == "insert":
                         merged_doc = merge_dicts(index_doc, doc)
                         requests.append(InsertOne(merged_doc))
-            if self.__out_db or self.__stats_db:
+            if len(requests) > 0:
                 try:
                     self.collections[collection].bulk_write(requests, ordered = self.__ordered)
                 except BulkWriteError as bwe:

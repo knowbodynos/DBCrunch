@@ -26,6 +26,10 @@ do
     #mv ${file} ${newfile} 2>/dev/null
 done
 
-python ${prog_dir}/tools/create_controller.py ${controller_path}
+#job_id=$(python ${prog_dir}/tools/create_controller.py ${controller_path})
 
-echo "Finished creating controller job file for ${mod_name}_${controller_name}."
+job_name="crunch_${mod_name}_${controller_name}_controller"
+
+#echo "Finished creating controller job ${job_id} as ${job_name}."
+
+echo "Finished creating controller job ${job_name}."

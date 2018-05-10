@@ -9,7 +9,7 @@ controller_path=$2
 mod_name=$(echo ${mod_path} | rev | cut -d'/' -f1 | rev)
 controller_name=$(echo ${controller_path} | rev | cut -d'/' -f1 | rev)
 
-job_id=$(python ${prog_dir}/tools/create_controller.py ${controller_path})
+job_id=$(python ${prog_dir}/tools/create_controller.py ${controller_path} --submit-job)
 
 #jobs=$(find ${controller_path} -maxdepth 1 -type d -path '*/.*' -prune -o -type f -name "*.job" -print 2>/dev/null)
 #for job in ${jobs}
@@ -19,5 +19,5 @@ job_name="crunch_${mod_name}_${controller_name}_controller"
 #job_name=$(echo ${job} | rev | cut -d'/' -f1 | rev)
 #jobmsg=$(sbatch ${job} 2>&1)
 #echo "${jobmsg} as ${job_name}."
-echo "Submitted batch job ${job_id} as ${job_name}."
+echo "Submitted controller job ${job_id} as ${job_name}."
 #done

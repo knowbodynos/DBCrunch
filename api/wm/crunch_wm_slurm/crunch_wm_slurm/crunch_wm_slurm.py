@@ -188,7 +188,7 @@ def write_controller_job_file(config, job_name, node):
     job_string += "#SBATCH --requeue\n"
     job_string += "#################\n"
     job_string += "\n"
-    job_string += "python ${CRUNCH_ROOT}/bin/controller.py --controller-path " + config.controller.path + " --controller-id ${SLURM_JOBID}"
+    job_string += "python ${CRUNCH_ROOT}/bin/controller.py " + config.controller.path + " ${SLURM_JOBID}"
 
     with open(config.controller.path + "/" + job_name + ".job", "w") as job_stream:
         job_stream.write(job_string)
