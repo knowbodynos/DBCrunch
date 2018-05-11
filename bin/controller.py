@@ -285,8 +285,10 @@ def wait_for_slots(config, wm_api):
         steps = []
         for refill_file in iglob(config.controller.path + "/docs/*.refill"):
             with open(refill_file, "r") as refill_stream:
-                refill_line = refill_stream.readline().rstrip("\n")
-                steps.append(json.loads(refill_line))
+                #refill_line = refill_stream.readline().rstrip("\n")
+                #steps.append(json.loads(refill_line))
+                refill_doc = yaml.load(refill_stream)
+                steps.append(refill_doc)
         if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
             return True, steps
 
@@ -314,8 +316,10 @@ def wait_for_slots(config, wm_api):
             steps = []
             for refill_file in iglob(config.controller.path + "/docs/*.refill"):
                 with open(refill_file, "r") as refill_stream:
-                    refill_line = refill_stream.readline().rstrip("\n")
-                    steps.append(json.loads(refill_line))
+                    #refill_line = refill_stream.readline().rstrip("\n")
+                    #steps.append(json.loads(refill_line))
+                    refill_doc = yaml.load(refill_stream)
+                    steps.append(refill_doc)
             if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
                 return True, steps
 

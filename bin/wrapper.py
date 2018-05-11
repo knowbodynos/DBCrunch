@@ -242,7 +242,8 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 #if not self.__refill_reported:
                 self.__stdin_file.truncate(0)
                 if self.options.nrefill and self.__wm_api.is_controller_running(self.cluster.user, self.module.name, self.controller.name):
-                    self.__stdin_file.write(json.dumps(self.step.to_dict(), separators = (',', ':')))
+                    yaml.dump(self.step.to_dict(), self.__stdin_file)
+                    #self.__stdin_file.write(json.dumps(self.step.to_dict(), separators = (',', ':')))
                     self.__stdin_file.flush()
                     self.__stdin_file.close()
                     #try:
