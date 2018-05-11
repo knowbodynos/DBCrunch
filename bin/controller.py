@@ -439,6 +439,18 @@ def prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = 0):
                             i -= 1
                             break
                 i += 1
+        else:
+            i = 0
+            while i < len(nodes):
+                if nodes[i]["hostname"] in step["hostlist"]:
+                    n_cpus = 1
+                    while nodes[i]["ncpus"] > 0:
+                        step["hostlist"][nodes[i]["hostname"]]["ncpus"] += n_cpus
+                        n_step_cpus += n_cpus
+                        nodes[i]["ncpus"] -= n_cpus
+                    del nodes[i]
+                    i -= 1
+                i += 1
         step["timelimit"] = format_duration(step_time_limit)
         step["cpumemorylimit"] = format_mem(step_cpu_mem, unit = "MB")
         steps.append(step)
