@@ -230,7 +230,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 self.__stdin_file = open(self.__stdin_path + ".docs", "a+")
                 #self.__refill_reported = False
             elif os.path.exists(self.__stdin_path + ".done"):
-                self.__process.stdin.write("\n")
+                self.__process.stdin.write("")#\n")
                 self.__process.stdin.flush()
                 self.__process.stdin.close()
                 os.remove(self.__stdin_path + ".done")
@@ -626,11 +626,11 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                 if config.options.intermedlog or config.options.outlog:
                     if config.options.intermedlog:
                         with open(config.controller.path + "/logs/" + config.step.name + ".log.intermed", "a") as intermed_log_stream:
-                            intermed_log_stream.write("# " + line + "\n")
+                            intermed_log_stream.write(line + "\n")
                             intermed_log_stream.flush()
                     if config.options.outlog:
                         with open(config.controller.path + "/logs/" + config.step.name + ".log", "a") as out_log_stream:
-                            out_log_stream.write("# " + line + "\n")
+                            out_log_stream.write(line + "\n")
                             out_log_stream.flush()
             elif len(line_split) == 4:
                 collection = line_split[1]

@@ -279,7 +279,9 @@ def wait_for_slots(config, wm_api):
     while storage_left(config) <= 0:
         sleep(0.1)
 
-    if config.options.nrefill and wm_api.n_controller_steps(config.cluster.user, config.module.name, config.controller.name) >= config.options.nworkers:
+    config_fields = [config.cluster.user, config.module.name, config.controller.name]
+
+    if config.options.nrefill and (wm_api.n_controller_steps(*config_fields) >= config.options.nworkers or wm_api.n_controller_jobs(*config_fields) >= config.job.jobs.max):
         steps = []
         for refill_file in iglob(config.controller.path + "/docs/*.refill"):
             with open(refill_file, "r") as refill_stream:
@@ -300,7 +302,7 @@ def wait_for_slots(config, wm_api):
         has_wrapper_node = True
     if not has_wrapper_node:
         nodes = []
-    wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
+    wm_api.release_held_jobs(*config_fields)
     #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
     #sys.stdout.flush()
     while time_left(config) > 0 and not (job_slots_left(config, wm_api) and len(nodes) > 0 and storage_left(config) > 0):
@@ -308,7 +310,7 @@ def wait_for_slots(config, wm_api):
         #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
         #sys.stdout.flush()
 
-        if config.options.nrefill and wm_api.n_controller_steps(config.cluster.user, config.module.name, config.controller.name) >= config.options.nworkers:
+        if config.options.nrefill and (wm_api.n_controller_steps(*config_fields) >= config.options.nworkers or wm_api.n_controller_jobs(*config_fields) >= config.job.jobs.max):
             steps = []
             for refill_file in iglob(config.controller.path + "/docs/*.refill"):
                 with open(refill_file, "r") as refill_stream:
@@ -329,7 +331,7 @@ def wait_for_slots(config, wm_api):
             has_wrapper_node = True
         if not has_wrapper_node:
             nodes = []
-        wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
+        wm_api.release_held_jobs(*config_fields)
 
     #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
     #sys.stdout.flush()
@@ -560,6 +562,7 @@ def do_initialize(config, steps, refill):
         with open(config.controller.path + "/status", "w") as status_stream:
             status_stream.write("Refilling job.")
             status_stream.flush()
+
         for step in steps:
             with open(config.controller.path + "/docs/" + step["name"] + ".refill", "w") as doc_stream:
                 for doc in step["docs"]:
@@ -576,6 +579,10 @@ def do_initialize(config, steps, refill):
                 for doc in step["docs"]:
                     doc_stream.write(json.dumps(doc, separators = (',', ':')) + "\n")
                     doc_stream.flush()
+            # with open(config.controller.path + "/docs/" + step["name"] + ".docs2", "w") as doc_stream:
+            #     for doc in step["docs"]:
+            #         doc_stream.write(json.dumps(doc, separators = (',', ':')) + "\n")
+            #         doc_stream.flush()
             wrap_step = {}
             for key in step.keys():
                 if key != "docs":
