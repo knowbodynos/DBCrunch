@@ -20,6 +20,8 @@ def retry(script, warn_tries = 10, max_tries = None):
     while True:
         proc = Popen(script, shell = True, stdout = PIPE, stderr = PIPE, preexec_fn = default_sigpipe)
         stdout, stderr = proc.communicate()
+        stdout = stdout.decode('ascii')
+        stderr = stderr.decode('ascii')
         if stderr:
             n_tries += 1
             if n_tries % warn_tries == 0:

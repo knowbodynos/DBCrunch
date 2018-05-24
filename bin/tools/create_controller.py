@@ -1,5 +1,3 @@
-#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
-
 #    DBCrunch: create_controller.py
 #    Copyright (C) 2017 Ross Altman
 #

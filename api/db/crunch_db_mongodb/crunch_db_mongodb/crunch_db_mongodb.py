@@ -40,10 +40,10 @@ class DatabaseReader(object):
         self.__find_kwargs = find_kwargs
 
         if self.__db_info.hint:
-            self.__db_info.hint = self.__db_info.hint.items()
+            self.__db_info.hint = list(self.__db_info.hint.items())
 
         if self.__db_info.sort:
-            self.__db_info.sort = self.__db_info.sort.items()
+            self.__db_info.sort = list(self.__db_info.sort.items())
 
         # Initialize public variables
         

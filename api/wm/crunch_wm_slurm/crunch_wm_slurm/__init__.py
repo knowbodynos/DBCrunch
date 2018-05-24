@@ -1,1 +1,1 @@
-from crunch_wm_slurm import *
+from .crunch_wm_slurm import *

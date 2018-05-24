@@ -1,5 +1,3 @@
-#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
-
 #    DBCrunch: wrapper.py
 #    Copyright (C) 2017 Ross Altman
 #
@@ -33,7 +31,7 @@ from argparse import ArgumentParser, REMAINDER
 try:
     from Queue import Queue, Empty
 except ImportError:
-    from queue import Queue, Empty  # python 3.x
+    from queue import Queue, Empty # Python3.x
 from crunch_config import *
 
 def default_sigpipe():
@@ -176,6 +174,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
         self.__err_gen = nonblocking_readlines(process.stderr)
         self.__stdin_path = self.controller.path + "/docs/" + self.step.name
         self.__stdin_file = open(self.__stdin_path + ".docs", "a+")
+        self.__stdin_file.seek(0)
         self.__cleanup_counter = 0
         #self.__refill_reported = False
         self.__proc_smaps = open("/proc/" + str(self.__process.pid) + "/smaps", "r")
@@ -217,6 +216,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 self.__stdin_file.close()
                 os.rename(temp_stream.name, self.__stdin_file.name)
                 self.__stdin_file = open(self.__stdin_file.name, "a+")
+                self.__stdin_file.seek(0)
             flock(self.__stdin_file, LOCK_UN)
             self.__cleanup_counter = 0
 
@@ -228,9 +228,10 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
         if self.__stdin_file.closed:
             if os.path.exists(self.__stdin_path + ".docs"):
                 self.__stdin_file = open(self.__stdin_path + ".docs", "a+")
+                self.__stdin_file.seek(0)
                 #self.__refill_reported = False
             elif os.path.exists(self.__stdin_path + ".done"):
-                self.__process.stdin.write("")#\n")
+                self.__process.stdin.write(b"")#\n")
                 self.__process.stdin.flush()
                 self.__process.stdin.close()
                 os.remove(self.__stdin_path + ".done")
@@ -260,7 +261,10 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 self.__intermed_queue.put(in_line)
                 #sys.stdout.write(in_line + "\n")
                 #sys.stdout.flush()
-                self.__process.stdin.write(in_line + "\n")
+                #self.__process.stdin.write(str.encode(in_line) + b"\n")
+                for i in range(0, len(in_line), 400):
+                    self.__process.stdin.write(str.encode(in_line[i:i + 400]))
+                self.__process.stdin.write(b"\n")
                 self.__process.stdin.flush()
                 self.__cleanup_counter += 1
 
@@ -376,7 +380,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 self.get_stats(in_timestamp = in_timestamp)
                 self.cleanup()
             try:
-                err_line = self.__err_gen.next()
+                err_line = next(self.__err_gen)
             except StopIteration:
                 err_line = ""
                 pass
@@ -391,12 +395,12 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                     sys.stderr.flush()
                 self.get_stats()
                 try:
-                    err_line = self.__err_gen.next()
+                    err_line = next(self.__err_gen)
                 except StopIteration:
                     break
                         
             try:
-                out_line = self.__out_gen.next()
+                out_line = next(self.__out_gen)
             except StopIteration:
                 out_line = ""
                 pass
@@ -416,7 +420,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                     self.get_stats(in_timestamp)
                 self.__out_queue.put(out_line.rstrip("\n"))
                 try:
-                    out_line = self.__out_gen.next()
+                    out_line = next(self.__out_gen)
                 except StopIteration:
                     break
             self.get_stats()
@@ -634,9 +638,13 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                             out_log_stream.write(line + "\n")
                             out_log_stream.flush()
             elif len(line_split) == 4:
+                # try:
                 collection = line_split[1]
                 index_doc = json.loads(line_split[2])
                 doc = json.loads(line_split[3])
+                # except:
+                #     print("elif: " + line)
+                #     sys.stdout.flush()
                 bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, doc)
                 if config.options.intermedlocal:
                     with open(config.controller.path + "/bkps/" + config.step.name + "." + bkp_ext + ".intermed", "a") as intermed_bkp_stream:
@@ -644,8 +652,8 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                         intermed_bkp_stream.flush()
             else:
                 try:
-                    #print(line)
-                    #sys.stdout.flush()
+                    # print("else: " + line)
+                    # sys.stdout.flush()
                     raise IndexError("Modules should only output commented lines, blank lines separating processed input documents, or line with 4 columns representing: collection name, update action, index document, output document.")
                 except IndexError as e:
                     with open(config.controller.path + "/logs/" + config.step.name + ".err", "a") as err_file_stream:

@@ -6,7 +6,11 @@ from time import time, sleep
 def unformat_duration(duration):
     if duration == None:
         return None
-    assert isinstance(duration, (str, unicode))
+    if sys.version_info[0] < 3:
+        assert_types = (str, unicode)
+    else:
+        assert_types = str
+    assert isinstance(duration, assert_types)
     days = 0
     if "-" in duration:
         daysstr, duration = duration.split("-")
@@ -40,11 +44,11 @@ def format_duration(duration, form = "D-HH:MM:SS"):
 def unformat_mem(mem):
     if mem == None:
         return None
-    try:
-        assert isinstance(mem, (str, unicode))
-    except AssertionError:
-        print("mem: " + str(type(mem)) + str(mem))
-        sys.stdout.flush()
+    if sys.version_info[0] < 3:
+        assert_types = (str, unicode)
+    else:
+        assert_types = str
+    assert isinstance(mem, assert_types)
     num = ""
     unit = ""
     for c in mem:
@@ -67,11 +71,11 @@ def format_mem(mem, unit = "MB"):
     assert isinstance(mem, (int, float))
     mem = int(mem)
     if unit.lower() in ["k", "kb"]:
-        return str(mem / 1024) + unit
+        return str(int(mem / 1024)) + unit
     elif unit.lower() in ["m", "mb"]:
-        return str(mem / (1024 ** 2)) + unit
+        return str(int(mem / (1024 ** 2))) + unit
     elif unit.lower() in ["g", "gb"]:
-        return str(mem / (1024 ** 3)) + unit
+        return str(int(mem / (1024 ** 3))) + unit
 
 def dir_size(start_path = "."):
     total_size = 0

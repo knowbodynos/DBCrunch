@@ -1,5 +1,3 @@
-#!/shared/apps/python/Python-2.7.5/INSTALL/bin/python
-
 #    DBCrunch: controller.py
 #    Copyright (C) 2017 Ross Altman
 #
@@ -134,8 +132,9 @@ def write_job_file(config, wm_api, steps):
     job_host_names = []
     job_partitions = []
     for step in steps:
-        if step["timelimit"] != None and step["timelimit"] > job_max_time_limit:
-            job_max_time_limit = step["timelimit"]
+        timelimit = unformat_duration(step["timelimit"])
+        if step["timelimit"] != None and timelimit > job_max_time_limit:
+            job_max_time_limit = timelimit
         for host_name, host in step["hostlist"].items():
             job_n_cpus += host["ncpus"]
             if host["ncpus"] > max_cpus:
@@ -144,7 +143,7 @@ def write_job_file(config, wm_api, steps):
                 job_host_names += [host_name]
             if host["partition"] not in job_partitions:
                 job_partitions += [host["partition"]]
-    
+
     job_string = "#!/bin/bash\n"
     job_string += "\n"
     job_string += "# Created " + wm_api.get_timestamp() + "\n"
@@ -165,7 +164,7 @@ def write_job_file(config, wm_api, steps):
     job_string += "#SBATCH --open-mode=\"" + config.job.writemode + "\"\n"
     job_string += "#################\n"
     job_string += "# Job max time\n"
-    job_string += "#SBATCH --time=\"" + str(job_max_time_limit) + "\"\n"
+    job_string += "#SBATCH --time=\"" + format_duration(job_max_time_limit) + "\"\n"
     job_string += "#################\n"
     job_string += "# Partition(s) to use for job\n"
     job_string += "#SBATCH --partition=\"" + ",".join(job_partitions) + "\"\n"
@@ -744,7 +743,7 @@ if (not time_left(config) > 0) and (firstlastrun or wm_api.is_dependency_running
         status_stream.write("Resubmitting controller.")
         status_stream.flush()
 
-    mem = format_mem((config.cluster.resources[node["partition"]]["memorylimit"] / node["ntotcpus"]) * node["ncpus"], unit = "MB")
+    mem = format_mem(int(config.cluster.resources[node["partition"]]["memorylimit"] / node["ntotcpus"]) * node["ncpus"], unit = "MB")
 
     print("")
     print(wm_api.get_timestamp())

@@ -118,7 +118,7 @@ if $(python -c "import mpi4py" |& grep -q "ImportError" && echo true || echo fal
 then
     cd ${HOME}
     rm -r ${HOME}/mpi4py 2>/dev/null
-    git clone https://github.com/mpi4py/mpi4py.git mpi4py
+    git clone git@github.com:mpi4py/mpi4py.git mpi4py
     wait
     cd mpi4py
     git checkout 2.0.0
@@ -140,7 +140,7 @@ if $(python -c "import pymongo" |& grep -q "ImportError" && echo true || echo fa
 then
     cd ${HOME}
     rm -r ${HOME}/pymongo 2>/dev/null
-    git clone https://github.com/mongodb/mongo-python-driver.git pymongo
+    git clone git@github.com:mongodb/mongo-python-driver.git pymongo
     wait
     cd pymongo
     git checkout 3.5.1

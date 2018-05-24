@@ -1,1 +1,1 @@
-from crunch_config import *
+from .crunch_config import *
