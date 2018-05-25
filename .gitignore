@@ -10,9 +10,11 @@ api/**/filespy.txt
 api/**/dist
 api/**/build
 api/**/*.pyc
+api/**/__pycache__
 api/**/**/*.egg-info
 api/**/**/filessage.txt
 api/**/**/filespy.txt
 api/**/**/dist
 api/**/**/build
 api/**/**/*.pyc
+api/**/**/__pycache__

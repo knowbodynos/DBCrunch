@@ -124,7 +124,7 @@ class DatabaseWriter(Queue):
             else:
                 self.bson_size += len(BSON.encode(doc))
 
-        if action in ["none", "stat"]:
+        if action in ["none", "stat", "mark"]:
             bkp_ext = collection + ".set"
         else:
             bkp_ext = collection + "." + action
@@ -152,7 +152,7 @@ class DatabaseWriter(Queue):
                 self.collections[collection] = self.__db_database.get_collection(collection, write_concern = WriteConcern(w = self.__write_concern, fsync = self.__fsync))
             requests = []
             for action in batch[collection]:
-                if action in ["none", "stat"]:
+                if action in ["none", "stat", "mark"]:
                     bkp_ext = collection + ".set"
                 else:
                     bkp_ext = collection + "." + action
@@ -163,7 +163,7 @@ class DatabaseWriter(Queue):
                         bkp_ext_lines[bkp_ext].append(json.dumps(index_doc, separators = (',', ':')) + " " + json.dumps(doc, separators = (',', ':')))
                     if self.__out_db and action == "unset":
                         requests.append(UpdateOne(index_doc, {"$unset": doc}))
-                    elif (self.__out_db and action == "set") or (self.__stats_db and action == "stat"):
+                    elif (self.__out_db and action == "set") or (self.__stats_db and action == "stat") or (action == "mark"):
                         requests.append(UpdateOne(index_doc, {"$set": doc}, upsert = upsert))
                     elif self.__out_db and action == "addToSet":
                         requests.append(UpdateOne(index_doc, {"$addToSet": doc}, upsert = upsert))

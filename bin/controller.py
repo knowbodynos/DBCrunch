@@ -209,8 +209,9 @@ def write_job_file(config, wm_api, steps):
         #for key in step.keys():
         #    if key != "docs":
         #        wrapstep[key] = step[key]
-        job_string += "python ${CRUNCH_ROOT}/bin/wrapper.py \"" + config.controller.path + "\" \"${SLURM_JOBID}." + str(i) + "\" \"" + step["name"] + "\" \"TotalCPUTime\" \"Rss\" \"Size\" &"#"\" --stepdoc " + json.dumps(wrapstep, separators = (',',':'))
-        job_string += "\n\n"
+        job_string += "python ${CRUNCH_ROOT}/bin/wrapper.py \"" + config.controller.path + "\" \"${SLURM_JOBID}." + str(i) + "\" \"" + step["name"] + "\" \"TotalCPUTime\" \"Rss\" \"Size\" "#"--stepdoc " + json.dumps(wrapstep, separators = (',',':'))
+        job_string += "|| scontrol requeue \"${SLURM_JOBID}." + str(i) + "\" "
+        job_string += "&\n\n"
         #jobinfo += [{"host_names": host_names, "jobstepname": step["name"], "partitions": partitions, "ncpus": n_step_cpus, "mem": step["cpumemorylimit"], "n_docs": len(step["docs"])}]
         i += 1
 

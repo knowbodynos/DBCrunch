@@ -210,7 +210,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
             with tempfile.NamedTemporaryFile(dir = self.controller.path + "/docs", delete = False) as temp_stream:
                 in_line = self.__stdin_file.readline()
                 while in_line != "":
-                    temp_stream.write(in_line)
+                    temp_stream.write(str.encode(in_line))
                     temp_stream.flush()
                     in_line = self.__stdin_file.readline()
                 self.__stdin_file.close()
@@ -550,7 +550,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                 count = 0
                 for intermed_log_line in intermed_log_stream:
                     if count >= self.__count_log_out:
-                        temp_stream.write(intermed_log_line)
+                        temp_stream.write(str.encode(intermed_log_line))
                         temp_stream.flush()
                     count += 1
                 os.rename(temp_stream.name, intermed_log_stream.name)
@@ -570,7 +570,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                     count = 0
                     for intermed_bkp_line in intermed_bkp_stream:
                         if count >= self.__count_bkp_ext_out[bkp_ext]:
-                            temp_stream.write(intermed_bkp_line)
+                            temp_stream.write(str.encode(intermed_bkp_line))
                             temp_stream.flush()
                         count += 1
                     os.rename(temp_stream.name, intermed_bkp_stream.name)
@@ -591,6 +591,8 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
             if line == "":
                 if config.options.statsdb:
                     action = "stat"
+                elif config.options.markdone:
+                    action = "mark"
                 else:
                     action = "none"
                 stats = stats_queue.get()
