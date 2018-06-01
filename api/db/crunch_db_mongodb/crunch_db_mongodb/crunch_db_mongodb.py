@@ -132,8 +132,9 @@ class DatabaseWriter(Queue):
 
         return bkp_ext, bkp_line
 
-    def add_to_batch(self, log):
-        self.__log_lines.append(log)
+    def add_to_batch(self, log = None):
+        if log:
+            self.__log_lines.append(log)
         self.count += 1
         self.bson_size = 0
 

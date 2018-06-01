@@ -372,7 +372,8 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
         while self.__process.poll() == None:
             #if self.__refill_reported:
             if self.__stdin_file.closed:
-                self.reload()
+                if self.options.reloadconfig:
+                    self.reload()
                 #print("NThreads: " + str(active_count()))
                 #sys.stdout.flush()
                 self.write_stdin()
@@ -409,7 +410,8 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                 if out_line == "":
                     out_timestamp = self.__wm_api.get_timestamp()
                     self.get_stats(in_timestamp = in_timestamp, out_timestamp = out_timestamp)
-                    self.reload()
+                    if self.options.reloadconfig:
+                        self.reload()
                     #print("NThreads: " + str(active_count()))
                     #sys.stdout.flush()
                     self.write_stdin()
@@ -438,7 +440,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, wm_api, db_writer, **kwargs):
+    def __init__(self, wm_api, db_writer, db_stats_writer, **kwargs):
         # Initialize WrapperConfig
 
         WrapperConfig.__init__(self, **kwargs)
@@ -455,6 +457,8 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
 
         self.__db_writer = db_writer
 
+        self.__db_stats_writer = db_stats_writer
+
         # Initialize private variables
 
         self.__signal = False
@@ -470,6 +474,14 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
             in_write_time = time()
 
         count, log_lines, bkp_ext_lines = self.__db_writer.get_batch(upsert = True)
+        
+        if self.__db_stats_writer:
+            stats_count, stats_log_lines, stats_bkp_ext_lines = self.__db_stats_writer.get_batch(upsert = True)
+
+            log_lines += stats_log_lines
+            for bkp_ext, bkp_lines in bkp_ext_lines.items():
+                if bkp_ext in stats_bkp_ext_lines:
+                    bkp_ext_lines[bkp_ext] += stats_bkp_ext_lines[bkp_ext]
 
         self.__count_batches_out += count
 
@@ -521,7 +533,8 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                         ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
                 else:
                     self.write_batch()
-                self.reload()
+                if self.options.reloadconfig:
+                    self.reload()
                 #print("NThreads: " + str(active_count()))
                 #sys.stdout.flush()
 
@@ -531,7 +544,8 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                     ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
             else:
                 self.write_batch()
-            self.reload()
+            if self.options.reloadconfig:
+                self.reload()
             #print("NThreads: " + str(active_count()))
             #sys.stdout.flush()
 
@@ -579,7 +593,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
     def signal(self):
         self.__signal = True
 
-def process_module_output(config, db_writer, intermed_queue, out_queue, stats_queue):
+def process_module_output(config, db_writer, db_stats_writer, intermed_queue, out_queue, stats_queue):
     while not out_queue.empty():
         line = out_queue.get()
         if not (config.module.ignore and line in config.module.ignore):
@@ -601,32 +615,43 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                 max_vmsize = stats["max"]["size"]
                 in_intermed_time = stats["in_timestamp"]
                 out_intermed_time = stats["out_timestamp"]
-                collection = config.db.output.basecollection
+                collection = config.db.input.basecollection
                 doc = json.loads(intermed_queue.get())
-                index_doc = dict([(x, doc[x]) for x in db_writer.indexes])
+                if db_stats_writer:
+                    index_doc = dict([(x, doc[x]) for x in db_stats_writer.indexes])
+                else:
+                    index_doc = dict([(x, doc[x]) for x in db_writer.indexes])
                 log_line = ""
                 if config.options.intermedlog or config.options.outlog:
                     if config.options.intermedlog:
                         with open(config.controller.path + "/logs/" + config.step.name + ".log.intermed", "a") as intermed_log_stream:
-                            intermed_log_stream.write(out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':')) + "\n")
+                            intermed_log_stream.write(out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':')) + "\n")
                             intermed_log_stream.flush()
                     if config.options.outlog:
-                        log_line = out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':'))
+                        log_line = out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':'))
                 stats_mark = {}
                 if config.options.statslocal or config.options.statsdb:
-                    stats_mark.update({config.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": db_writer.bson_size}})
+                    stats_mark.update({config.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size}})
                 if config.options.markdone:
                     stats_mark.update({config.module.name + config.options.markdone: True})
                 if len(stats_mark) > 0:
-                    bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, stats_mark)
+                    if db_stats_writer:
+                        bkp_ext, bkp_line = db_stats_writer.new_request(action, collection, index_doc, stats_mark)
+                    else:
+                        bkp_ext, bkp_line = db_writer.new_request(action, collection, index_doc, stats_mark)
                     if config.options.statslocal and config.options.intermedlocal:
                         with open(config.controller.path + "/bkps/" + config.step.name + "." + bkp_ext + ".intermed", "a") as intermed_bkp_stream:
                             intermed_bkp_stream.write(bkp_line + "\n")
                             intermed_bkp_stream.flush()
                 db_writer.add_to_batch(log_line)
+                if db_stats_writer:
+                    db_stats_writer.add_to_batch()
                 if db_writer.count == config.options.nbatch:
                     db_writer.put_batch()
-                    config.reload()
+                    if db_stats_writer:
+                        db_stats_writer.put_batch()
+                    if config.options.reloadconfig:
+                        config.reload()
                     #print("NThreads: " + str(active_count()))
                     #sys.stdout.flush()
             elif line[0] == "#":
@@ -710,13 +735,27 @@ process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE
 
 # Initialize database writer
 
-db_api = __import__("crunch_db_" + config.db.output.api)
+db_output_api = __import__("crunch_db_" + config.db.output.api)
 
-db_writer = db_api.DatabaseWriter(config.db.output, out_local = config.options.outlocal,
-                                                    out_db = config.options.outdb,
-                                                    stats_local = config.options.statslocal,
-                                                    stats_db = config.options.statsdb,
-                                                    ordered = False)
+db_writer = db_output_api.DatabaseWriter(config.db.output, out_local = config.options.outlocal,
+                                                           out_db = config.options.outdb,
+                                                           stats_local = config.options.statslocal,
+                                                           stats_db = config.options.statsdb,
+                                                           ordered = False)
+
+if (config.db.input.api == config.db.output.api and \
+    config.db.input.host == config.db.output.host and \
+    config.db.input.port == config.db.output.port and \
+    config.db.input.name == config.db.output.name):
+    db_stats_writer = None
+else:
+    db_input_api = __import__("crunch_db_" + config.db.input.api)
+
+    db_stats_writer = db_input_api.DatabaseWriter(config.db.input, out_local = config.options.outlocal,
+                                                                   out_db = config.options.outdb,
+                                                                   stats_local = config.options.statslocal,
+                                                                   stats_db = config.options.statsdb,
+                                                                   ordered = False)
 
 # Initialize stats thread
 
@@ -725,7 +764,9 @@ reader.start()
 
 # Initialize bulk write thread
 
-writer = AsyncBulkWriteStream(wm_api, db_writer, **kwargs)
+
+
+writer = AsyncBulkWriteStream(wm_api, db_writer, db_stats_writer, **kwargs)
 writer.start()
 
 # Remove step file
@@ -752,24 +793,27 @@ sys.stdout.flush()
 flock(sys.stdout, LOCK_UN)
 
 while reader.is_alive():
-    process_module_output(config, db_writer, intermed_queue, out_queue, stats_queue)
+    process_module_output(config, db_writer, db_stats_writer, intermed_queue, out_queue, stats_queue)
 
 reader.join()
 process.stdin.close()
 process.stdout.close()
 process.stderr.close()
 
-process_module_output(config, db_writer, intermed_queue, out_queue, stats_queue)
+process_module_output(config, db_writer, db_stats_writer, intermed_queue, out_queue, stats_queue)
 
 if db_writer.count > 0:
     db_writer.put_batch()
+    if db_stats_writer:
+        db_stats_writer.put_batch()
 
 writer.signal()
 writer.join()
 
 # End wrapper body
 
-config.reload()
+if config.options.reloadconfig:
+    config.reload()
 #print("NThreads: " + str(active_count()))
 #sys.stdout.flush()
 
@@ -790,6 +834,8 @@ flock(sys.stdout, LOCK_UN)
 # Tie up loose ends
 
 db_writer.close()
+if db_stats_writer:
+    db_stats_writer.close()
 
 if config.options.intermedlog:
     os.remove(config.controller.path + "/logs/" + config.step.name + ".log.intermed")

@@ -61,45 +61,69 @@ controller:
 
 # Options for remote database
 db:
-  # Database type
-  api: "db_mongodb"
-  # Database name
-  name: "<database_name>"
-  # Database host
-  host: "<host_ip>"
-  # Database port
-  port: "<port>"
-  # Database username
-  username: "<username>"
-  # Database password
-  password: "<password>"
-  # Database writeconcern
-  writeconcern: "majority"
-  # Database fsync
-  fsync: false
-  # Database collections
-  collections:
-    - "<collection>"
-  # Database query
-  query: 
-    <field_1>:
-      <value_1>
-  # Database projection
-  projection:
-    <field_1>: 1
-    <field_2>: 1
-  # Database hint
-  hint:
-  # Database skip
-  skip:
-  # Database limit
-  limit: 100000
-  # Database sort
-  sort:
-  # Base collection
-  basecollection: "<collection>"
-  # Field in base collection that determines number of tasks
-  nprocsfield: 
+  # Input database information
+  input:
+    # Database type
+    api: "db_mongodb"
+    # Database name
+    name: "<database_name>"
+    # Database host
+    host: "<host_ip>"
+    # Database port
+    port: "<port>"
+    # Database username
+    username: "<username>"
+    # Database password
+    password: "<password>"
+    # Database writeconcern
+    writeconcern: "majority"
+    # Database fsync
+    fsync: false
+    # Database collections
+    collections:
+      - "<collection>"
+    # Database query
+    query: 
+      <field_1>:
+        <value_1>
+    # Database projection
+    projection:
+      <field_1>: 1
+      <field_2>: 1
+    # Database hint
+    hint:
+      <field>: 1
+    # Database skip
+    skip: <# documents>
+    # Database limit
+    limit: <# documents>
+    # Database sort
+    sort:
+      <field>: 1
+    # Field in base collection that determines number of tasks
+    nprocsfield: <field>
+    # Base collection
+    basecollection: "<collection>"
+  # Output database information
+  output:
+    # Database type
+    api: "db_mongodb"
+    # Database name
+    name: "<database_name>"
+    # Database host
+    host: "<host_ip>"
+    # Database port
+    port: "<port>"
+    # Database username
+    username: "<username>"
+    # Database password
+    password: "<password>"
+    # Database writeconcern
+    writeconcern: "majority"
+    # Database fsync
+    fsync: false
+    # Base collection
+    basecollection: "<collection>"
 
 # Options for batch jobs
 job:
@@ -128,6 +152,8 @@ module:
 
 # Other options
 options:
+  # Reload this and crunch.config periodically
+  reloadconfig: false
   # Block until dependencies are finished
   blocking: false
   # Generate intermediate log file

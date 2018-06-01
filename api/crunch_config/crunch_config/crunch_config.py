@@ -498,9 +498,10 @@ class Config(object):
             self.db.input = self.Objectify()
             self.db.output = self.Objectify()
             for key, val in controller_config["db"].items():
-                if key in ["api", "name", "host", "port", "username", "password", "collections", "query", "projection", "hint", "skip", "limit", "sort", "nprocsfield"]:
+                if key in ["api", "name", "host", "port", "username", "password", "writeconcern", "fsync", \
+                           "collections", "query", "projection", "hint", "skip", "limit", "sort", "basecollection", "nprocsfield"]:
                     self.db.input[key] = val
-                if key in ["api", "name", "host", "port", "username", "password", "writeconcern", "fsync", "basecollection"]:
+                if key in ["api", "name", "host", "port", "username", "password", "writeconcern", "fsync"]:
                     self.db.output[key] = val
 
         ##     Input
@@ -536,6 +537,14 @@ class Config(object):
         ##          Sort
         if not "sort" in self.db.input or not isinstance(self.db.input.sort, dict):
             self.db.input.sort = None
+
+        ##          Write Concern
+        if not "writeconcern" in self.db.input or not isinstance(self.db.input.writeconcern, str):
+            self.db.input.writeconcern = "majority"
+
+        ##          FSync
+        if not "fsync" in self.db.input or not isinstance(self.db.input.fsync, bool):
+            self.db.input.fsync = True
 
         ##     Output
         ##         Username

@@ -63,7 +63,8 @@ class AsyncTrackLocks(Config, Thread):
                         if nlocks + nready >= self.options.nworkers:
                             break
             sleep(0.1)
-            self.reload()
+            if self.options.reloadconfig:
+                self.reload()
             #print("NThreads: " + str(active_count()))
             #sys.stdout.flush()
 
@@ -468,7 +469,8 @@ def prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = 0):
     return steps
 
 def do_input(config, wm_api, db_reader):
-    #config.reload()
+    #if config.options.reloadconfig:
+        # config.reload()
     #print("NThreads: " + str(active_count()))
     #sys.stdout.flush()
     
@@ -597,7 +599,8 @@ def do_initialize(config, steps, refill):
                 yaml.dump(wrap_step, step_stream)
 
 def next_batch(config, wm_api, db_reader, counter):
-    config.reload()
+    if config.options.reloadconfig:
+        config.reload()
     #print("NThreads: " + str(active_count()))
     #sys.stdout.flush()
     
@@ -648,9 +651,9 @@ wm_api = __import__("crunch_wm_" + config.cluster.wm.api)
 
 # Initialize database reader
 
-db_api = __import__("crunch_db_" + config.db.input.api)
+db_input_api = __import__("crunch_db_" + config.db.input.api)
 
-db_reader = db_api.DatabaseReader(config.db.input)
+db_reader = db_input_api.DatabaseReader(config.db.input)
 
 # Create controller subdirectories
 
