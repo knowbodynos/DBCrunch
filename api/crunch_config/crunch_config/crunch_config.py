@@ -487,50 +487,72 @@ class Config(object):
         self.controller.buffertime = buffertime
 
         # DB
-        self.db = self.Objectify()
-        for key, val in controller_config["db"].items():
-            self.db[key] = val
+        # self.db = self.Objectify()
+        # for key, val in controller_config["db"].items():
+        #     self.db[key] = val
 
-        ##     Query
-        if not "query" in self.db or not isinstance(self.db.query, dict):
-            self.db.query = {}
+        if "input" in controller_config["db"] and "output" in controller_config["db"]:
+            self.db = self.Objectify(**controller_config["db"])
+        else:
+            self.db = self.Objectify()
+            self.db.input = self.Objectify()
+            self.db.output = self.Objectify()
+            for key, val in controller_config["db"].items():
+                if key in ["api", "name", "host", "port", "username", "password", "collections", "query", "projection", "hint", "skip", "limit", "sort", "nprocsfield"]:
+                    self.db.input[key] = val
+                if key in ["api", "name", "host", "port", "username", "password", "writeconcern", "fsync", "basecollection"]:
+                    self.db.output[key] = val
 
-        ##     Projection
-        if not "projection" in self.db or not isinstance(self.db.projection, dict):
-            self.db.projection = {}
-        self.db.projection.update({"_id": 0})
+        ##     Input
+        ##         Query
+        if not "query" in self.db.input or not isinstance(self.db.input.query, dict):
+            self.db.input.query = {}
 
-        ##     Username
-        if not "username" in self.db or not isinstance(self.db.username, str):
-            self.db.username = ""
+        ##         Projection
+        if not "projection" in self.db.input or not isinstance(self.db.input.projection, dict):
+            self.db.input.projection = {}
+        self.db.input.projection.update({"_id": 0})
 
-        ##     Password
-        if not "password" in self.db or not isinstance(self.db.password, str):
-            self.db.password = ""
+        ##         Username
+        if not "username" in self.db.input or not isinstance(self.db.input.username, str):
+            self.db.input.username = ""
 
-        ##      Hint
-        if not "hint" in self.db or not isinstance(self.db.hint, dict):
-            self.db.hint = None
+        ##         Password
+        if not "password" in self.db.input or not isinstance(self.db.input.password, str):
+            self.db.input.password = ""
 
-        ##      Skip
-        if not "skip" in self.db or not isinstance(self.db.skip, int):
-            self.db.skip = 0
+        ##          Hint
+        if not "hint" in self.db.input or not isinstance(self.db.input.hint, dict):
+            self.db.input.hint = None
 
-        ##      Limit
-        if not "limit" in self.db or not isinstance(self.db.limit, int):
-            self.db.limit = 0
+        ##          Skip
+        if not "skip" in self.db.input or not isinstance(self.db.input.skip, int):
+            self.db.input.skip = 0
 
-        ##      Sort
-        if not "sort" in self.db or not isinstance(self.db.sort, dict):
-            self.db.sort = None
+        ##          Limit
+        if not "limit" in self.db.input or not isinstance(self.db.input.limit, int):
+            self.db.input.limit = 0
 
-        ##      Write Concern
-        if not "writeconcern" in self.db or not isinstance(self.db.writeconcern, str):
-            self.db.writeconcern = "majority"
+        ##          Sort
+        if not "sort" in self.db.input or not isinstance(self.db.input.sort, dict):
+            self.db.input.sort = None
 
-        ##      FSync
-        if not "fsync" in self.db or not isinstance(self.db.fsync, bool):
-            self.db.fsync = True
+        ##     Output
+        ##         Username
+        if not "username" in self.db.output or not isinstance(self.db.output.username, str):
+            self.db.output.username = ""
+
+        ##         Password
+        if not "password" in self.db.output or not isinstance(self.db.output.password, str):
+            self.db.output.password = ""
+
+        ##          Write Concern
+        if not "writeconcern" in self.db.output or not isinstance(self.db.output.writeconcern, str):
+            self.db.output.writeconcern = "majority"
+
+        ##          FSync
+        if not "fsync" in self.db.output or not isinstance(self.db.output.fsync, bool):
+            self.db.output.fsync = True
 
         # Job
         self.job = self.Objectify(**controller_config["job"])

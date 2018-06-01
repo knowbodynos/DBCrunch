@@ -601,7 +601,7 @@ def process_module_output(config, db_writer, intermed_queue, out_queue, stats_qu
                 max_vmsize = stats["max"]["size"]
                 in_intermed_time = stats["in_timestamp"]
                 out_intermed_time = stats["out_timestamp"]
-                collection = config.db.basecollection
+                collection = config.db.output.basecollection
                 doc = json.loads(intermed_queue.get())
                 index_doc = dict([(x, doc[x]) for x in db_writer.indexes])
                 log_line = ""
@@ -701,20 +701,22 @@ if config.module.command:
     script += config.module.command + " "
 if config.module.flags:
     script += " ".join(config.module.flags) + " "
-script += config.cluster.root + "/modules/modules/" + config.module.name + "/" + config.module.name + config.module.extension
+script += config.cluster.root + "/modules/modules/" + config.module.name + "/" + config.module.name
+if config.module.extension:
+    script += config.module.extension
 if config.module.args:
     script += " " + " ".join(config.module.args)
 process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, bufsize = 1, preexec_fn = default_sigpipe)
 
 # Initialize database writer
 
-db_api = __import__("crunch_db_" + config.db.api)
+db_api = __import__("crunch_db_" + config.db.output.api)
 
-db_writer = db_api.DatabaseWriter(config.db, out_local = config.options.outlocal,
-                                             out_db = config.options.outdb,
-                                             stats_local = config.options.statslocal,
-                                             stats_db = config.options.statsdb,
-                                             ordered = False)
+db_writer = db_api.DatabaseWriter(config.db.output, out_local = config.options.outlocal,
+                                                    out_db = config.options.outdb,
+                                                    stats_local = config.options.statslocal,
+                                                    stats_db = config.options.statsdb,
+                                                    ordered = False)
 
 # Initialize stats thread
 

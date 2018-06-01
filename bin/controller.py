@@ -358,8 +358,8 @@ def prep_nodes(config, wm_api, db_reader, refill, slots, start_slot = 0):
     partition_time_limits = {}
     while len(steps) < config.job.steps.max and (len(host_names) <= 1 or n_docs < len(db_reader.batch)):
         docs = db_reader.batch[n_docs:n_docs + config.options.niters]
-        if config.db.nprocsfield and len(docs) > 0:
-            min_procs = max([doc[config.db.nprocsfield] for doc in docs])
+        if config.db.input.nprocsfield and len(docs) > 0:
+            min_procs = max([doc[config.db.input.nprocsfield] for doc in docs])
         else:
             min_procs = 1
         n_step_procs = 0
@@ -648,9 +648,9 @@ wm_api = __import__("crunch_wm_" + config.cluster.wm.api)
 
 # Initialize database reader
 
-db_api = __import__("crunch_db_" + config.db.api)
+db_api = __import__("crunch_db_" + config.db.input.api)
 
-db_reader = db_api.DatabaseReader(config.db)
+db_reader = db_api.DatabaseReader(config.db.input)
 
 # Create controller subdirectories
 
