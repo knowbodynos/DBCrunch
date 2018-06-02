@@ -522,8 +522,6 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
             if self.__count_batches_out >= self.options.cleanup:
                 self.__count_batches_out = 0
 
-        os.remove(self.controller.path + "/locks/" + self.step.name + ".lock")
-
     def run(self):
         '''The body of the thread: read lines and put them on the queue.'''
         while not self.__signal:
@@ -533,6 +531,8 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                         ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
                 else:
                     self.write_batch()
+                    if self.__db_writer.empty():
+                        os.remove(self.controller.path + "/locks/" + self.step.name + ".lock")
                 if self.options.reloadconfig:
                     self.reload()
                 #print("NThreads: " + str(active_count()))
@@ -544,6 +544,8 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
                     ready_stream = open(self.controller.path + "/locks/" + self.step.name + ".ready", "w").close()
             else:
                 self.write_batch()
+                if self.__db_writer.empty():
+                    os.remove(self.controller.path + "/locks/" + self.step.name + ".lock")
             if self.options.reloadconfig:
                 self.reload()
             #print("NThreads: " + str(active_count()))
