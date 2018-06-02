@@ -491,12 +491,16 @@ class Config(object):
         # for key, val in controller_config["db"].items():
         #     self.db[key] = val
 
+        self.db = self.Objectify()
+        self.db.input = self.Objectify()
+        self.db.output = self.Objectify()
+
         if "input" in controller_config["db"] and "output" in controller_config["db"]:
-            self.db = self.Objectify(**controller_config["db"])
+            for key, val in controller_config["db"]["input"].items():
+                self.db.input[key] = val
+            for key, val in controller_config["db"]["output"].items():
+                self.db.output[key] = val
         else:
-            self.db = self.Objectify()
-            self.db.input = self.Objectify()
-            self.db.output = self.Objectify()
             for key, val in controller_config["db"].items():
                 if key in ["api", "name", "host", "port", "username", "password", "writeconcern", "fsync", \
                            "collections", "query", "projection", "hint", "skip", "limit", "sort", "basecollection", "nprocsfield"]:

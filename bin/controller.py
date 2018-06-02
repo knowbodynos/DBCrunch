@@ -282,27 +282,36 @@ def wait_for_slots(config, wm_api):
 
     config_fields = [config.cluster.user, config.module.name, config.controller.name]
 
+    steps = []
+    step_cpus = 0
     if config.options.nrefill and (wm_api.n_controller_steps(*config_fields) >= config.options.nworkers or wm_api.n_controller_jobs(*config_fields) >= config.job.jobs.max):
-        steps = []
         for refill_file in iglob(config.controller.path + "/docs/*.refill"):
             with open(refill_file, "r") as refill_stream:
                 #refill_line = refill_stream.readline().rstrip("\n")
                 #steps.append(json.loads(refill_line))
                 refill_doc = yaml.load(refill_stream)
                 steps.append(refill_doc)
-        if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
-            return True, steps
+                for host, host_doc in refill_doc["hostlist"].items():
+                    step_cpus += host_doc["ncpus"]
+        # if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
+        #     return True, steps
 
     nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
+    node_cpus = 0
     if config.job.threads.min:
         has_wrapper_node = False
         for node in nodes:
             min_step_cpus = int(ceil(float(config.job.threads.min) / node["threadspercpu"]))
             if node["ncpus"] >= min_step_cpus:
+                node_cpus += node["ncpus"]
                 has_wrapper_node = True
                 break
     else:
         has_wrapper_node = True
+
+    if ((len(steps) > node_cpus) or (len(steps) > 0 and not (has_wrapper_node and job_slots_left(config, wm_api)))) and len(steps) > config.options.nrefill:
+        return True, steps
+
     if not has_wrapper_node:
         nodes = []
     wm_api.release_held_jobs(*config_fields)
@@ -313,27 +322,36 @@ def wait_for_slots(config, wm_api):
         #print((time_left(config) > 0, job_slots_left(config, wm_api), len(nodes) > 0, storage_left(config) > 0))
         #sys.stdout.flush()
 
+        steps = []
+        step_cpus = 0
         if config.options.nrefill and (wm_api.n_controller_steps(*config_fields) >= config.options.nworkers or wm_api.n_controller_jobs(*config_fields) >= config.job.jobs.max):
-            steps = []
             for refill_file in iglob(config.controller.path + "/docs/*.refill"):
                 with open(refill_file, "r") as refill_stream:
                     #refill_line = refill_stream.readline().rstrip("\n")
                     #steps.append(json.loads(refill_line))
                     refill_doc = yaml.load(refill_stream)
                     steps.append(refill_doc)
-            if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
-                return True, steps
+                    for host, host_doc in refill_doc["hostlist"].items():
+                        step_cpus += host_doc["ncpus"]
+            # if len(steps) > config.options.nrefill or (len(steps) > 0 and not job_slots_left(config, wm_api)):
+            #     return True, steps
 
         nodes = wm_api.get_avail_nodes(config.cluster.resources.keys())
+        node_cpus = 0
         if config.job.threads.min:
             has_wrapper_node = False
             for node in nodes:
                 min_step_cpus = int(ceil(float(config.job.threads.min) / node["threadspercpu"]))
                 if node["ncpus"] >= min_step_cpus:
+                    node_cpus += node["ncpus"]
                     has_wrapper_node = True
                     break
         else:
             has_wrapper_node = True
+
+        if ((len(steps) > node_cpus) or (len(steps) > 0 and not (has_wrapper_node and job_slots_left(config, wm_api)))) and len(steps) > config.options.nrefill:
+            return True, steps
+
         if not has_wrapper_node:
             nodes = []
         wm_api.release_held_jobs(*config_fields)
