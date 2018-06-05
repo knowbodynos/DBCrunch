@@ -79,7 +79,7 @@ def is_dependency_running(user_name, dependencies):
         n_jobs_running = 0
     else:
         grep_str = "\|".join(dependencies)
-        script = "squeue -h -u " + user_name + " -o '%.130j' | grep 'crunch_\(" + grep_str + "\)_controller' | wc -l | head -c -1"
+        script = "squeue -h -u " + user_name + " -o '%.130j' | grep 'crunch_\(" + grep_str + "\)_.*_controller' | wc -l | head -c -1"
         stdout, stderr = retry(script)
         n_jobs_running = int(stdout)
     return n_jobs_running > 0

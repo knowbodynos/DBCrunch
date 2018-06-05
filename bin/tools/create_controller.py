@@ -60,7 +60,8 @@ while True:
         wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
         job_state = wm_api.get_job_state(job_id)
         start_time = time()
-        while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
+        while time() - start_time < 30 and job_state[0] == "PENDING" and (job_state[1] == "None" or "held state" in job_state[1]):
+            wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
             sleep(0.1)
             job_state = wm_api.get_job_state(job_id)
         if job_state[0] in ["RUNNING", "COMPLETING", "COMPLETED"] or (job_state[0] == "PENDING" and job_state[1] == "None"):

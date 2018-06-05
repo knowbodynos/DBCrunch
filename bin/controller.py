@@ -551,7 +551,8 @@ def do_verify(config, wm_api, db_reader, counter):
             wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
             job_state = wm_api.get_job_state(job_id)
             start_time = time()
-            while time() - start_time < 30 and job_state[0] == "PENDING" and job_state[1] == "None":
+            while time() - start_time < 30 and job_state[0] == "PENDING" and (job_state[1] == "None" or "held state" in job_state[1]):
+                wm_api.release_held_jobs(config.cluster.user, config.module.name, config.controller.name)
                 sleep(0.1)
                 job_state = wm_api.get_job_state(job_id)
             if job_state[0] in ["RUNNING", "COMPLETING", "COMPLETED"] or (job_state[0] == "PENDING" and job_state[1] == "None"):
@@ -710,8 +711,15 @@ counter = BatchCounter(config.controller.path + "/counter")
 iterate_batches(config, wm_api, db_reader, counter)
 
 while time_left(config) > 0 and wm_api.is_dependency_running(config.cluster.user, config.controller.dependencies):
-    db_reader.reset()
+    db_reader.restart()
     iterate_batches(config, wm_api, db_reader, counter)
+    while time_left(config) > 0 and wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0:
+        if db_reader.done:
+            for refill_file in os.listdir(config.controller.path + "/docs"):
+                if refill_file.endswith(".refill"):
+                    with open(config.controller.path + "/docs/" + refill_file, "w") as refill_stream:
+                        os.rename(refill_stream.name, refill_stream.name.replace(".refill", ".done"))
+        sleep(0.1)
 
 while time_left(config) > 0 and wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0:
     if db_reader.done:

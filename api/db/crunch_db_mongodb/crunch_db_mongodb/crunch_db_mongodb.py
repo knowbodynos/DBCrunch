@@ -52,7 +52,8 @@ class DatabaseReader(object):
         self.restart(**find_kwargs)
 
     def restart(self, **kwargs):
-        self.__find_kwargs.update(kwargs)
+        if kwargs:
+            self.__find_kwargs.update(kwargs)
         self.__db_cursor = self.__db_collections.find(self.__db_info.query, self.__db_info.projection, **self.__find_kwargs)
         self.__db_cursor = self.__db_cursor.hint(self.__db_info.hint)
         self.__db_cursor = self.__db_cursor.skip(self.__db_info.skip)
