@@ -600,6 +600,7 @@ def do_initialize(config, steps, refill):
             status_stream.flush()
 
         for step in steps:
+            # open(config.controller.path + "/docs/" + step["name"] + ".proc", "w").close()
             with open(config.controller.path + "/docs/" + step["name"] + ".docs", "w") as doc_stream:
                 for doc in step["docs"]:
                     doc_stream.write(json.dumps(doc, separators = (',', ':')) + "\n")
@@ -617,7 +618,7 @@ def do_initialize(config, steps, refill):
                 #sys.stdout.flush()
                 yaml.dump(wrap_step, step_stream)
 
-def next_batch(config, wm_api, db_reader, counter):
+def next_batch(config, wm_api, db_reader, prev_docs, counter):
     if config.options.reloadconfig:
         config.reload()
     #print("NThreads: " + str(active_count()))
@@ -632,6 +633,15 @@ def next_batch(config, wm_api, db_reader, counter):
         status_stream.flush()
 
     doc_count = db_reader.read(n_docs)
+
+    next_docs = []
+    for doc in db_reader.batch:
+        if doc in prev_docs:
+            db_reader.batch.remove(doc)
+            doc_count -= 1
+        else:
+            next_docs.append(doc)
+
     counter.incr_doc(doc_count)
 
     refill, steps = do_verify(config, wm_api, db_reader, counter)
@@ -644,12 +654,17 @@ def next_batch(config, wm_api, db_reader, counter):
             counter.incr_step(len(steps))
         counter.dump()
 
-def iterate_batches(config, wm_api, db_reader, counter):
+    return next_docs
+
+def iterate_batches(config, wm_api, db_reader, prev_docs, counter):
+    all_docs = []
     while time_left(config) > 0 and not db_reader.done:
         #try:
-        next_batch(config, wm_api, db_reader, counter)
+        next_docs = next_batch(config, wm_api, db_reader, prev_docs, counter)
+        all_docs.extend(next_docs)
         #except StopIteration:
         #    break
+    return all_docs
 
 # Load arguments
 
@@ -708,11 +723,12 @@ sys.stdout.flush()
 
 counter = BatchCounter(config.controller.path + "/counter")
 
-iterate_batches(config, wm_api, db_reader, counter)
+all_docs = []
+all_docs = iterate_batches(config, wm_api, db_reader, all_docs, counter)
 
 while time_left(config) > 0 and wm_api.is_dependency_running(config.cluster.user, config.controller.dependencies):
     db_reader.restart()
-    iterate_batches(config, wm_api, db_reader, counter)
+    all_docs = iterate_batches(config, wm_api, db_reader, all_docs, counter)
     while time_left(config) > 0 and wm_api.n_controller_jobs(config.cluster.user, config.module.name, config.controller.name) > 0:
         if db_reader.done:
             for refill_file in os.listdir(config.controller.path + "/docs"):

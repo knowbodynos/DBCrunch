@@ -144,7 +144,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, wm_api, intermed_queue, out_queue, stats_queue, process, stat_names, **kwargs):
+    def __init__(self, wm_api, intermed_queue, out_queue, stats_queue, process, stat_names, proc_count, **kwargs):
         # Assertions
 
         assert isinstance(intermed_queue, Queue)
@@ -166,6 +166,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
 
         # Initialize private variables
 
+        self.__proc_count = proc_count
         self.__intermed_queue = intermed_queue
         self.__out_queue = out_queue
         self.__stats_queue = stats_queue
@@ -175,7 +176,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
         self.__stdin_path = self.controller.path + "/docs/" + self.step.name
         self.__stdin_file = open(self.__stdin_path + ".docs", "a+")
         self.__stdin_file.seek(0)
-        self.__cleanup_counter = 0
+        # self.__cleanup_counter = 0
         #self.__refill_reported = False
         self.__proc_smaps = open("/proc/" + str(self.__process.pid) + "/smaps", "r")
         self.__proc_stat = open("/proc/" + str(self.__process.pid) + "/stat", "r")
@@ -197,7 +198,8 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
         self.daemon = True
 
     def cleanup(self):
-        if (self.options.cleanup and self.__cleanup_counter >= self.options.cleanup and not self.__stdin_file.closed) or not time_left(self) > 0:
+        # if (self.options.cleanup and self.__cleanup_counter >= self.options.cleanup and not self.__stdin_file.closed) or not time_left(self) > 0:
+        if (self.options.cleanup and self.__proc_count >= self.options.cleanup and not self.__stdin_file.closed) or not time_left(self) > 0:
             while True:
                 try:
                     flock(self.__stdin_file, LOCK_EX | LOCK_NB)
@@ -208,17 +210,37 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                     else:
                         sleep(0.1)
             with tempfile.NamedTemporaryFile(dir = self.controller.path + "/docs", delete = False) as temp_stream:
+                offset_pos = self.__stdin_file.tell()
+                i = 0
                 in_line = self.__stdin_file.readline()
                 while in_line != "":
-                    temp_stream.write(str.encode(in_line))
-                    temp_stream.flush()
+                    if i < self.__proc_count:
+                        curr_pos = self.__stdin_file.tell()
+                    else:
+                        temp_stream.write(str.encode(in_line))
+                        temp_stream.flush()
+                    i += 1
                     in_line = self.__stdin_file.readline()
                 self.__stdin_file.close()
                 os.rename(temp_stream.name, self.__stdin_file.name)
                 self.__stdin_file = open(self.__stdin_file.name, "a+")
-                self.__stdin_file.seek(0)
+                self.__stdin_file.seek(curr_pos - offset_pos)
             flock(self.__stdin_file, LOCK_UN)
-            self.__cleanup_counter = 0
+            # self.__cleanup_counter = 0
+            self.__proc_count = 0
+            with open(self.__stdin_path + ".count", "w") as count_stream:
+                while True:
+                    try:
+                        flock(count_stream, LOCK_EX | LOCK_NB)
+                        break
+                    except IOError as e:
+                        if e.errno != EAGAIN:
+                            raise
+                        else:
+                            sleep(0.1)
+                count_stream.write(0)
+                count_stream.flush()
+                flock(count_stream, LOCK_UN)
 
     def write_stdin(self):
         #with open(self.controller.path + "/logs/" + self.step.name + ".qqq", "a") as qqq_stream:
@@ -256,8 +278,35 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                     self.__stdin_file.close()
                     os.rename(self.__stdin_path + ".docs", self.__stdin_path + ".done")
                 self.__refill_reported = True
-                self.__cleanup_counter = 0
+                # self.__cleanup_counter = 0
             else:
+                # stdin_pos = self.__stdin_file.tell()
+                # with tempfile.NamedTemporaryFile(dir = self.controller.path + "/docs", delete = False) as temp_stream1:
+                #     for line in self.__stdin_file:
+                #         temp_stream1.write(str.encode(line))
+                #         temp_stream1.flush()
+                #     self.__stdin_file.truncate(stdin_pos)
+                #     self.__stdin_file.seek(0)
+                #     with tempfile.NamedTemporaryFile(dir = self.controller.path + "/docs", delete = False) as temp_stream2:
+                #         i = 0
+                #         with open(self.__stdin_path + ".proc", "r") as proc_stream:
+                #             for line in proc_stream:
+                #                 if i >= self.__proc_count:
+                #                     temp_stream2.write(str.encode(line))
+                #                     temp_stream2.flush()
+                #                 i += 1
+                #         for line in self.__stdin_file:
+                #             if i >= self.__proc_count:
+                #                 temp_stream2.write(str.encode(line))
+                #                 temp_stream2.flush()
+                #             i += 1
+                #         os.remove(self.__stdin_path + ".proc")
+                #         os.rename(temp_stream2.name, self.__stdin_path + ".proc")
+                #     os.remove(self.__stdin_path + ".docs")
+                #     os.rename(temp_stream1.name, self.__stdin_path + ".docs")
+                #     self.__stdin_file = open(self.__stdin_path + ".docs", "a+")
+                #     self.__stdin_file.seek(0)
+
                 self.__intermed_queue.put(in_line)
                 #sys.stdout.write(in_line + "\n")
                 #sys.stdout.flush()
@@ -266,7 +315,7 @@ class AsyncIOStatsStream(WrapperConfig, Thread):
                     self.__process.stdin.write(str.encode(in_line[i:i + 400]))
                 self.__process.stdin.write(b"\n")
                 self.__process.stdin.flush()
-                self.__cleanup_counter += 1
+                # self.__cleanup_counter += 1
 
     def get_stats(self, in_timestamp = None, out_timestamp = None):
         if self.__stats:
@@ -440,7 +489,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
     a separate thread. Pushes read lines on a queue to
     be consumed in another thread.
     '''
-    def __init__(self, wm_api, db_writer, db_stats_writer, **kwargs):
+    def __init__(self, wm_api, db_writer, db_stats_writer, proc_count, **kwargs):
         # Initialize WrapperConfig
 
         WrapperConfig.__init__(self, **kwargs)
@@ -462,6 +511,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
         # Initialize private variables
 
         self.__signal = False
+        self.__proc_count = proc_count
         self.__count_bkp_ext_out = {}
         self.__count_log_out = 0
         self.__count_batches_out = 0
@@ -474,6 +524,31 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
             in_write_time = time()
 
         count, log_lines, bkp_ext_lines = self.__db_writer.get_batch(upsert = True)
+        self.__proc_count += count
+        # with open(self.controller.path + "/docs/" + self.step.name + ".count", "w") as count_stream:
+        #     while True:
+        #         try:
+        #             flock(count_stream, LOCK_EX | LOCK_NB)
+        #             break
+        #         except IOError as e:
+        #             if e.errno != EAGAIN:
+        #                 raise
+        #             else:
+        #                 sleep(0.1)
+        #     count_stream.write(self.__proc_count)
+        #     count_stream.flush()
+        #     flock(count_stream, LOCK_UN)
+
+        # with tempfile.NamedTemporaryFile(dir = self.controller.path + "/docs", delete = False) as temp_stream:
+        #     with open(self.controller.path + "/docs/" + self.step.name + ".proc", "r") as proc_stream:
+        #         i = 0
+        #         for line in proc_stream:
+        #             if i >= count:
+        #                 temp_stream.write(str.encode(line))
+        #                 temp_stream.flush()
+        #             i += 1
+        #     os.remove(self.controller.path + "/docs/" + self.step.name + ".proc")
+        #     os.rename(temp_stream.name, self.controller.path + "/docs/" + self.step.name + ".proc")
         
         if self.__db_stats_writer:
             stats_count, stats_log_lines, stats_bkp_ext_lines = self.__db_stats_writer.get_batch(upsert = True)
@@ -666,6 +741,8 @@ def process_module_output(config, db_writer, db_stats_writer, intermed_queue, ou
                         with open(config.controller.path + "/logs/" + config.step.name + ".log", "a") as out_log_stream:
                             out_log_stream.write(line + "\n")
                             out_log_stream.flush()
+            elif line == "None":
+                pass
             elif len(line_split) == 4:
                 # try:
                 collection = line_split[1]
@@ -718,12 +795,15 @@ for req_stat in ["totalcputime", "rss", "size"]:
 
 # Initialize queues
 
+proc_count = 0
 intermed_queue = Queue()
 out_queue = Queue()
 stats_queue = Queue()
 
 # Run module
 script = ""
+if config.module.prefix:
+    script += config.module.prefix + " "
 if config.module.command:
     script += config.module.command + " "
 if config.module.flags:
@@ -733,6 +813,7 @@ if config.module.extension:
     script += config.module.extension
 if config.module.args:
     script += " " + " ".join(config.module.args)
+
 process = Popen(script, shell = True, stdin = PIPE, stdout = PIPE, stderr = PIPE, bufsize = 1, preexec_fn = default_sigpipe)
 
 # Initialize database writer
@@ -761,14 +842,14 @@ else:
 
 # Initialize stats thread
 
-reader = AsyncIOStatsStream(wm_api, intermed_queue, out_queue, stats_queue, process, stat_names, **kwargs)
+reader = AsyncIOStatsStream(wm_api, intermed_queue, out_queue, stats_queue, process, stat_names, proc_count, **kwargs)
 reader.start()
 
 # Initialize bulk write thread
 
 
 
-writer = AsyncBulkWriteStream(wm_api, db_writer, db_stats_writer, **kwargs)
+writer = AsyncBulkWriteStream(wm_api, db_writer, db_stats_writer, proc_count, **kwargs)
 writer.start()
 
 # Remove step file
@@ -838,6 +919,8 @@ flock(sys.stdout, LOCK_UN)
 db_writer.close()
 if db_stats_writer:
     db_stats_writer.close()
+
+# os.remove(config.controller.path + "/docs/" + config.step.name + ".proc")
 
 if config.options.intermedlog:
     os.remove(config.controller.path + "/logs/" + config.step.name + ".log.intermed")

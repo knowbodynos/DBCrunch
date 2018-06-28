@@ -145,6 +145,8 @@ job:
 module:
   # Module name
   name: "<module>"
+  # Module prefix
+  prefix: "<script_prefix>"
   # Module language
   language: "<script_langauge>"
   # Arguments to module
