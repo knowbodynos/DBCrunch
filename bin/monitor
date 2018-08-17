@@ -8,17 +8,23 @@ monitorjobs() {
         mod_name=$(echo "${controller}" | cut -d'&' -f2 | cut -d'_' -f2)
         controller_name=$(echo "${controller}" | cut -d'&' -f2 | cut -d'_' -f3)
         logs_path="${controller_path}/logs"
-        intermeds=$(cat ${logs_path}/*.log.intermed ${logs_path}/*.log 2>/dev/null | rev | sort -u -k1,1 | wc -l)
-        outs=$(cat "${logs_path}"/*.log 2>/dev/null | wc -l)
+        intermeds=$(cat ${logs_path}/*.log.intermed ${logs_path}/*.log 2>/dev/null | rev | sort -u -k1,1 | rev | tr '\n' '!')
+        intermeds_count=$(echo "${intermeds}" | tr '!' '\n' 2>/dev/null | wc -l)
+        intermeds_success_count=$((${intermeds_count}-$(echo "${intermeds}" | tr '!' '\n' 2>/dev/null | grep " None " | wc -l)))
+        outs=$(cat "${logs_path}"/*.log 2>/dev/null | tr '\n' '!')
+        outs_count=$(echo "${outs}" | tr '!' '\n' 2>/dev/null | wc -l)
+        outs_success_count=$((${outs_count}-$(echo "${outs}" | tr '!' '\n' 2>/dev/null | grep " None " | wc -l)))
         #docs=$(cat ${docspath}/*.docs 2>/dev/null | wc -l)
         reads=$(cat "${controller_path}/counter" 2>/dev/null | cut -d' ' -f3)
         echo "${mod_name}_${controller_name}"
         if [[ "${reads}" != "" ]] && [ "${reads}" -gt 0 ]
         then 
-            intermeds_frac=$(echo "scale=2;(100*${intermeds})/${reads}" | bc)
-            echo "${intermeds_frac}% Processing: ${intermeds} of ${reads}"
-            outs_frac=$(echo "scale=2;(100*${outs})/${reads}" | bc)
-            echo "${outs_frac}% Finished: ${outs} of ${reads}"
+            intermeds_frac=$(echo "scale=2;100*(${intermeds_count}/${reads})" | bc)
+            intermeds_success_frac=$(echo "scale=2;100*(${intermeds_success_count}/${intermeds_count})" | bc)
+            echo "${intermeds_frac}% Processed: ${intermeds_count} of ${reads}, of which ${intermeds_success_frac}% Successful: ${intermeds_success_count} of ${intermeds_count}"
+            outs_frac=$(echo "scale=2;100*(${outs_count}/${reads})" | bc)
+            outs_success_frac=$(echo "scale=2;100*(${outs_success_count}/${outs_count})" | bc)
+            echo "${outs_frac}% Finished: ${outs_count} of ${reads}, of which ${outs_success_frac}% Successful: ${outs_success_count} of ${outs_count}"
         fi
         #echo "Locks: $(cat ${controller_path}/locks 2>/dev/null)"
         echo "Locks: $(ls ${controller_path}/locks/*.lock 2>/dev/null | wc -l)"

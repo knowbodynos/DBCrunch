@@ -671,6 +671,7 @@ class AsyncBulkWriteStream(WrapperConfig, Thread):
         self.__signal = True
 
 def process_module_output(config, db_writer, db_stats_writer, intermed_queue, out_queue, stats_queue):
+    prev_line = ""
     while not out_queue.empty():
         line = out_queue.get()
         if not (config.module.ignore and line in config.module.ignore):
@@ -698,14 +699,18 @@ def process_module_output(config, db_writer, db_stats_writer, intermed_queue, ou
                     index_doc = dict([(x, doc[x]) for x in db_stats_writer.indexes])
                 else:
                     index_doc = dict([(x, doc[x]) for x in db_writer.indexes])
+                if prev_line == "None":
+                    bson_size = "None"
+                else:
+                    bson_size = str(db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size)
                 log_line = ""
                 if config.options.intermedlog or config.options.outlog:
                     if config.options.intermedlog:
                         with open(config.controller.path + "/logs/" + config.step.name + ".log.intermed", "a") as intermed_log_stream:
-                            intermed_log_stream.write(out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':')) + "\n")
+                            intermed_log_stream.write(out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + bson_size + " " + json.dumps(index_doc, separators = (',', ':')) + "\n")
                             intermed_log_stream.flush()
                     if config.options.outlog:
-                        log_line = out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + str(db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size) + " " + json.dumps(index_doc, separators = (',', ':'))
+                        log_line = out_intermed_time + " " + in_intermed_time + " " + str(dir_size(config.controller.path)) + " " + ("%.2f" % cpu_time) + " " + str(max_rss) + " " + str(max_vmsize) + " " + bson_size + " " + json.dumps(index_doc, separators = (',', ':'))
                 stats_mark = {}
                 if config.options.statslocal or config.options.statsdb:
                     stats_mark.update({config.module.name + "STATS": {"CPUTIME": cpu_time, "MAXRSS": max_rss, "MAXVMSIZE": max_vmsize, "BSONSIZE": db_stats_writer.bson_size if db_stats_writer else db_writer.bson_size}})
@@ -766,6 +771,7 @@ def process_module_output(config, db_writer, db_stats_writer, intermed_queue, ou
                         traceback.print_exc(file = err_file_stream)
                         err_file_stream.flush()
                     raise
+            prev_line = line
 
 # Load arguments
 
